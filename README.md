@@ -14,7 +14,8 @@ un `docker compose` que levanta el proyecto entero con un comando.
   sin filtrar jamás la cadena de conexión.
 - La pantalla de estado que lo consume, en la raíz del sitio.
 - Las cuatro capas de observabilidad del `ADR-009`: logs estructurados con correlación por
-  request, métricas Prometheus, un dashboard de Grafana y reporte de errores a Sentry.
+  request y agregados en Loki, métricas Prometheus, un dashboard de Grafana y reporte de errores
+  a Sentry.
 
 **Lo que todavía no existe:** autenticación, el catálogo de símbolos, las cotizaciones y las
 favoritas. Son las fases 1 a 3 de `docs/ROADMAP.md`.
@@ -100,7 +101,7 @@ diverge nadie sabe cuál vale.
 ```
 backend/     el backend (Python · FastAPI · uv)
 frontend/    el frontend (TypeScript · React · npm)
-infra/       configuración de Prometheus y Grafana
+infra/       configuración de Prometheus, Loki, Alloy y Grafana
 scripts/     el script de despliegue
 docs/        brief, decisiones, specs y diseño
 agents/      roles y skills del proceso de desarrollo
@@ -119,9 +120,12 @@ Cuatro capas, decididas en [`ADR-009`](docs/DECISIONS.md):
 
 1. **Logs** en JSON, una línea por evento, con un `request_id` que atraviesa todas las líneas de
    un mismo pedido y vuelve en la respuesta. Un `X-Request-ID` entrante se respeta en vez de
-   reemplazarse, así la cadena sobrevive al proxy.
+   reemplazarse, así la cadena sobrevive al proxy. Se agregan en **Loki**, que Grafana consulta
+   como datasource: `{service="backend", level="error"}` filtra por índice, y el `|=` busca
+   dentro de la línea.
 2. **Métricas** Prometheus en `/metrics`, que no se publica hacia afuera.
-3. **Dashboard** de Grafana, en `/grafana` detrás de su propio login.
+3. **Dashboard** de Grafana, en `/grafana` detrás de su propio login, con los dos datasources:
+   el pico de una métrica y las líneas que lo explican se miran en el mismo panel.
 4. **Sentry**, con las tres opciones que filtrarían credenciales apagadas y un `before_send` que
    enmascara secretos por valor y por forma.
 
