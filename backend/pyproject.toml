@@ -14,6 +14,13 @@ dependencies = [
     "structlog>=26.1.0",
     "prometheus-client>=0.21",
     "sentry-sdk[fastapi]>=2.19",
+    # FastAPI carries no cryptography. `fastapi.security` extracts the Authorization header and
+    # documents it in OpenAPI; verifying the signature and hashing the password are these two.
+    #   argon2-cffi -> SEC-06, the only approved algorithm for a stored password
+    #   pyjwt       -> ADR-004, HS256
+    # Neither needs a stubs package: both ship py.typed, so mypy strict reads them directly.
+    "argon2-cffi>=25.1.0",
+    "pyjwt>=2.14.0",
 ]
 
 [dependency-groups]
