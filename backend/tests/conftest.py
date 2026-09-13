@@ -4,11 +4,12 @@ TEST-03: the suite runs with no network and no API key. Anything that would reac
 replaced here — never reached, and never a reason to skip a test.
 """
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 import pytest
 import sentry_sdk
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app import observability
 from app.settings import get_settings
@@ -100,3 +101,28 @@ def sentry_configured(monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
 
     sentry_sdk.init(dsn=None)
     get_settings.cache_clear()
+
+
+@pytest.fixture
+async def session() -> AsyncIterator[AsyncSession]:
+    """A session against the real database, inside a transaction that is always rolled back.
+
+    Integration tests run against Postgres and not against a double (TEST-02), so they need the
+    schema that `alembic upgrade head` creates. What they must not need is cleanup: every test
+    opens its own transaction and the rollback undoes it, so the order tests run in cannot
+    change what they see.
+    """
+    engine = create_async_engine(get_settings().database_url)
+
+    async with engine.connect() as connection:
+        transaction = await connection.begin()
+        factory = async_sessionmaker(
+            bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
+        )
+
+        async with factory() as opened:
+            yield opened
+
+        await transaction.rollback()
+
+    await engine.dispose()

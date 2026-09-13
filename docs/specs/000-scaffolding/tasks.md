@@ -2,8 +2,7 @@
 
 **Feature:** `000-scaffolding` · **Plan:** — (ver *Por qué esta carpeta es distinta*)
 
-**Tests aprobados por:** Leandro Carriego · **Fecha de aprobación:** 2026-09-13 — *tareas 11, 12
-y 13.*
+**Tests aprobados por:** Leandro Carriego · **Fecha de aprobación:** 2026-09-13 — *tareas 11 a 15.*
 
 <!--
   Lo completa `/approve-tests`, nunca un agente por su cuenta (Artículo VI). Acá la firma es
@@ -61,8 +60,10 @@ registradas como lo que son.
 | 11 | Tests de arquitectura: fronteras, capas, proveedor y autorización de rutas | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | `tests/architecture/` — firmados 2026-09-13 |
 | 12 | Las cuatro tablas y su migración inicial | REQ-18 · ADR-001 · DB-01 | `tests/architecture/test_data_model.py` — firmados 2026-09-13 |
 | 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON capturado | ADR-006 · TEST-03 · ERR-05 | `tests/unit/test_{market_data_provider,upstream_client,provider_wiring}.py` — firmados 2026-09-13 |
+| 14 | Reconciliación del catálogo y el filtro de ingesta | ADR-002 · ADR-001 · A4 | `tests/unit/test_catalogue_filter.py` · `tests/integration/test_catalogue_ingestion.py` — firmados 2026-09-13 |
+| 15 | Seed: 2 usuarios con Argon2 y favoritas demo, y `app/security.py` | REQ-19 · SEC-06 · ADR-004 | `tests/integration/test_password_hashing.py` · `tests/integration/test_seed.py` — firmados 2026-09-13 |
 
-Las tareas **11, 12 y 13 sí pasaron el gate**: sus tests se escribieron antes, se verificaron
+Las tareas **11 a 15 sí pasaron el gate**: sus tests se escribieron antes, se verificaron
 en rojo y se firmaron el 2026-09-13 (encabezado de este archivo). Están en esta tabla porque ya
 están hechas, no porque se hayan salteado nada.
 
@@ -76,13 +77,19 @@ primero y se verificó en rojo, sólo que todavía no existía este archivo dond
 
 ## Pendiente
 
-Cada una pasa por el gate: primero los tests, después la firma en su fila, y recién entonces la
-implementación.
+Queda una sola cosa de la fase, y es la parte de `ADR-002` que los tests firmados no cubren.
 
 | # | Tarea | Skill | Rol | Cubre | Depende de | Firma |
 |---|-------|-------|-----|-------|------------|-------|
-| 14 | Ingesta del catálogo NYSE + NASDAQ, reconciliando contra la foto del proveedor | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 ✅ · ADR-006 ✅ · 12, 13 | — |
-| 15 | Seed: 2 usuarios con Argon2 y favoritas demo (TSLA, AAPL, NFLX) | `add_backend_feature` | Developer | REQ-19 | ADR-004 · 12 | — |
+| 16 | El refresco programado del catálogo y su métrica de frescura | `add_backend_feature` | Developer | ADR-002 (puntos 3 y 5) · ADR-009 | 14 ✅ | — |
+
+**Qué falta exactamente.** La reconciliación existe y está testeada, pero hoy no la dispara
+nadie: `ADR-002` decidió que corra al arrancar si la última ingesta exitosa tiene más de 24 horas
+y cada 24 horas después, y que la frescura se publique como un gauge que Grafana grafica. Sin eso,
+el catálogo vuelve a depender de que alguien se acuerde — que es exactamente lo que ese ADR se
+reescribió para evitar.
+
+Pasa por el gate como todas: primero los tests, después la firma, después el código.
 
 ### La tarea 11, en detalle
 
