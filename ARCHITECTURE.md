@@ -28,7 +28,14 @@ origin_solutions_challenge/
 El stack completo, está en `docs/PROJECT_BRIEF.md` → *Stack*.
 
 **`infra/` no es un tercer proyecto.** No tiene código ni dependencias: es la configuración de
-los servicios de observabilidad que se despliegan junto a los otros dos. Los dashboards viven
+los servicios de observabilidad que se despliegan junto a los otros dos.
+
+El criterio de qué entra es el **contexto de build**, no el tema: en `infra/` va lo que el host
+**monta** en un contenedor de una imagen ajena (el `prometheus.yml`, el provisioning de Grafana);
+junto a su proyecto va lo que se **hornea** en la imagen propia. Por eso `frontend/nginx.conf`
+vive en `frontend/`: el build context de esa imagen es `./frontend`, así que un archivo en
+`infra/` no sería copiable sin subir el contexto a la raíz del repo — y eso mandaría el
+repositorio entero al daemon en cada build. Los dashboards viven
 ahí como JSON versionado y no como algo que alguien clickeó, y un test
 (`backend/tests/architecture/test_dashboard_metrics.py`) verifica que cada métrica que grafican
 exista de verdad en el código — un contador renombrado deja los paneles en blanco sin romper
