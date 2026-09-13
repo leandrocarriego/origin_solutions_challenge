@@ -8,7 +8,7 @@ Lo usan dos roles, con dos lecturas distintas:
 
 - el **Code-Reviewer**, mientras revisa: la lista que recorre entera, citando el identificador de cada hallazgo (`"esto viola PY-06"`) en lugar de reescribir la regla.
 
-**Si una convención no está acá, no es una convención del proyecto.** 
+**Si una convención no está acá, no es una convención del proyecto.**
 
 No hay ni debe haber reglas de código en `AGENTS.md`, en `ARCHITECTURE.md`, en los roles ni en las skills: ahí hay punteros a este archivo.
 
@@ -24,11 +24,11 @@ Cada convención tiene tres cosas:
 
 ## Convenciones verificadas por un test que rompe el build
 
-Esta es la distinción más importante del documento. 
+Esta es la distinción más importante del documento.
 
 Estas nueve convenciones **no dependen de que alguien las lea**: hay un test que falla, y la suite no pasa.
 
-**Dónde se verifican.** El hook `pytest-fast` del pre-commit corre `tests/unit` y `tests/architecture`, así que `GEN-02`, `PY-06`, `PY-08`, `GEN-08` y `GEN-09` frenan el commit antes de que salga de la máquina. 
+**Dónde se verifican.** El hook `pytest-fast` del pre-commit corre `tests/unit` y `tests/architecture`, así que `GEN-02`, `PY-06`, `PY-08`, `GEN-08` y `GEN-09` frenan el commit antes de que salga de la máquina.
 
 `TEST-03` y `TEST-05` miden la suite completa y por eso se verifican en CI (`.github/workflows/ci.yml`), junto con integración y `alembic check`. `UI-02` y `UI-03` son del frontend: las corre `npm test` (vitest), también en CI.
 
@@ -124,11 +124,11 @@ El `__init__.py` de un módulo tiene **sólo** tres cosas: docstring, imports y 
 
 `get_current_user` es primitiva de seguridad que consumen los routers de todos los módulos, así que vive en `app/security.py` junto con Argon2 y JWT (`GEN-03`).
 
-La lectura cruzada real del proyecto es la grilla de *Mis Acciones*: `user_stocks` vive en `favorites/` y necesita símbolo, nombre y moneda, que viven en `stocks/`. 
+La lectura cruzada real del proyecto es la grilla de *Mis Acciones*: `user_stocks` vive en `favorites/` y necesita símbolo, nombre y moneda, que viven en `stocks/`.
 Se resuelve con `get_stocks(symbols: list[str]) -> list[StockInfo]`, que `stocks` declara en su `__all__`, **en batch**: una sola consulta para toda la grilla. Nunca N+1, nunca importando el repository ajeno. Ese es el inventario **completo** de lecturas cruzadas del backend.
 
-Y hay una puerta trasera que el chequeo de imports **no puede ver**: un `relationship()` de SQLAlchemy que cruce módulos. 
-`favorite.stock.name` no genera ningún import y sin embargo acopla `favorites` al modelo de `stocks`. 
+Y hay una puerta trasera que el chequeo de imports **no puede ver**: un `relationship()` de SQLAlchemy que cruce módulos.
+`favorite.stock.name` no genera ningún import y sin embargo acopla `favorites` al modelo de `stocks`.
 Las `ForeignKey` entre tablas de módulos distintos son legítimas (son una garantía del motor, y los módulos separan código, no esquema) los `relationship()` que cruzan, no.
 
 ```
@@ -137,9 +137,9 @@ cd backend && grep -rn "relationship(" app/modules
 
 Cada resultado debe apuntar a un modelo del **propio** módulo.
 
-El chequeo definitivo lo hace `test_module_boundaries.py`, que lee los imports con `ast` y falla nombrando archivo y línea. 
+El chequeo definitivo lo hace `test_module_boundaries.py`, que lee los imports con `ast` y falla nombrando archivo y línea.
 
-Al lado, `no_implicit_reexport = true` hace que `mypy` (`PY-09`, Blocker) marque el nombre que se importa de un paquete que no lo declara en su `__all__`. 
+Al lado, `no_implicit_reexport = true` hace que `mypy` (`PY-09`, Blocker) marque el nombre que se importa de un paquete que no lo declara en su `__all__`.
 
 El porqué, en `ARCHITECTURE.md`.
 
@@ -170,17 +170,17 @@ Un módulo que existe y cuyo router no está montado es código muerto que apare
 
 Si `A` entra al paquete de `B`, `B` no entra al de `A`.
 
-Dos módulos que se llaman de ida y de vuelta son uno solo con dos nombres: no se testean por separado, no se despliegan por separado y el día que haya que extraer uno hay que extraer los dos. 
+Dos módulos que se llaman de ida y de vuelta son uno solo con dos nombres: no se testean por separado, no se despliegan por separado y el día que haya que extraer uno hay que extraer los dos.
 
-Lo que dos módulos comparten y no es de ninguno baja a `app/`, lo que uno necesita del otro va en una sola dirección, declarada en el `__all__` del que provee. 
+Lo que dos módulos comparten y no es de ninguno baja a `app/`, lo que uno necesita del otro va en una sola dirección, declarada en el `__all__` del que provee.
 
-Adentro del módulo vale lo mismo entre services: un service no importa otro service, porque el ciclo aparece en cuanto el segundo necesite algo del primero: lo que comparten baja a un repository y lo que uno necesita del otro lo compone el router. 
+Adentro del módulo vale lo mismo entre services: un service no importa otro service, porque el ciclo aparece en cuanto el segundo necesite algo del primero: lo que comparten baja a un repository y lo que uno necesita del otro lo compone el router.
 
 Si eso resulta incómodo, el corte está mal hecho: escalá al `Backend-Architect`.
 
 ### `GEN-06` - Blocker: Se respetan las reglas del dominio (INVIOLABLES) de `AGENTS.md`.
 
-No se reproducen acá para que exista un solo lugar donde cambiarlas. 
+No se reproducen acá para que exista un solo lugar donde cambiarlas.
 
 ```
 cd frontend && grep -rniE "twelvedata|apikey|api_key" src            # debe no devolver nada
@@ -193,11 +193,11 @@ Ver también `SEC-02` (la API key) y `ERR-05` (modos de fallo), que son sus mani
 
 Nombres, comentarios, docstrings y mensajes de commit en inglés.
 
-Los strings que ve el usuario en la UI, en español (`TS-07`). 
+Los strings que ve el usuario en la UI, en español (`TS-07`).
 
 Los términos del dominio se traducen (`stock`, `quote`, `favorite`) salvo los que no tienen equivalente limpio, que se dejan como están y se documentan.
 
-**Los archivos de configuración cuentan como código**: YAML, `Makefile`, `Dockerfile`, scripts de shell y `.env.example` llevan sus **comentarios en inglés**. 
+**Los archivos de configuración cuentan como código**: YAML, `Makefile`, `Dockerfile`, scripts de shell y `.env.example` llevan sus **comentarios en inglés**.
 
 Van intercalados con palabras clave en inglés (`repos`, `hooks`, `services`, `RUN`, `.PHONY`) y una mezcla se lee peor que cualquiera de las dos opciones puras.
 
@@ -270,7 +270,7 @@ Y los que **no**, porque acá no pagan: Factory (no hay familias de objetos que 
 
 ### `PY-01` - Blocker: No se importan tipos desde `typing`.
 
-**Prohibidos**: `List`, `Dict`, `Tuple`, `Set`, `Optional`, `Union`. 
+**Prohibidos**: `List`, `Dict`, `Tuple`, `Set`, `Optional`, `Union`.
 
 **Permitidos**, porque no tienen equivalente built-in: `Any`, `Callable`, `TypeVar`, `Generic`, `Annotated` (lo exige `Depends()` de FastAPI) y `TYPE_CHECKING`.
 
@@ -292,9 +292,9 @@ cd backend && grep -rnE "^\s+(import |from .+ import )" app | grep -v "TYPE_CHEC
 
 ### `PY-04` - Blocker: Toda función y todo método tienen entradas y retorno tipados.
 
-Sin `Any` implícito. 
+Sin `Any` implícito.
 
-`mypy` corre con `strict = true` (`backend/pyproject.toml`), que activa `disallow_untyped_defs`: una función sin anotar falla con `no-untyped-def`. Lo verifica la herramienta, no el review. 
+`mypy` corre con `strict = true` (`backend/pyproject.toml`), que activa `disallow_untyped_defs`: una función sin anotar falla con `no-untyped-def`. Lo verifica la herramienta, no el review.
 
 `PY-09` cubre lo demás.
 
@@ -308,7 +308,7 @@ cd backend && grep -rnE "\bcreate_engine\(|sessionmaker\(|\bSession\(" app
 
 ### `PY-06` - Blocker : Adentro del módulo el flujo va `router` → `service` → `repository`, en un solo sentido.
 
-Un router no importa SQLAlchemy, un service no importa `fastapi`. 
+Un router no importa SQLAlchemy, un service no importa `fastapi`.
 
 Un `select()` dentro de `router.py` saltea la capa donde viven las decisiones.
 
@@ -360,15 +360,15 @@ cd backend && uv run mypy app tests
 
 ### `PY-10` - Major: Nombres, PEP 8, y el guión bajo marca lo privado del archivo.
 
-`snake_case` para funciones, métodos, variables y argumentos. 
+`snake_case` para funciones, métodos, variables y argumentos.
 
 `PascalCase` para clases.
 
-`UPPER_SNAKE_CASE` para constantes de módulo, **siempre** en mayúsculas. 
+`UPPER_SNAKE_CASE` para constantes de módulo, **siempre** en mayúsculas.
 
 Guión bajo adelante para lo privado del archivo: funciones, variables, constantes (`_DEFAULT_TTL`), métodos y clases auxiliares que no se usan fuera del archivo donde viven.
 
-Son **dos niveles de privacidad distintos y conviene no confundirlos**: 
+Son **dos niveles de privacidad distintos y conviene no confundirlos**:
 
 - El guión bajo marca lo privado del *archivo*.
 
@@ -447,7 +447,7 @@ cd frontend && npm run lint && npm run format:check
 
 ### `UI-01` - Blocker: Cada pantalla reproduce la estructura de su wireframe.
 
-Mismo orden de elementos, mismas etiquetas, mismas columnas, mismos controles. 
+Mismo orden de elementos, mismas etiquetas, mismas columnas, mismos controles.
 
 Los wireframes están en `docs/design/wireframes/` y cada spec referencia el suyo.
 
@@ -455,7 +455,7 @@ No esta permitido agregar una columna a la grilla, reordenar los controles del d
 
 ### `UI-02` - Blocker: Los textos visibles son los literales del copy.
 
-Están fijados en `docs/design/COPY.md`. 
+Están fijados en `docs/design/COPY.md`.
 
 Un texto que el wireframe no define lo define `COPY.md`, y ahí queda.
 
@@ -465,7 +465,7 @@ cd frontend && grep -rn "usuario o clave" src   # debe existir, exactamente así
 
 ### `UI-03` - Major: Paleta neutra, del wireframe.
 
-Grises para superficie, borde y cabecera de tabla; azul de enlace sólo en lo que es enlace (el símbolo y `Eliminar`); una sola serie azul en el gráfico. 
+Grises para superficie, borde y cabecera de tabla; azul de enlace sólo en lo que es enlace (el símbolo y `Eliminar`); una sola serie azul en el gráfico.
 
 Ningún color literal en los componentes: salen de `src/styles/tokens.css`.
 
@@ -479,7 +479,7 @@ Una columna de números que no alinea se lee mal, y la grilla y el tooltip del g
 
 ### `UI-05` - Major: Los avisos van arriba del dato que califican.
 
-Los estados `stale`, `market_closed` y `no_data` (`ERR-05`) se muestran **sobre** el gráfico, nunca al pie ni en un toast que se va solo: califican lo que el usuario está mirando, y tienen que seguir ahí mientras lo mire. 
+Los estados `stale`, `market_closed` y `no_data` (`ERR-05`) se muestran **sobre** el gráfico, nunca al pie ni en un toast que se va solo: califican lo que el usuario está mirando, y tienen que seguir ahí mientras lo mire.
 
 El gráfico se dibuja igual con lo que haya: una pantalla en blanco sin explicación es el modo de falla que `ADR-005` existe para evitar.
 
@@ -508,7 +508,7 @@ cd backend && grep -rn "noqa: BLE001" app tests   # cada uno tiene que tener su 
 
 ### `ERR-03` - Blocker: Logging estructurado, nunca `print`.
 
-La excepción son los **entry points de línea de comandos** (`if __name__ == "__main__"`): lo que un comando le contesta a quien lo corrió va a su terminal, no al log, donde esa persona no lo está mirando. 
+La excepción son los **entry points de línea de comandos** (`if __name__ == "__main__"`): lo que un comando le contesta a quien lo corrió va a su terminal, no al log, donde esa persona no lo está mirando.
 
 Acotada a la función `main()` del comando: todo lo que ese comando llama sigue logueando.
 
@@ -518,9 +518,9 @@ cd backend && grep -rnE "^\s*print\(" app | grep -v "bootstrap.py"
 
 ### `ERR-04` - Blocker: Los services no lanzan `HTTPException`.
 
-Lanzan excepciones de dominio: las comunes en `app/errors.py` (`DomainError` y su familia : `NotFoundError`, `ConflictError`, `ValidationError`, `AuthenticationError`, `PermissionDeniedError`), y las propias de cada módulo en su propio código, heredando de `DomainError`. 
+Lanzan excepciones de dominio: las comunes en `app/errors.py` (`DomainError` y su familia : `NotFoundError`, `ConflictError`, `ValidationError`, `AuthenticationError`, `PermissionDeniedError`), y las propias de cada módulo en su propio código, heredando de `DomainError`.
 
-`main.py` las traduce a códigos HTTP. 
+`main.py` las traduce a códigos HTTP.
 
 Una excepción de dominio se levanta desde cualquier módulo y no arrastra `fastapi` con ella.
 
@@ -532,7 +532,7 @@ cd backend && grep -rn "HTTPException" app/modules | grep -v "/router"
 
 Cuota agotada, timeout, mercado cerrado y símbolo sin serie se traducen a un `status` tipado (`ok` / `stale` / `market_closed` / `no_data`) y el endpoint responde 200 con lo último conocido más el aviso.
 
-Un 429 de TwelveData reenviado tal cual al navegador es Blocker: el usuario no tiene cuenta en TwelveData. 
+Un 429 de TwelveData reenviado tal cual al navegador es Blocker: el usuario no tiene cuenta en TwelveData.
 
 Es `ADR-005` escrito como convención de código.
 
@@ -556,7 +556,7 @@ pre-commit run detect-private-key --all-files
 
 ### `SEC-02` - Blocker: La API key de los servicios externos viven sólo en el entorno del backend.
 
-Nunca en la base, nunca en el repositorio, nunca en un log, y **nunca en una variable `VITE_*`**: todo lo que empieza con `VITE_` termina en el bundle que se descarga el navegador. 
+Nunca en la base, nunca en el repositorio, nunca en un log, y **nunca en una variable `VITE_*`**: todo lo que empieza con `VITE_` termina en el bundle que se descarga el navegador.
 
 Es una regla del dominio (`GEN-06`).
 
@@ -623,7 +623,7 @@ cd backend && uv run alembic upgrade head
 
 ### `DB-03` - Major: Los modelos usan `Mapped[...]` + `mapped_column(...)`.
 
-Un solo esquema (el de por defecto) y tablas: `ARCHITECTURE.md` → *Modelo dendatos*. 
+Un solo esquema (el de por defecto) y tablas: `ARCHITECTURE.md` → *Modelo dendatos*.
 
 Las claves compuestas se declaran en el modelo, no se emulan con un `UniqueConstraint` más un `id` autoincremental que nadie usa.
 
@@ -675,7 +675,7 @@ cd backend && git diff --stat -- tests/ && grep -rn "skip\|xfail" tests | head -
 
 ### `TEST-07` - Minor: Convenciones de la suite.
 
-Patrón AAA (Arrange / Act / Assert) explícito, marcadores declarados en `pyproject.toml` (`--strict-markers`), tests async sin decorador (`asyncio_mode = "auto"`) y cobertura de los casos de error, no sólo del camino feliz. 
+Patrón AAA (Arrange / Act / Assert) explícito, marcadores declarados en `pyproject.toml` (`--strict-markers`), tests async sin decorador (`asyncio_mode = "auto"`) y cobertura de los casos de error, no sólo del camino feliz.
 
 Detalle en `backend/tests/README.md`.
 
@@ -751,7 +751,7 @@ pre-commit run --all-files
 
 El `Code-Reviewer` marca estos hallazgos como **Blocker**, sin excepción.
 
-Es la **lista completa**: las convenciones marcadas `Blocker` en este documento entran acá, sin un segundo grupo aparte. 
+Es la **lista completa**: las convenciones marcadas `Blocker` en este documento entran acá, sin un segundo grupo aparte.
 
 Si una convención está marcada Blocker y no aparece en esta tabla, la tabla está incompleta.
 
@@ -789,4 +789,3 @@ De ahora en adelante **un identificador retirado no se reutiliza**: se lista ac�
 
 | ID | Retirado | Motivo |
 |---|---|---|
-

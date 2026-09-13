@@ -7,7 +7,7 @@ Este documento explica **la forma**, y se abre al tocar la estructura o mover c�
 
 ## Las dos puntas
 
-El repositorio incluye **dos proyectos**: un frontend y una API. 
+El repositorio incluye **dos proyectos**: un frontend y una API.
 
 No es un monorepo con código compartido: son dos aplicaciones independientes, cada una con su `Dockerfile` y su gestor de dependencias, y el único contrato entre ellas es **OpenAPI**.
 
@@ -34,7 +34,7 @@ ahí como JSON versionado y no como algo que alguien clickeó, y un test
 exista de verdad en el código — un contador renombrado deja los paneles en blanco sin romper
 nada, que es peor que un error porque parece "no hubo tráfico".
 
-**`frontend` nunca importa de `backend` y `backend` nunca sirve el frontend.** 
+**`frontend` nunca importa de `backend` y `backend` nunca sirve el frontend.**
 
 Los tipos de TypeScript se generan desde el OpenAPI de FastAPI (`make types`), no se escriben a mano en las dos puntas.
 
@@ -60,13 +60,13 @@ backend/app/
     └── quotes/           ← EL NÚCLEO: huecos, TTL, status  → tabla quotes
 ```
 
-Cuatro módulos porque hay cuatro capacidades con vocabulario propio. 
+Cuatro módulos porque hay cuatro capacidades con vocabulario propio.
 
 Un módulo nuevo se justifica cuando aparece una capacidad que el negocio nombra distinto, nunca porque un archivo creció.
 
 ### Anatomía de un módulo
 
-Los cinco archivos de abajo empiezan como **archivo** y crecen a **carpeta del mismo nombre** cuando lo pide el tamaño. 
+Los cinco archivos de abajo empiezan como **archivo** y crecen a **carpeta del mismo nombre** cuando lo pide el tamaño.
 
 El `__init__.py` no crece: es el contrato, y es igual en todos los módulos.
 
@@ -87,7 +87,7 @@ modules/<modulo>/
 
 > **El contrato de un módulo es su paquete: lo que declara `__all__` en su `__init__.py`.**
 
-**Afuera:** a un módulo se entra por su paquete. 
+**Afuera:** a un módulo se entra por su paquete.
 Cualquier ruta más profunda (`app.modules.stocks.service`, `app.modules.stocks.models`) es interior ajeno y para el resto del sistema no existe.
 
 **Adentro:** los archivos del módulo se importan entre sí por ruta completa, **nunca** por
@@ -216,7 +216,7 @@ frontend/src/
 └── styles/tokens.css     la paleta del diseño
 ```
 
-Tres páginas, tres wireframes: `docs/design/wireframes/` es la especificación de layout y `COPY.md` la de los textos. 
+Tres páginas, tres wireframes: `docs/design/wireframes/` es la especificación de layout y `COPY.md` la de los textos.
 No hay design system ni librería de componentes (`CONVENTIONS.md` → `UI-*`).
 
 ## Agregar una feature
