@@ -44,6 +44,10 @@ limits_config:
   max_entries_limit_per_query: 5000
   reject_old_samples: true
   reject_old_samples_max_age: 24h
+  # The default is 256 KB, and a traceback went over it: the line Loki dropped was the one
+  # describing the crash somebody would have gone looking for. Still bounded, just not below
+  # the size of the events worth keeping.
+  max_line_size: 512KB
   volume_enabled: true
 
 compactor:
