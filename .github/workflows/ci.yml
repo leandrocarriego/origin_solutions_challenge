@@ -77,16 +77,21 @@ jobs:
       - name: Tipos (PY-09)
         run: uv run mypy app tests seed.py alembic
 
+      - name: Migrar la base de pruebas
+        # Before the suite, not after: the integration tests run against real tables (TEST-02),
+        # and a suite that runs first finds none of them. They were added to a database a
+        # developer had already migrated, so locally the order never showed.
+        run: uv run alembic upgrade head
+
       - name: Suite completa y cobertura (TEST-01..TEST-06, GEN-02, GEN-08, PY-06, PY-08)
         run: uv run pytest
 
       - name: Modelos sincronizados con las tablas (DB-01)
-        # `alembic check` compares the models against the database as it is, so the database has
-        # to be migrated first. Without the upgrade the check reports every table as missing and
-        # DB-01 fails for the wrong reason -- or, with no revisions yet, passes for one.
-        run: |
-          uv run alembic upgrade head
-          uv run alembic check
+        # `alembic check` compares the models against the database as it is, which the step
+        # above has already migrated. Without that upgrade the check reports every table as
+        # missing and DB-01 fails for the wrong reason -- or, with no revisions yet, passes for
+        # one.
+        run: uv run alembic check
 
   frontend:
     name: Frontend
