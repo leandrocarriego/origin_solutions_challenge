@@ -207,9 +207,10 @@ Las descripciones de `make help`, los `name:` de los hooks de pre-commit y los n
 
 Es el Artículo VIII aplicado igual que siempre: un idioma para cada audiencia.
 
+Lo verifica un script, y lo corren el pre-commit y el CI. Busca marcadores inequívocos del castellano —se dejan afuera `no`, `es`, `son`, `si`, `la`, `un`, `sin`, `solo` y `version`, que se escriben igual en inglés— y sólo mira **líneas de comentario**: la salida en español (`make help`, los `name:` de los hooks, los pasos de CI, los `echo`) no se toca.
+
 ```
-grep -rnE '^\s*#.*\b(que|para|los|las|del|con|una|sin)\b' \
-  .pre-commit-config.yaml docker-compose.yml Makefile .github/ scripts/ .env.example
+./scripts/check_comment_language.sh
 ```
 
 ### `GEN-08` - Blocker: Todo proveedor externo se consume detrás de su interfaz, y la salida al mundo vive en `app/providers/`.

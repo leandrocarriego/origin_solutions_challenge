@@ -1,24 +1,26 @@
-# Los hooks que hacen cumplir, antes de que el código salga de la máquina, lo que
-# `CONVENTIONS.md` declara verificado automáticamente.
+# The hooks that enforce, before code leaves the machine, what CONVENTIONS.md declares to be
+# verified automatically.
 #
-# Dos decisiones que conviene entender:
+# Two decisions worth understanding:
 #
-# 1. **`ruff`, `mypy` y `pytest` corren como hooks `local`, vía `uv run`**, y no desde el repo
-#    de hooks de ruff. Un `ruff` instalado por pre-commit tiene su propia versión, y el día que
-#    se desincroniza del `uv.lock` el formateo del hook y el del proyecto dejan de coincidir:
-#    el commit pasa y el CI falla, o al revés. Con `uv run` hay una sola versión, la del lock.
+# 1. ruff, mypy and pytest run as `local` hooks through `uv run`, not from ruff's own hook
+#    repository. A ruff installed by pre-commit carries its own version, and the day it drifts
+#    from uv.lock the hook and the project disagree about formatting: the commit passes and CI
+#    fails, or the reverse. Through `uv run` there is one version, the locked one.
 #
-# 2. **`pytest-fast` corre `tests/unit` y `tests/architecture` con `--no-cov`.** Son los tests
-#    que sostienen las fronteras (`GEN-02`, `PY-06`, `PY-08`, `GEN-08`) y tardan menos de un
-#    segundo. La cobertura (`TEST-05`) mide la suite completa, así que exigirla sobre un
-#    subconjunto daría siempre rojo: eso es del CI, no de acá.
+# 2. pytest-fast runs tests/unit and tests/architecture with --no-cov. Those are the tests that
+#    hold the boundaries (GEN-02, PY-06, PY-08, GEN-08) and they take under a second. Coverage
+#    (TEST-05) measures the whole suite, so demanding it from a subset would always be red:
+#    that one belongs to CI.
 #
-# Instalación:  make hooks     (o: uvx pre-commit install --install-hooks)
+# The `name:` of each hook is what the terminal prints, so it stays in Spanish (GEN-07).
+#
+# Install with:  make hooks     (or: uvx pre-commit install --install-hooks)
 
 default_install_hook_types: [pre-commit, commit-msg]
 
 repos:
-  # --- Higiene de archivos (GIT-04) ------------------------------------------------------------
+  # --- File hygiene (GIT-04) -------------------------------------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -29,10 +31,20 @@ repos:
         args: [--maxkb=1024]
       - id: check-yaml
       - id: check-json
-      # SEC-01: una clave privada que entró al historial ya no se saca con un commit.
+      # SEC-01: a private key that reached the history is not removed by a later commit.
       - id: detect-private-key
 
-  # --- Mensajes de commit (GIT-03) -------------------------------------------------------------
+  # --- Language (GEN-07) -----------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: comment-language
+        name: comentarios en ingles (GEN-07)
+        entry: scripts/check_comment_language.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+  # --- Commit messages (GIT-03) ----------------------------------------------------------------
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
     hooks:
@@ -40,7 +52,7 @@ repos:
         stages: [commit-msg]
         args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
 
-  # --- Backend (GEN-01, PY-07, PY-09, y las fronteras) -----------------------------------------
+  # --- Backend (GEN-01, PY-07, PY-09, and the boundaries) --------------------------------------
   - repo: local
     hooks:
       - id: ruff-format

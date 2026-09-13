@@ -1,8 +1,10 @@
-# El CI corre lo que `CONVENTIONS.md` declara verificado en CI y no en el pre-commit:
-# `TEST-03` (la suite sin red ni API key), `TEST-05` (la cobertura sobre la suite completa),
-# `UI-02` y `UI-03` (los tests de pantalla), integración contra una base real y `alembic check`.
+# CI runs what CONVENTIONS.md declares verified in CI rather than in pre-commit: TEST-03 (the
+# suite with no network and no API key), TEST-05 (coverage over the whole suite), UI-02 and
+# UI-03 (the screen tests), integration against a real database, and `alembic check`.
 #
-# Los hooks se pueden saltear con `--no-verify`; esto no.
+# Hooks can be skipped with --no-verify; this cannot.
+#
+# Job and step names are what the run displays, so they stay in Spanish (GEN-07).
 
 name: CI
 
@@ -11,8 +13,8 @@ on:
     branches: [main]
   pull_request:
 
-# Un push nuevo cancela la corrida anterior de la misma rama: nadie necesita el resultado
-# de un commit que ya fue reemplazado.
+# A new push cancels the previous run on the same branch: nobody needs the result of a commit
+# that has already been replaced.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      # Los tests de integración de `TEST-02` corren contra una base real, no contra un doble.
+      # TEST-02's integration tests run against a real database, not against a double.
       postgres:
         image: postgres:16-alpine
         env:
@@ -42,11 +44,11 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://origin:origin@localhost:5432/origin_test
-      # TEST-03, y es el punto entero de esta variable: se declara VACÍA a propósito. Cualquier
-      # test que intente salir al proveedor falla por credencial ausente en vez de gastar cuota
-      # del Artículo II sin que nadie se entere.
+      # TEST-03, and the entire point of this variable: it is declared EMPTY on purpose. Any
+      # test reaching for the provider fails on the missing credential instead of quietly
+      # spending the Article II quota.
       TWELVEDATA_API_KEY: ""
-      # Sin DSN, Sentry no se inicializa: cero eventos y cero red desde el CI.
+      # With no DSN, Sentry never initialises: no events and no network from CI.
       SENTRY_DSN: ""
 
     defaults:
@@ -63,8 +65,8 @@ jobs:
           cache-dependency-glob: backend/uv.lock
 
       - name: Instalar dependencias desde el lockfile
-        # --frozen falla si el lock no corresponde al pyproject, que es el Artículo IX:
-        # un build que no es reproducible no es verificable.
+        # --frozen fails if the lock does not match pyproject, which is Article IX: a build
+        # that is not reproducible is not verifiable.
         run: uv sync --frozen
 
       - name: Formato y lint (GEN-01, PY-07, PY-11, ERR-01)
@@ -104,7 +106,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Instalar desde el lockfile
-        # `npm ci` y no `npm install`: respeta el lock en vez de actualizarlo (Artículo IX).
+        # `npm ci` rather than `npm install`: it obeys the lock instead of updating it.
         run: npm ci
 
       - name: Tipos (TS-01)
@@ -129,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # Se necesitan los commits del PR para revisar sus mensajes.
+          # The pull request's commits are needed in order to check their messages.
           fetch-depth: 0
 
       - uses: actions/setup-python@v6
@@ -137,14 +139,18 @@ jobs:
           python-version: "3.12"
 
       - name: Higiene de archivos (GIT-04)
-        # Se saltean los hooks que backend/ y frontend/ ya corren con sus dependencias
-        # instaladas: acá no hay ni uv ni node_modules, y duplicarlos sólo gastaría minutos.
+        # Skips the hooks that the backend and frontend jobs already run with their
+        # dependencies installed: there is no uv and no node_modules here, and duplicating them
+        # would only burn minutes.
         env:
           SKIP: ruff-format,ruff-check,mypy,pytest-fast,frontend-format,frontend-lint,frontend-types
         uses: pre-commit/action@v3.0.1
 
+      - name: Comentarios en inglés (GEN-07)
+        run: ./scripts/check_comment_language.sh
+
       - name: Mensajes de commit (GIT-03)
-        # El hook `commit-msg` se saltea con `--no-verify`; esto no.
+        # The commit-msg hook is skipped by --no-verify; this is not.
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           if [ -z "$base" ]; then
@@ -181,8 +187,8 @@ jobs:
         run: docker build -t origin-frontend:ci frontend
 
       - name: La imagen del backend no lleva los tests adentro
-        # `.dockerignore` los excluye; si alguien lo toca, la imagen de producción se lleva la
-        # suite y sus dependencias. Esto lo nota.
+        # .dockerignore excludes them; if someone edits it, the production image ships the
+        # suite and its dependencies. This notices.
         run: |
           if docker run --rm --entrypoint sh origin-backend:ci -c 'ls /app/tests' 2>/dev/null; then
             echo "::error::La imagen de producción contiene /app/tests."
