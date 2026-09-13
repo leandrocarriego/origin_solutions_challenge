@@ -17,7 +17,7 @@ Tres pantallas: login, "Mis Acciones" (favoritas por usuario) y el detalle de un
 | Punta | Elección |
 |---|---|
 | API | Python 3.13 · FastAPI · SQLAlchemy 2.x · Alembic · Pydantic v2 |
-| Frontend | React 19 · TypeScript · Vite |
+| Frontend | React 19 · TypeScript · Vite · Tailwind CSS 4 |
 | Base de datos | PostgreSQL 16 |
 | Gráfico | Highcharts |
 | Arquitectura | `frontend/` y `backend/` |

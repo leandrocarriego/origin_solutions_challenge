@@ -3,7 +3,7 @@
 Aplicación web para seguir la cotización de acciones en tiempo real. Los datos vienen de la API
 pública de [TwelveData](https://twelvedata.com/).
 
-Backend en **FastAPI** sobre PostgreSQL, frontend en **React + TypeScript**, y los dos detrás de
+Backend en **FastAPI** sobre PostgreSQL, frontend en **React + TypeScript + Tailwind**, y los dos detrás de
 un `docker compose` que levanta el proyecto entero con un comando.
 
 ## Estado

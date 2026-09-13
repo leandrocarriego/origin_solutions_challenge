@@ -42,7 +42,7 @@ Estas nueve convenciones **no dependen de que alguien las lea**: hay un test que
 | `TEST-03` | La suite corre en CI con `TWELVEDATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
 | `TEST-05` | `--cov-fail-under=80` en `backend/pyproject.toml` | `pytest` termina en rojo aunque todos los tests pasen. |
 | `UI-02` | `frontend/tests/copy.test.ts` | La suite falla y nombra el texto que no coincide con `docs/design/COPY.md`. |
-| `UI-03` | `frontend/tests/tokens.test.ts` | La suite falla y lista archivo, línea y el color escrito a mano. |
+| `UI-03` | `frontend/tests/tokens.test.ts` | La suite falla y lista archivo, línea y el color escrito a mano. La paleta de fábrica de Tailwind ya no existe (`--color-*: initial`), así que el test cubre lo que queda: hex, `rgb()`, `hsl()` y estilos inline. |
 
 Cuatro detalles que importan al revisarlas:
 
@@ -436,7 +436,7 @@ cd frontend && npm run lint && npm run format:check
 
 - El contexto de sesión y el interceptor de 401 en `frontend/src/auth/`.
 
-- La paleta en `frontend/src/styles/tokens.css` (`ARCHITECTURE.md` → Anatomía del frontend).
+- La paleta y la configuración de Tailwind en `frontend/src/styles/tokens.css`, que es el único `.css` del proyecto (`UI-07`, `ARCHITECTURE.md` → Anatomía del frontend).
 
 ### `TS-06` - Major: Los estados de carga, error y vacío están manejados.
 
@@ -469,10 +469,14 @@ cd frontend && grep -rn "usuario o clave" src   # debe existir, exactamente así
 
 Grises para superficie, borde y cabecera de tabla; azul de enlace sólo en lo que es enlace (el símbolo y `Eliminar`); una sola serie azul en el gráfico.
 
-Ningún color literal en los componentes: salen de `src/styles/tokens.css`.
+Ningún color literal en los componentes: los define el bloque `@theme` de `src/styles/tokens.css` y salen de ahí como utilidades (`bg-surface`, `text-error`, `border-border`).
+
+Ese bloque arranca con `--color-*: initial`, que **borra la paleta que Tailwind trae de fábrica**. No es cosmético: sin eso, `bg-blue-500` sigue funcionando y la convención vuelve a depender de que alguien la lea. Con eso, una clase de la paleta vieja no genera CSS — no rompe el build, pero se ve roto en pantalla, que es donde alguien mira.
+
+Agregar un color es agregarlo al `@theme`, y ese es el punto: queda en un solo archivo y se discute.
 
 ```
-cd frontend && grep -rnE "#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(" src/components src/pages
+cd frontend && grep -rnE "#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(|style=\{\{" src --exclude-dir=styles
 ```
 
 ### `UI-04` - Major: Cotizaciones, fechas y símbolos en mono tabular.
@@ -488,6 +492,22 @@ El gráfico se dibuja igual con lo que haya: una pantalla en blanco sin explicac
 ### `UI-06` - Minor: Un solo tema, y es el claro.
 
 Los wireframes son claros. No se lee la preferencia del sistema operativo ni se mantiene una segunda paleta.
+
+### `UI-07` - Major: Los estilos son utilidades de Tailwind, no CSS propio.
+
+El único `.css` del frontend es `src/styles/tokens.css`, y es la configuración: el `@import` de Tailwind, el `@theme` con la paleta y las tipografías, y las tres líneas de `@layer base` que visten el `body`.
+
+No hay hoja de estilo por componente, ni CSS Modules, ni `styled-components`, ni `style={{ }}` inline. Un componente se lee entero en un solo archivo, y no hay una segunda cascada donde un selector pueda ganarle a otro a distancia.
+
+Dos consecuencias que hay que respetar para que Tailwind funcione:
+
+- **Las clases se escriben completas en el código.** Tailwind escanea el fuente como texto: `` `text-${tone}` `` es una clase que sólo existe en runtime y que por lo tanto nunca se genera. El patrón es un mapa de literales (`HealthPage.tsx` → `TONE_CLASS`).
+- **`@apply` es el último recurso.** Reconstruye por detrás la hoja de estilo que esta convención saca del medio. Si una lista de clases se repite en cinco lugares, lo que falta es un componente, no una clase.
+
+```
+cd frontend && find src -name '*.css' ! -name tokens.css   # no debe listar nada
+cd frontend && grep -rn "style={{" src                     # tampoco
+```
 
 ---
 
@@ -780,6 +800,7 @@ Si una convención está marcada Blocker y no aparece en esta tabla, la tabla es
 | 19 | Tests que salen a la red en vez de usar JSON fijado | `TEST-03` |
 | 20 | Commit directo a `main`, o mensaje fuera de Conventional Commits | `GIT-01`, `GIT-03` |
 | 21 | Pantalla que se aparta del wireframe, o texto cambiado respecto del enunciado | `UI-01`, `UI-02` |
+| 22 | CSS propio en vez de utilidades: una hoja por componente, `style={{ }}` inline, o una clase armada por interpolación que Tailwind nunca genera | `UI-03`, `UI-07` |
 
 ## Identificadores retirados
 

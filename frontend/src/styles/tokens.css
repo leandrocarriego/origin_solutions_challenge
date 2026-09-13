@@ -1,43 +1,49 @@
 /*
- * The palette, in one place (UI-03).
+ * The stylesheet: Tailwind, and the only palette it is allowed to produce (UI-03).
  *
- * Neutral greys for surface, border and table headers; blue reserved for what is actually a
- * link. No component writes a literal colour: they all read from here, so changing the palette
- * is one file and not a grep.
+ * `--color-*: initial` wipes Tailwind's default palette before ours is declared, so `bg-blue-500`
+ * and the other 250 built-in shades stop existing. That is deliberate: UI-03 says no component
+ * invents a colour, and a class that is not a class produces no CSS at all -- it does not fail
+ * the build, it fails on screen, which is where someone actually looks. Adding a colour means
+ * adding it here, and that is the point.
+ *
+ * Neutral greys for surface, border and table headers; blue reserved for what is actually a link.
  */
-:root {
-  --surface: #ffffff;
-  --surface-muted: #f5f6f7;
-  --border: #d8dbdf;
-  --text: #1c1f23;
-  --text-muted: #5c6470;
 
-  --link: #1a5fb4;
+@import 'tailwindcss';
 
-  --ok: #1a7f4b;
-  --warn: #9a6700;
-  --error: #b42318;
+@theme {
+  --color-*: initial;
 
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 1rem;
-  --space-4: 1.5rem;
-  --space-5: 2rem;
+  /* CSS-wide keywords, which are not part of any palette. */
+  --color-transparent: transparent;
+  --color-current: currentColor;
 
-  --radius: 4px;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f6f7;
+  --color-border: #d8dbdf;
+  --color-text: #1c1f23;
+  --color-text-muted: #5c6470;
 
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --color-link: #1a5fb4;
+
+  --color-ok: #1a7f4b;
+  --color-warn: #9a6700;
+  --color-error: #b42318;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   /* UI-04: numbers, dates and symbols line up only in tabular mono. */
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
-* {
-  box-sizing: border-box;
-}
+/*
+ * Spacing, radius and the type scale stay on Tailwind's defaults. A second scale next to theirs
+ * would be one more thing to keep in sync for no gain (GEN-10: KISS over DRY over SOLID).
+ */
 
-body {
-  margin: 0;
-  font-family: var(--font);
-  color: var(--text);
-  background: var(--surface-muted);
+@layer base {
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-text);
+  }
 }

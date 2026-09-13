@@ -213,11 +213,12 @@ frontend/src/
 ├── components/           Header · Autocomplete · StockGrid · QuoteChart · Notice
 ├── api/                  cliente HTTP + tipos generados del OpenAPI
 ├── auth/                 contexto de sesión, interceptor de 401
-└── styles/tokens.css     la paleta del diseño
+└── styles/tokens.css     Tailwind: el @theme con la paleta, y nada más
 ```
 
 Tres páginas, tres wireframes: `docs/design/wireframes/` es la especificación de layout y `COPY.md` la de los textos.
-No hay design system ni librería de componentes (`CONVENTIONS.md` → `UI-*`).
+
+**Los estilos son utilidades de Tailwind y el único `.css` es `tokens.css`** (`CONVENTIONS.md` → `UI-07`). Tailwind no es un design system ni una librería de componentes: no trae ni un botón, así que las pantallas siguen saliendo del wireframe y no de los defaults de nadie. Lo que sí trae —y acá se usa— es una escala de espaciado y tipografía consistente, y un `@theme` donde la paleta del diseño se declara una vez. La paleta de fábrica se borra en ese mismo bloque, para que `bg-blue-500` no sea una alternativa silenciosa a los tokens.
 
 ## Agregar una feature
 

@@ -9,20 +9,31 @@
 import { useEffect, useState, type JSX } from 'react';
 
 import { fetchHealth, type HealthStatus } from '../api/health';
-import './HealthPage.css';
 
 type Phase =
   { kind: 'checking' } | { kind: 'answered'; health: HealthStatus } | { kind: 'unreachable' };
 
+type Tone = 'ok' | 'warn' | 'error';
+
+/*
+ * Written out rather than built as `text-${tone}`: Tailwind scans the source as text, so a class
+ * name that only exists once the code runs is a class name it never generates.
+ */
+const TONE_CLASS: Record<Tone, string> = {
+  ok: 'text-ok',
+  warn: 'text-warn',
+  error: 'text-error',
+};
+
 /** Turn the API's machine words into the ones a person reads. */
-function describeDatabase(database: string): { label: string; tone: string } {
+function describeDatabase(database: string): { label: string; tone: Tone } {
   return database === 'ok'
     ? { label: 'OK', tone: 'ok' }
     : { label: 'No disponible', tone: 'error' };
 }
 
 /** Turn the overall status into a headline and its tone. */
-function describeService(status: string): { label: string; tone: string } {
+function describeService(status: string): { label: string; tone: Tone } {
   return status === 'ok'
     ? { label: 'Operativo', tone: 'ok' }
     : { label: 'Degradado', tone: 'warn' };
@@ -50,13 +61,13 @@ export function HealthPage(): JSX.Element {
   }, []);
 
   return (
-    <main className="health">
-      <h1 className="health__title">Estado del servicio</h1>
+    <main className="mx-auto my-8 max-w-lg rounded-sm border border-border bg-surface p-6">
+      <h1 className="mb-6 text-lg font-bold">Estado del servicio</h1>
 
-      {phase.kind === 'checking' && <p className="health__muted">Verificando…</p>}
+      {phase.kind === 'checking' && <p className="text-text-muted">Verificando…</p>}
 
       {phase.kind === 'unreachable' && (
-        <p role="alert" className="health__alert">
+        <p role="alert" className="m-0 rounded-sm border border-error bg-surface p-4 text-error">
           No se pudo contactar a la API. Puede estar reiniciando o fuera de servicio.
         </p>
       )}
@@ -72,26 +83,34 @@ function HealthReport({ health }: { health: HealthStatus }): JSX.Element {
   const database = describeDatabase(health.database);
 
   return (
-    <dl className="health__list">
-      <div className="health__row">
-        <dt>Servicio</dt>
-        <dd className={`health__value health__value--${service.tone}`}>{service.label}</dd>
-      </div>
+    <dl className="m-0">
+      <Row label="Servicio">
+        <dd className={`m-0 font-semibold ${TONE_CLASS[service.tone]}`}>{service.label}</dd>
+      </Row>
 
-      <div className="health__row">
-        <dt>Base de datos</dt>
+      <Row label="Base de datos">
         <dd
           data-testid="health-database"
-          className={`health__value health__value--${database.tone}`}
+          className={`m-0 font-semibold ${TONE_CLASS[database.tone]}`}
         >
           {database.label}
         </dd>
-      </div>
+      </Row>
 
-      <div className="health__row">
-        <dt>Versión</dt>
-        <dd className="health__value health__value--mono">{health.version}</dd>
-      </div>
+      <Row label="Versión">
+        {/* UI-04: the version is an identifier, so it lines up in mono. */}
+        <dd className="m-0 font-mono tabular-nums">{health.version}</dd>
+      </Row>
     </dl>
+  );
+}
+
+/** One line of the report: the name on the left, the value on the right. */
+function Row({ label, children }: { label: string; children: JSX.Element }): JSX.Element {
+  return (
+    <div className="flex justify-between gap-4 border-b border-border py-2 last:border-b-0">
+      <dt className="text-text-muted">{label}</dt>
+      {children}
+    </div>
   );
 }
