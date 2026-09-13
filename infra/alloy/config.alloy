@@ -1,0 +1,68 @@
+// Alloy reads the logs of this project's containers and pushes them to Loki.
+//
+// It talks to a socket proxy and never to /var/run/docker.sock directly: the Docker socket is
+// root on the host, and this agent only needs to list containers and read their output. On a
+// VPS shared with other projects that difference is the whole point.
+//
+// It also keeps `docker logs` working, which a logging driver would not: the container still
+// writes to its own json file and Alloy tails it.
+
+discovery.docker "containers" {
+	host             = "tcp://socket-proxy:2375"
+	refresh_interval = "15s"
+}
+
+// Only this project's containers. The other 20-odd on the host belong to someone else, and
+// their logs are not ours to read.
+discovery.relabel "origin" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		regex         = "origin-solutions-challenge"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+}
+
+loki.source.docker "origin" {
+	host             = "tcp://socket-proxy:2375"
+	targets          = discovery.relabel.origin.output
+	forward_to       = [loki.process.structured.receiver]
+	refresh_interval = "15s"
+}
+
+loki.process "structured" {
+	forward_to = [loki.write.local.receiver]
+
+	// The backend logs JSON (structlog), so the level becomes a label and filtering by it is an
+	// index lookup rather than a scan. Everything else stays inside the line: request_id as a
+	// label would be one stream per request, which is how a Loki install falls over.
+	stage.json {
+		expressions = {
+			level = "level",
+		}
+	}
+
+	stage.labels {
+		values = {
+			level = "",
+		}
+	}
+}
+
+loki.write "local" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

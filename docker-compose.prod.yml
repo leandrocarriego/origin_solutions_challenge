@@ -217,6 +217,83 @@ services:
       traefik.http.middlewares.origin-grafana-rl.ratelimit.sourcecriterion.requestheadername: CF-Connecting-IP
       traefik.http.routers.origin-grafana.middlewares: origin-grafana-rl
 
+  # --- Logs: the third datasource, so a spike and the lines that explain it share a pane -------
+  #
+  # Loki indexes labels and not the text of the line, which is what makes it affordable here and
+  # is also the trade-off: filtering by service or level is instant, full text over a wide range
+  # is a scan. For one project's logs on a shared VPS that is the right side of the deal.
+
+  loki:
+    image: grafana/loki:3.7.7
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    user: "10001:10001"
+    volumes:
+      - ./infra/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      # Loopback only. Loki has no authentication, and the logs carry more than the metrics do.
+      - "127.0.0.1:3100:3100"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  # Alloy tails the containers of this project and pushes what it reads to Loki. It keeps
+  # `docker logs` working, which a logging driver would not: the container still writes its own
+  # json file and Alloy follows it.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+    networks:
+      - internal
+    depends_on:
+      - loki
+      - socket-proxy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # The Docker socket is root on the host, and Alloy only needs to list containers and read
+  # their output. This proxy is what makes that difference real: GET on /containers and nothing
+  # else. On a VPS shared with other projects, handing an agent the raw socket would hand it
+  # every container on the box.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      POST: "0"
+      # Everything else stays off: no exec, no images, no volumes, no swarm, no info.
+      ALLOW_START: "0"
+      ALLOW_STOP: "0"
+      ALLOW_RESTARTS: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+
 networks:
   internal:
   traefik:
@@ -226,3 +303,5 @@ volumes:
   db_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  alloy_data:

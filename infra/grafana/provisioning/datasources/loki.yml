@@ -1,0 +1,17 @@
+# Provisioned from a file for the same reason as Prometheus: a datasource that was clicked into
+# existence is a datasource nobody can recreate.
+
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    uid: origin-loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+    jsonData:
+      # A log line and the metric spike that explains it belong in the same pane: this is what
+      # lets a trace or request id in a line jump straight to the dashboard.
+      maxLines: 1000

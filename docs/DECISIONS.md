@@ -520,6 +520,9 @@ tiene que interpretar.
 
 **Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
+**Enmendada:** 2026-09-13 · Leandro Carriego — se agrega Loki como agregador de logs, para que la
+capa 1 se pueda buscar y filtrar desde Grafana y no sólo con `docker logs` por SSH.
+
 **Contexto.** El Artículo II es la afirmación central de ingeniería de este proyecto: el consumo
 del proveedor escala con símbolos observados, no con clientes conectados. Hoy esa afirmación no se
 puede verificar desde afuera — se lee en el README y se cree o no. `ERR-07` ya exige que toda
@@ -533,11 +536,22 @@ consultable.
 1. **Logs estructurados** en JSON con `structlog`, y un middleware que le asigna un `request_id`
    a cada pedido y lo propaga a todas sus líneas. Sin correlación, dos usuarios concurrentes
    producen logs entreverados que no se pueden leer.
+
+   **Se agregan en Loki**, al que Grafana consulta como un datasource más. Un agente (Alloy) lee
+   los contenedores de este proyecto —y sólo los de este proyecto— y empuja lo que leen. Sin
+   agregador, esos logs viven en el buffer de Docker, se buscan por SSH y se pierden al recrear
+   el contenedor: estaban estructurados para una herramienta que no existía.
+
+   Loki indexa **etiquetas, no el texto de la línea**. Eso es lo que lo hace barato acá y es
+   también el trade-off: filtrar por servicio o por nivel es instantáneo, y un full-text sobre un
+   rango ancho es un scan. Por eso `level` es etiqueta y `request_id` no: una etiqueta por request
+   sería un stream por request, que es como se cae una instalación de Loki.
 2. **Métricas Prometheus** en `/metrics`: las estándar por ruta (rate, errores, duración) más tres
    propias que son las que importan acá — `provider_requests_total{symbol,interval,outcome}`,
    `quote_cache_hits_total` / `quote_cache_misses_total`, y `provider_quota_remaining`.
 3. **Prometheus + Grafana** en el VPS, detrás de Traefik, con un dashboard: cuota consumida hoy,
-   tasa de aciertos de caché, latencia p95 y tasa de error.
+   tasa de aciertos de caché, latencia p95 y tasa de error. Grafana tiene dos datasources, así que
+   un pico en una métrica y las líneas que lo explican se miran en el mismo panel.
 4. **Sentry** para excepciones, con `include_local_variables=False`, `send_default_pii=False` y un
    `before_send` que enmascara secretos.
 
@@ -545,13 +559,23 @@ consultable.
 puede mostrar que diez usuarios sobre un mismo símbolo cuestan una sola llamada. `NFR-05` gana su
 evidencia.
 
-Se paga con tres cosas. **RAM**: unos 350 MB en un VPS compartido con otros proyectos en
-producción. **Una dependencia externa**: Sentry recibe trazas de nuestras excepciones, y eso
+Se paga con tres cosas. **RAM**: unos 900 MB de límite en un VPS compartido con otros proyectos
+en producción, de los cuales unos 550 MB son los tres contenedores de logs. Se midió antes de
+agregarlos: 3,9 GB disponibles y carga 0,3. **Una dependencia externa**: Sentry recibe trazas de nuestras excepciones, y eso
 convierte al Artículo I en un requisito de configuración y no sólo de código — el SDK captura las
 variables locales de cada frame por defecto, así que sin desactivarlo el DSN de Postgres y la URL
 del proveedor con su `apikey` salen del servidor. Por eso `SEC-06` incluye el evento de Sentry
 entre las salidas que audita. **Superficie**: `/metrics` no lleva autenticación y expone nombres de
-símbolos; queda accesible sólo desde la red interna de Docker, nunca publicado por Traefik.
+símbolos; queda accesible sólo desde la red interna de Docker, nunca publicado por Traefik. Loki
+tampoco lleva autenticación y sus líneas dicen más que las métricas, así que queda en loopback.
+
+Y una cuarta, que es la que más cuidado pide: **el agente necesita hablar con Docker**. El socket
+de Docker es root en el host, y en un VPS compartido dárselo crudo a un agente es darle los 28
+contenedores de la máquina. Por eso va detrás de un proxy que sólo deja pasar `GET /containers`,
+y por eso el agente tiene un filtro por nombre de proyecto: los logs de los otros proyectos no son
+nuestros para leer. Se prefirió esto al *logging driver* de Loki, que no necesita agente pero se
+instala como plugin del demonio del host y deja `docker logs` vacío — justo lo que hay que tener
+cuando Loki es lo que está caído.
 
 **La excepción al Artículo VII, dicha de frente.** Las capas 1 y 2 no son alcance nuevo: `ERR-03`
 exige logging estructurado y `ERR-07` exige la auditoría de llamadas, así que implementarlas es

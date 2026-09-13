@@ -1,0 +1,58 @@
+# Loki, single binary, filesystem storage. No cluster, no object store: this indexes the logs of
+# one project on a VPS it shares with others, so the only thing that matters is that it stays
+# small and never fills the disk.
+#
+# Loki indexes labels, not the text of the line. That is what makes it cheap here, and it is
+# also the trade-off: filtering by label is instant, and full-text over a wide range is a scan.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  # info would log a line per push, which is logs about logs.
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Bounded on every axis a log pipeline can run away on. A backend in a crash loop writing
+  # stack traces must not turn into a full disk on a shared host.
+  retention_period: 168h
+  ingestion_rate_mb: 4
+  ingestion_burst_size_mb: 8
+  max_streams_per_user: 500
+  max_entries_limit_per_query: 5000
+  reject_old_samples: true
+  reject_old_samples_max_age: 24h
+  volume_enabled: true
+
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: filesystem
+  # Without this, retention_period is a number nobody enforces and the volume grows forever.
+  retention_enabled: true
+  retention_delete_delay: 2h
+
+# Nothing phones home.
+analytics:
+  reporting_enabled: false
