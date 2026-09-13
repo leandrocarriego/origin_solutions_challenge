@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- build: resolve dependencies once, in a layer that only changes with the lockfile ---------
-FROM python:3.12-slim AS builder
+FROM python:3.13-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.7.13 /uv /usr/local/bin/uv
 
@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 # --- runtime: no uv, no build cache, no root ---------------------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 # Non-root by default. A container that does not need root should not have it, and this one
 # only reads its own code and talks to Postgres.

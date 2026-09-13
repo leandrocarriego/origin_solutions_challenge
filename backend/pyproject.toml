@@ -2,7 +2,7 @@
 name = "origin-acciones-api"
 version = "0.1.0"
 description = "ORIGIN Acciones — API"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
@@ -36,7 +36,7 @@ packages = ["app"]
 # --- GEN-01 · format and lint-------------------------------------------------
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 # Three of these exist so a convention stops depending on the review:
@@ -66,7 +66,7 @@ known-third-party = ["alembic"]
 
 # --- PY-09 · types------------------------------------------------------------
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 # GEN-02: importing from a package a name its __all__ does not declare is a type error, not
 # only a convention violation.

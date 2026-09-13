@@ -136,7 +136,7 @@ jobs:
 
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Higiene de archivos (GIT-04)
         # Skips the hooks that the backend and frontend jobs already run with their
