@@ -9,6 +9,7 @@ docs/specs/
 ├── spec.template.md     ← plantilla, cara al cliente
 ├── plan.template.md     ← plantilla, con Constitution Check
 ├── tasks.template.md    ← plantilla, con cobertura de requisitos
+├── 000-scaffolding/     ← la fase 0: sólo tasks.md (ver abajo)
 ├── 001-authentication/
 ├── 002-favorite-stocks/
 ├── 003-quote-chart/
@@ -38,6 +39,18 @@ reutiliza, ni siquiera si la feature se canceló.
 
 Los cuatro últimos son opcionales: existen cuando el `plan.md` quedaría ilegible sin ellos, no por
 defecto.
+
+## La excepción: `000-scaffolding`
+
+La fase 0 es andamiaje, no una feature: no tiene alcance que el cliente firme, y por eso no tiene
+`spec.md` ni `plan.md`. Su carpeta lleva **sólo `tasks.md`**.
+
+Existe igual porque el Artículo VI no admite excepciones: la firma de los tests se registra en un
+`tasks.md` (`agents/skills/approve_tests.md`, paso 7), y sin la carpeta la fase 0 no tendría dónde
+registrarla.
+
+Lo que en una feature aporta la spec firmada, acá lo aportan `docs/ROADMAP.md` → *Fase 0* y los
+ADR **aceptados** de `docs/DECISIONS.md`. El porqué completo está en el propio archivo.
 
 ## El flujo
 
