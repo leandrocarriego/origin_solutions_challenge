@@ -132,33 +132,114 @@ decisión se revisa con datos, no antes.
 
 ---
 
-## ADR-002 — El catálogo de símbolos se ingesta, no se proxea
+## ADR-002 — El catálogo de símbolos se ingesta, y la ingesta reconcilia
 
 **Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
 
-**Contexto.** El autocomplete dispara por cada tecla. La cuota es de 800 requests por día.
+**Contexto.** El autocomplete dispara por cada tecla y la cuota es de 800 requests por día, así
+que proxear el catálogo está descartado por el Artículo II. Eso no estaba en discusión.
 
-**Decisión.** `/stocks?exchange=NYSE` y `?exchange=NASDAQ` se ingestan una sola vez a la
-tabla `stocks` (comando de seed, re-ejecutable). El endpoint `GET /api/stocks/search?q=`
-consulta Postgres con `ILIKE` sobre símbolo y nombre, y devuelve como máximo 20 filas.
+Lo que sí: una ingesta que corre una vez y se re-ejecuta a mano deja un catálogo que **envejece en
+silencio**, y el catálogo es de dónde sale todo símbolo que la aplicación conoce. Un símbolo que
+falta se lee igual que uno que no existe.
 
-**Consecuencias.** El autocomplete cuesta **cero** requests de cuota y responde en
-milisegundos. El catálogo puede quedar desactualizado, lo que es irrelevante para el
-challenge y se resuelve re-corriendo la ingesta. Ver A3 y A4 en `docs/PROJECT_BRIEF.md` → *Ambigüedades*.
+Dos cosas medidas sobre la API real el 2026-09-13, porque las dos cambian el diseño:
+
+| | |
+|---|---|
+| `GET /stocks?exchange=NYSE` | **1 crédito**, 843 KB, 3.070 filas |
+| `GET /api_usage` | **0 créditos** |
+| Campo que indique si el símbolo sigue listado | **ninguno** |
+
+**Decisión.**
+
+**1. El catálogo vive en `stocks` y el autocomplete consulta Postgres.** `GET
+/api/stocks/search?q=` hace `ILIKE` sobre símbolo y nombre y devuelve como máximo 20 filas. Cuesta
+cero cuota y responde en milisegundos.
+
+**2. La ingesta reconcilia contra la foto, no acumula.** Es la corrección central de este ADR.
+`/stocks` devuelve **lo que está listado hoy** y no trae ningún campo de estado: la única señal de
+que un símbolo dejó de cotizar es que **ya no viene en la respuesta**. Un `upsert` no puede ver esa
+señal —por construcción, no por descuido—, así que un catálogo mantenido a upserts sólo crece y
+diverge de la realidad para siempre.
+
+Por cada exchange, tres conjuntos:
+
+| En la foto | En `stocks` | Acción |
+|---|---|---|
+| sí | no | insertar |
+| sí | sí | actualizar `name`, `currency`, `type`, y limpiar `delisted_at` si estaba |
+| no | sí | marcar `delisted_at = now()` |
+
+**Nunca `DELETE`.** `user_stocks` y `quotes` referencian `stocks` (`ADR-001`): borrar una fila es
+borrarle una favorita a alguien o tirar su histórico. Una acción que deja de cotizar sigue
+existiendo, y el usuario que la tenía guardada tiene que seguir viendo su nombre.
+
+El autocomplete filtra `delisted_at IS NULL`. Una favorita ya agregada resuelve igual.
+
+**3. Se refresca solo, y el número dice que es gratis.** Dos créditos por refresco completo (NYSE +
+NASDAQ) sobre 800 diarios: **0,25% de la cuota**. Al arrancar el proceso, si la última ingesta
+exitosa tiene más de 24 horas; y después cada 24 horas. La condición de antigüedad es lo que evita
+que un contenedor en ciclo de reinicio queme cuota: `restart: unless-stopped` puede intentarlo
+muchas veces por minuto.
+
+**4. Una foto a medias no reconcilia nada.** La reconciliación es **por exchange y sólo si la
+descarga de ese exchange se completó**. Si falla la llamada de NASDAQ, marcar como deslistado todo
+lo que "no vino" deslistaría NASDAQ entero. Es el modo de falla más caro de esta decisión y por eso
+la atomicidad es parte de ella, no un detalle de implementación.
+
+**5. La frescura se mide, no se supone.** Un gauge `catalog_last_success_timestamp_seconds` y su
+panel en Grafana (`ADR-009`). "El catálogo está al día" pasa a ser algo que se mira, y no algo que
+se asume porque la ingesta corrió alguna vez. `/api_usage` es gratis, así que alimentar también
+`provider_quota_remaining` no cuesta cuota.
+
+**Consecuencias.**
+
+`stocks` gana dos columnas que `ADR-001` no previó: `delisted_at` (nullable) y `last_seen_at`.
+**Esto toca una tabla definida en un ADR ya firmado** — o se acepta que `ADR-002` la extienda, o se
+enmienda `ADR-001`; es decisión del humano, no del agente.
+
+El filtro de ingesta de `ADR-001` —sin warrants, símbolo ruteable— se aplica **antes** de
+reconciliar: un símbolo descartado por el filtro no "desapareció", nunca entró.
+
+La ingesta pasa a ser un proceso con estado observable, no un script de seed. Vive en el backend
+detrás de `MarketDataProvider` (`ADR-006`), no en `scripts/`: gasta cuota, y todo lo que gasta
+cuota pasa por el proveedor.
+
+Un símbolo nuevo aparece en el autocomplete con **hasta 24 horas de retraso**. Es el costo que
+queda, está acotado y es ajustable bajando el intervalo: cada refresco extra son 2 créditos.
 
 **Alternativas descartadas.**
 
-*Proxy directo a `/symbol_search`, con debounce.* Es lo que sugiere el enunciado y tiene algo
-real a favor: catálogo siempre al día, cero código de ingesta, matching resuelto por el
-proveedor. Pero el debounce baja el consumo sin acotarlo —crece con los usuarios— y el plan
-gratis corta en **8 requests por minuto por clave**, no por usuario: uno tipeando rápido le
-devuelve un 429 al gráfico del de al lado. Artículo II.
+*Proxy directo a `/symbol_search`, con debounce.* Es lo que sugiere el enunciado y tiene algo real a
+favor: catálogo siempre al día, cero código de ingesta, matching resuelto por el proveedor. Pero el
+debounce baja el consumo sin acotarlo —crece con los usuarios— y el plan gratis corta en **8
+requests por minuto por clave**, no por usuario: uno tipeando rápido le devuelve un 429 al gráfico
+del de al lado. Artículo II.
 
-*Cachear las búsquedas bajo demanda*, como `ADR-003` con las cotizaciones. A favor, la
-coherencia: una sola estrategia de caché, y se paga sólo lo que alguien busca. Pero cada prefijo
-nuevo es un miss, y ese miss lo paga el usuario mientras tipea. Peor: un catálogo a medio llenar
-miente, y un símbolo que nadie buscó todavía se lee igual que uno que no existe. El hueco de una
-serie se detecta; el de un catálogo, no.
+*Cachear las búsquedas bajo demanda*, como `ADR-003` con las cotizaciones. A favor, la coherencia:
+una sola estrategia de caché, y se paga sólo lo que alguien busca. Pero cada prefijo nuevo es un
+miss, y ese miss lo paga el usuario mientras tipea. Peor: un catálogo a medio llenar miente, y un
+símbolo que nadie buscó todavía se lee igual que uno que no existe. El hueco de una serie se
+detecta; el de un catálogo, no.
+
+*Ingesta por `upsert`, re-ejecutable a mano.* Era la decisión anterior de este ADR, y decía que un
+catálogo desactualizado "es irrelevante para el challenge". Se descarta por dos motivos. El
+primero es que no converge: sin campo de estado en la respuesta, el upsert no puede representar una
+baja, así que el catálogo acumula símbolos muertos de manera monótona. El segundo es que "se
+resuelve re-corriendo la ingesta" pone la corrección en manos de que alguien se acuerde, y lo que
+depende de que alguien se acuerde no es una propiedad del sistema.
+
+*Consultar `/symbol_search` cuando la búsqueda local no devuelve nada.* Taparía la ventana de 24
+horas para un símbolo recién listado, con un costo acotado: sólo ante cero resultados. Se descarta
+por el Artículo VII —el enunciado no lo pide— y porque reintroduce una llamada al proveedor
+disparada por lo que el usuario tipea, que es exactamente lo que este ADR saca del medio. El
+refresco programado cierra el mismo agujero sin esa puerta.
+
+*`DELETE` de los símbolos que ya no vienen.* Deja la tabla limpia y es lo que "reconciliar" sugiere
+a primera vista. Se descarta porque `user_stocks` y `quotes` tienen FK a `stocks`: el borrado o
+falla, o cascadea y le saca al usuario una favorita que él guardó. Que una acción deje de cotizar
+no es motivo para borrar su historia.
 
 ---
 

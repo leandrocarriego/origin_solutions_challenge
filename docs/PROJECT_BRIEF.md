@@ -116,8 +116,10 @@ sin dato nuevo detrás.
 
 **A3 — Origen de los datos del autocomplete.**
 El enunciado sugiere consultar `/stocks?exchange=NYSE` en vivo.
-*Resolución:* ese listado se ingesta una vez a una tabla local y el autocomplete consulta la base
-(`ADR-002`). Proxear cada tecla tipeada agotaría los 800 requests diarios en minutos.
+*Resolución:* ese listado se ingesta a una tabla local y el autocomplete consulta la base
+(`ADR-002`). Proxear cada tecla tipeada agotaría los 800 requests diarios en minutos. La ingesta no
+corre una sola vez: se refresca sola y **reconcilia** contra la respuesta del proveedor, que es una
+foto de lo que cotiza hoy y no trae ningún campo de estado.
 *Descartado:* proxy directo con debounce. Baja el consumo pero no lo acota: sigue creciendo con los
 usuarios, y viola el Artículo II.
 
