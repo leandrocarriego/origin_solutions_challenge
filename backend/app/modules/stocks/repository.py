@@ -10,9 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.stocks.models import Stock
 from app.providers import StockRecord
 
+# Postgres carries at most 32767 bind parameters in one statement, and a row here is nine of
+# them. The real catalogue is 7.155 rows, so "insert them all at once" is 64.395 parameters and
+# asyncpg refuses before the server ever sees it -- which is exactly what the first real
+# ingestion hit in production.
+_ROWS_PER_STATEMENT = 1_000
+
 
 async def upsert(session: AsyncSession, records: list[StockRecord], seen_at: datetime) -> None:
-    """Insert what is new and refresh what is already there, in one statement.
+    """Insert what is new and refresh what is already there.
 
     `delisted_at` is cleared on conflict on purpose: a symbol that comes back is as real as one
     that goes away, and leaving the mark would hide it from the autocomplete forever.
@@ -35,22 +41,23 @@ async def upsert(session: AsyncSession, records: list[StockRecord], seen_at: dat
         for record in records
     ]
 
-    statement = insert(Stock).values(rows)
-    await session.execute(
-        statement.on_conflict_do_update(
-            index_elements=[Stock.symbol],
-            set_={
-                "name": statement.excluded.name,
-                "currency": statement.excluded.currency,
-                "exchange": statement.excluded.exchange,
-                "mic_code": statement.excluded.mic_code,
-                "country": statement.excluded.country,
-                "type": statement.excluded.type,
-                "last_seen_at": statement.excluded.last_seen_at,
-                "delisted_at": None,
-            },
+    for start in range(0, len(rows), _ROWS_PER_STATEMENT):
+        statement = insert(Stock).values(rows[start : start + _ROWS_PER_STATEMENT])
+        await session.execute(
+            statement.on_conflict_do_update(
+                index_elements=[Stock.symbol],
+                set_={
+                    "name": statement.excluded.name,
+                    "currency": statement.excluded.currency,
+                    "exchange": statement.excluded.exchange,
+                    "mic_code": statement.excluded.mic_code,
+                    "country": statement.excluded.country,
+                    "type": statement.excluded.type,
+                    "last_seen_at": statement.excluded.last_seen_at,
+                    "delisted_at": None,
+                },
+            )
         )
-    )
 
 
 async def mark_absent_as_delisted(

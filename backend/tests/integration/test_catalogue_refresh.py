@@ -45,17 +45,13 @@ class TestWhenTheCatalogueIsStale:
         """An empty table is not fresh, it is unknown, and the difference matters on first boot."""
         assert await is_catalogue_stale(session, older_than=A_DAY)
 
-    async def test_a_catalogue_ingested_just_now_is_not_stale(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_a_catalogue_ingested_just_now_is_not_stale(self, session: AsyncSession) -> None:
         """This is the guard that stops a restart loop from spending the day's quota."""
         await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
 
         assert not await is_catalogue_stale(session, older_than=A_DAY)
 
-    async def test_a_catalogue_older_than_the_window_is_stale(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_a_catalogue_older_than_the_window_is_stale(self, session: AsyncSession) -> None:
         """A day is the window ADR-002 chose, and it is an argument so it can be changed."""
         await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
         await age_the_catalogue(session, by=timedelta(hours=25))
@@ -123,7 +119,7 @@ class TestOneMarketFailingDoesNotStopTheOther:
 
 
 class TestTheFreshnessIsPublished:
-    """"The catalogue is up to date" becomes something to look at, not something to assume."""
+    """Being up to date becomes something to look at instead of something to assume."""
 
     async def test_the_gauge_carries_the_instant_of_the_last_success(
         self, session: AsyncSession

@@ -12,11 +12,11 @@ back, and the provider is a stub: no test here spends a request of the Article I
 from datetime import datetime
 
 import pytest
-from app.modules.stocks.service import reconcile_catalogue
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.stocks.models import Stock
+from app.modules.stocks.service import reconcile_catalogue
 from app.providers import MarketDataProvider, ProviderUnavailable, QuotePoint, StockRecord
 
 
@@ -190,3 +190,21 @@ class TestOneExchangeDoesNotSpeakForAnother:
             await reconcile_catalogue(session, StubProvider({}, failing={"NASDAQ"}), "NASDAQ")
 
         assert (await symbols_in(session))["TSLA"].delisted_at is None
+
+
+class TestACatalogueThatIsActuallyBig:
+    """The real one is 7.155 rows, and that is where a statement stops being one statement."""
+
+    async def test_it_ingests_more_rows_than_fit_in_a_single_statement(
+        self, session: AsyncSession
+    ) -> None:
+        """Past 32767 bind parameters asyncpg refuses, and nine columns reach that at 3641.
+
+        Found in production on the first real ingestion, with the whole catalogue behind it.
+        Every test above uses three rows, so none of them could ever have seen it.
+        """
+        snapshot = [listed(f"SYM{index:04d}") for index in range(4000)]
+
+        await reconcile_catalogue(session, StubProvider({"NASDAQ": snapshot}), "NASDAQ")
+
+        assert len(await symbols_in(session)) == 4000

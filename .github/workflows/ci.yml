@@ -195,3 +195,14 @@ jobs:
             exit 1
           fi
           echo "La imagen no contiene tests."
+
+      - name: La imagen del backend importa la aplicación con las dependencias que lleva
+        # The image installs with --no-dev, so a runtime import that lives in the dev group
+        # builds fine and crashes on the first start. That happened: httpx was a dev dependency
+        # and app/providers/ imports it, so the container crash-looped in production while the
+        # suite, mypy, ruff and this very job were all green. Building an image is not the same
+        # as being able to run it.
+        run: |
+          docker run --rm --entrypoint python origin-backend:ci -c 'import app.main' \
+            || { echo "::error::La imagen no puede importar la aplicación: falta una dependencia de runtime."; exit 1; }
+          echo "La aplicación importa con lo que la imagen instala."
