@@ -21,6 +21,10 @@ dependencies = [
     # Neither needs a stubs package: both ship py.typed, so mypy strict reads them directly.
     "argon2-cffi>=25.1.0",
     "pyjwt>=2.14.0",
+    # A runtime dependency and not a dev one: app/providers/twelvedata.py imports it, and
+    # the production image installs with --no-dev. It used to be in the dev group, and the
+    # container crash-looped on the first deploy that actually used the provider.
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
@@ -28,7 +32,6 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
-    "httpx>=0.28",
     "mypy>=1.13",
     "ruff>=0.8",
 ]
