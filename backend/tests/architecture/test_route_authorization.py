@@ -33,12 +33,8 @@ from app.main import app
 # every module, so it is not the property of any of them (GEN-03).
 SECURITY_MODULE = "app.security"
 
-# The routes that answer without asking who is calling, each with the reason it may.
-#
-# Adding a line here is the act of making an endpoint public. It is meant to be visible in a
-# diff, and it is meant to be uncomfortable.
 # FastAPI mounts these on every application it builds, this project's and the throwaway ones
-# the checks below are run against. They are separate so both lists can use them.
+# the checks below are run against. They are a list of their own so both can use them.
 DOCUMENTATION_ROUTES: dict[str, str] = {
     "GET /openapi.json": "The contract the frontend generates its types from.",
     "GET /docs": "Swagger UI, which is the OpenAPI document rendered.",
@@ -46,6 +42,10 @@ DOCUMENTATION_ROUTES: dict[str, str] = {
     "GET /redoc": "The same document, rendered by the other viewer FastAPI mounts.",
 }
 
+# The routes that answer without asking who is calling, each with the reason it may.
+#
+# Adding a line here is the act of making an endpoint public. It is meant to be visible in a
+# diff, and it is meant to be uncomfortable.
 PUBLIC_ROUTES: dict[str, str] = {
     **DOCUMENTATION_ROUTES,
     "GET /api/health": (
@@ -62,6 +62,9 @@ PUBLIC_ROUTES: dict[str, str] = {
 
 # Names that must never arrive from the path, the query string or the body. The frontend is the
 # attacker's: "it always sends its own id" is not a control, it is a hope (Article III).
+#
+# It is a list of spellings, so `uid` or `id_usuario` would walk past it. This catches the
+# obvious shapes; the guarantee is the two-user isolation test that comes with 002.
 IDENTITY_PARAMETERS = frozenset({"user_id", "userid", "owner_id", "account_id", "sub"})
 
 # HEAD and OPTIONS are mounted by Starlette alongside GET; they are not decisions anyone made.
@@ -208,10 +211,6 @@ class TestNoRouteAcceptsAUserId:
             "these routes accept the identity of a user as input, which is API1:2023 (BOLA): "
             f"{offenders}"
         )
-
-    def test_the_forbidden_names_include_the_obvious_one(self) -> None:
-        """A check whose list quietly loses `user_id` is a check that passes forever."""
-        assert "user_id" in IDENTITY_PARAMETERS
 
 
 def _a_primitive_from_the_security_module() -> str:

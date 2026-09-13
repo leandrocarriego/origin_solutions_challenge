@@ -235,11 +235,23 @@ def layers_crossed(files: list[SourceFile], app_root: Path) -> list[str]:
     return found
 
 
+def _canonical(ring: list[str]) -> tuple[str, ...]:
+    """One spelling per cycle, whichever module the walk happened to start from.
+
+    `a -> b -> c` and `b -> c -> a` are the same cycle; rotating to start at the smallest name
+    is what stops it being reported three times.
+    """
+    start = ring.index(min(ring))
+    return tuple(ring[start:] + ring[:start])
+
+
 def cycles(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-05: if A enters the package of B, B does not enter the package of A.
+    """GEN-05: no module reaches another that, directly or not, reaches back.
 
     Two modules that call each other are one module with two names: they cannot be tested
-    apart, deployed apart, or extracted apart.
+    apart, deployed apart, or extracted apart. The same is true of three, which is why this
+    follows each chain to its end instead of only comparing pairs -- `a -> b -> c -> a` is one
+    module wearing three names, and a check that only looks at pairs never sees it.
     """
     modules = module_names(app_root)
     graph: dict[str, set[str]] = {module: set() for module in modules}
@@ -254,10 +266,23 @@ def cycles(files: list[SourceFile], app_root: Path) -> list[str]:
                     graph[own].add(other)
 
     found: list[str] = []
-    for module in modules:
+    seen: set[tuple[str, ...]] = set()
+
+    def walk(module: str, chain: list[str]) -> None:
+        """Follow one chain of imports to its end, reporting the moment it turns back on itself."""
         for other in sorted(graph[module]):
-            if module < other and module in graph[other]:
-                found.append(f"{module} and {other} import each other, so they are one module")
+            if other not in chain:
+                walk(other, [*chain, other])
+                continue
+
+            ring = list(_canonical(chain[chain.index(other) :]))
+            if tuple(ring) in seen:
+                continue
+            seen.add(tuple(ring))
+            found.append(f"{' -> '.join([*ring, ring[0]])} is a cycle, so those are one module")
+
+    for module in modules:
+        walk(module, [module])
 
     return found
 
@@ -376,10 +401,6 @@ class TestWhatIsBelowTheModules:
     ) -> None:
         """Everything under the modules stays ignorant of them, and `main.py` is the exception."""
         assert modules_imported_from_below(app_tree, APP_ROOT) == []
-
-    def test_the_composition_root_is_the_only_name_excluded(self) -> None:
-        """The exception is one file, so nobody can widen it by adding another."""
-        assert COMPOSITION_ROOT == "main.py"
 
 
 class TestTheLayersInsideAModule:
@@ -578,7 +599,40 @@ class TestTheChecksCatchARealViolation:
 
         found = cycles(read_tree(root), root)
 
-        assert found == ["favorites and stocks import each other, so they are one module"]
+        assert found == ["favorites -> stocks -> favorites is a cycle, so those are one module"]
+
+    def test_a_cycle_through_a_third_module_is_caught(self, tmp_path: Path) -> None:
+        """`a -> b -> c -> a`: no two of them import each other, and the three are still one."""
+        root = write_tree(
+            tmp_path / "app",
+            {
+                "modules/auth/__init__.py": '"""Auth."""\n',
+                "modules/auth/service.py": "from app.modules.favorites import count\n",
+                "modules/favorites/__init__.py": '"""Favorites."""\n',
+                "modules/favorites/service.py": "from app.modules.stocks import get_stocks\n",
+                "modules/stocks/__init__.py": '"""Stocks."""\n',
+                "modules/stocks/service.py": "from app.modules.auth import current_user\n",
+            },
+        )
+
+        found = cycles(read_tree(root), root)
+
+        assert found == ["auth -> favorites -> stocks -> auth is a cycle, so those are one module"]
+
+    def test_a_one_way_dependency_is_not_a_cycle(self, tmp_path: Path) -> None:
+        """The cross-module read the project actually has must not be reported."""
+        root = write_tree(
+            tmp_path / "app",
+            {
+                "modules/stocks/__init__.py": '"""Stocks."""\n',
+                "modules/favorites/__init__.py": '"""Favorites."""\n',
+                "modules/favorites/service.py": "from app.modules.stocks import get_stocks\n",
+            },
+        )
+
+        found = cycles(read_tree(root), root)
+
+        assert found == []
 
     def test_a_relationship_that_crosses_is_caught(self, tmp_path: Path) -> None:
         """The coupling that leaves no import behind: `favorite.stock.name`."""

@@ -21,9 +21,11 @@ APP_ROOT = BACKEND_ROOT / "app"
 # definition. GEN-03 excludes it by name, and this is the name.
 COMPOSITION_ROOT = "main.py"
 
-# The four clients CONVENTIONS.md names in GEN-08. The rule is not about TwelveData: a service
-# that imports one of these and builds a URL has already left through the window, and it can do
-# that without ever naming the provider.
+# The four clients CONVENTIONS.md names in GEN-08, and it has to stay those four: dropping one
+# narrows a Blocker convention without a single test turning red.
+#
+# The rule is not about TwelveData. A service that imports one of these and builds a URL has
+# already left through the window, and it can do that without ever naming the provider.
 HTTP_CLIENTS = ("httpx", "requests", "aiohttp", "urllib.request")
 
 # A piece of a module grows from file to directory of the same name when the size asks for it.

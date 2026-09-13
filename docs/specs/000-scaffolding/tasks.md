@@ -2,13 +2,13 @@
 
 **Feature:** `000-scaffolding` · **Plan:** — (ver *Por qué esta carpeta es distinta*)
 
-**Tests aprobados por:** [—] · **Fecha de aprobación:** [—]
+**Tests aprobados por:** Leandro Carriego · **Fecha de aprobación:** 2026-09-13 — *tarea 11.
+Las demás, en su fila.*
 
 <!--
   Lo completa `/approve-tests`, nunca un agente por su cuenta (Artículo VI). Acá la firma es
-  **por lote**: se registra en la fila de la tarea, no sólo en este encabezado, porque las tareas
-  pendientes no se testean juntas ni se firman el mismo día. Este encabezado queda en "—" hasta
-  que estén firmadas todas.
+  **por lote**: se registra también en la fila de la tarea, porque las tareas pendientes no se
+  testean juntas ni se firman el mismo día.
 -->
 
 ## Por qué esta carpeta es distinta
@@ -70,7 +70,7 @@ implementación.
 
 | # | Tarea | Skill | Rol | Cubre | Depende de | Firma |
 |---|-------|-------|-----|-------|------------|-------|
-| 11 | Tests de arquitectura: frontera entre módulos, capas del módulo, proveedor detrás de su interfaz, autorización de rutas | `add_tests` | Tester | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | — | **escritos, esperando firma** |
+| 11 | Tests de arquitectura: frontera entre módulos, capas del módulo, proveedor detrás de su interfaz, autorización de rutas | `add_tests` | Tester | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | — | ✅ **Leandro Carriego · 2026-09-13** |
 | 12 | Las cuatro tablas y su migración inicial | `add_database_migration` | Developer | REQ-18 · ADR-001 · DB-01 | ADR-001 ✅ | — |
 | 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON fijado | `add_integration` | Developer | ADR-006 · TEST-03 · ERR-05 | ADR-006 | — |
 | 14 | Ingesta del catálogo NYSE + NASDAQ, idempotente y con el filtro de ADR-001 | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 · 12, 13 | — |
@@ -87,13 +87,30 @@ Son tres archivos en `backend/tests/architecture/`, más el lector de código qu
 | `test_provider_boundary.py` | `GEN-08`: ningún cliente HTTP fuera de `providers/`, y el nombre del proveedor en un solo archivo |
 | `test_route_authorization.py` | `PY-08` (declarada **y** ejercida) y la mitad estática del Artículo III: ninguna ruta acepta la identidad del usuario por path, query o body |
 
-**La mitad de estos tests hoy pasa en vacío**, y hay que decirlo antes de firmarlos: la fase 0 no
-creó ni un módulo, así que las aserciones contra `app/` corren sobre un conjunto vacío y seguirían
-en verde aunque el chequeo estuviera roto. Eso es exactamente el modo de falla más probable de un
-test de arquitectura y el más difícil de notar.
+Son **42 tests**, y se firmaron sabiendo esto: **la mitad hoy pasa en vacío**. La fase 0 no creó
+ni un módulo, así que las aserciones contra `app/` corren sobre un conjunto vacío y seguirían en
+verde aunque el chequeo estuviera roto. Es el modo de falla más probable de un test de
+arquitectura y el más difícil de notar.
 
-Por eso cada regla va emparejada con un test que la corre contra un árbol escrito para romperla.
-Esos son los que hoy tienen filo, y son los que hay que mirar al firmar.
+Por eso cada regla va emparejada con un test que la corre contra un árbol escrito para romperla,
+bajo `tmp_path`. Esos 27 son los que hoy tienen filo.
+
+Uno **no** es vacuo y encontró algo real en su primera corrida: el que verifica que el nombre del
+proveedor viva en un solo archivo falló contra `app/observability.py:193`, que lo nombraba para
+poder scrubear la key. Se arregló moviendo a `Settings` la pregunta de cuáles de sus valores son
+secretos.
+
+Tres decisiones tomadas al firmar:
+
+- **Los ciclos se detectan siguiendo la cadena completa**, no comparando de a pares: `a → b → c →
+  a` es un ciclo aunque ningún par se importe mutuamente, y `GEN-05` dice "no hay ciclos" sin
+  calificar el largo.
+- **Ningún test afirma sobre una constante del propio archivo.** Se sacaron tres que lo hacían
+  (`COMPOSITION_ROOT == "main.py"`, la lista de clientes HTTP, `"user_id" in IDENTITY_PARAMETERS`):
+  no dicen nada del sistema, y quien quiera achicar el alcance edita las dos líneas igual. Lo que
+  protegían pasó al comentario que acompaña a cada constante.
+- **`/docs`, `/redoc` y `/openapi.json` quedan públicas en producción**, listadas con su motivo en
+  `PUBLIC_ROUTES`.
 
 Lo que **no** está acá: `GEN-09` completo. La mitad conductual —dos usuarios, filas de verdad, uno
 intentando leer las del otro— necesita endpoints y base, y va con la feature que los construye.

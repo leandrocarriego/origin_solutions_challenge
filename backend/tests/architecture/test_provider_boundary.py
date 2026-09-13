@@ -93,10 +93,6 @@ class TestTheProviderStaysBehindItsInterface:
         """Replacing the provider has to be a rewrite of one file, and the test is the proof."""
         assert the_provider_named_elsewhere(APP_ROOT) == []
 
-    def test_the_list_of_http_clients_is_the_one_the_convention_names(self) -> None:
-        """`GEN-08` lists four, and a check that quietly drops one stops being that rule."""
-        assert HTTP_CLIENTS == ("httpx", "requests", "aiohttp", "urllib.request")
-
 
 class TestTheChecksCatchARealViolation:
     """Both checks, run against a tree written on purpose to break them.
