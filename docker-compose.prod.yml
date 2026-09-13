@@ -280,6 +280,9 @@ services:
     restart: unless-stopped
     environment:
       CONTAINERS: "1"
+      # Alloy reads /networks too: without it the discovery cannot compute the network labels of
+      # a container and refuses the whole refresh with a 403.
+      NETWORKS: "1"
       POST: "0"
       # Everything else stays off: no exec, no images, no volumes, no swarm, no info.
       ALLOW_START: "0"
