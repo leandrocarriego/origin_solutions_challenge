@@ -1,0 +1,13 @@
+# Provisioned from a file so the datasource is versioned, not clicked into existence. A fixed
+# uid is what lets the dashboard JSON reference it without knowing the instance.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: origin-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

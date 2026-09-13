@@ -1,0 +1,46 @@
+# Local development. One command from clone to running (ADR-007).
+name: origin-acciones
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: origin
+      POSTGRES_PASSWORD: origin
+      POSTGRES_DB: origin
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U origin -d origin"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://origin:origin@db:5432/origin
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      VERSION: dev
+      # Empty on purpose: no events and no network while developing (TEST-03).
+      SENTRY_DSN: ""
+      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:

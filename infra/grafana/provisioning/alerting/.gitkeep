@@ -1,0 +1,2 @@
+Vacío a propósito. Grafana registra un error en cada arranque si el directorio no existe,
+y un error falso en los logs entrena a ignorarlos.
