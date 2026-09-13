@@ -485,6 +485,59 @@ tiene que interpretar.
 
 ---
 
+## ADR-010 — El proveedor detrás de una clase abstracta, y el método que el catálogo necesita
+
+**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+
+**Reemplaza a:** `ADR-006`, que queda `Reemplazada por ADR-010` en cuanto éste se firme.
+
+**Contexto.** `ADR-006` se firmó el 2026-09-13 y ese mismo día le aparecieron dos correcciones.
+No se enmienda: ya se hizo una excepción con `ADR-001` y la regla de este archivo dice que una
+decisión que cambia se reemplaza. Dos cambios de fondo sobre la misma decisión son exactamente el
+caso para el que existe `Reemplazada por`.
+
+Lo que cambia:
+
+1. **`search_stocks()` no va.** Es `/symbol_search`, el endpoint que `ADR-002` descartó. El
+   autocomplete consulta Postgres y no al proveedor; lo que la ingesta necesita es el listado
+   completo de un exchange.
+2. **Clase abstracta en vez de `Protocol`.** Decisión del humano, con el argumento a favor
+   escrito abajo.
+
+**Decisión.** `MarketDataProvider` es una **ABC** en `app/providers/base.py`, con dos métodos y
+tipos propios —nunca el JSON del proveedor—:
+
+- `list_stocks(exchange: str)` — el catálogo completo de un mercado, que es lo que la
+  reconciliación de `ADR-002` compara contra la tabla.
+- `get_time_series(symbol, interval, start, end)` — la serie que alimenta el gráfico y la caché
+  de `ADR-003`.
+
+`TwelveDataProvider` y `FakeProvider` heredan de ella. Se inyecta por dependencia de FastAPI, y
+lo que el service conoce es la clase abstracta.
+
+**Consecuencias.** Olvidarse de un método falla **al instanciar**, no al type-checkear: el error
+existe aunque nadie corra `mypy`. Es lo que se compró con el cambio.
+
+El costo es el que tiene: los dos proveedores y cualquier doble de test tienen que heredar e
+importar la abstracción, así que la implementación depende del contrato. Con dos
+implementaciones y una sola familia de tests, es barato.
+
+No hay método de búsqueda en el protocolo, y eso es deliberado: buscar es una query a Postgres
+(`ADR-002`), no una capacidad del proveedor.
+
+**Alternativas descartadas.**
+
+*`typing.Protocol`*, que era lo que decía `ADR-006`. A favor real: la implementación no importa
+ni hereda nada, así que la infraestructura no depende del contrato, y cualquier objeto con la
+forma correcta sirve de doble sin heredar. Se descarta porque su único enforcement es `mypy`: un
+método faltante pasa desapercibido para el intérprete. Acá `PY-09` es Blocker y corre en
+pre-commit y en CI, así que en la práctica la diferencia es chica — se elige la que falla sola.
+
+*Dejar `search_stocks()` "por si acaso".* Un método del contrato que nadie llama es superficie que
+alguien va a tener que implementar en el `FakeProvider` y mantener sincronizada. Artículo VII.
+
+---
+
 ## ADR-009 — Observabilidad: logs, métricas, dashboard y errores
 
 **Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
