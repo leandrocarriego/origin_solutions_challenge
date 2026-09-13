@@ -50,6 +50,15 @@ es como es, y no sólo cómo es hoy.
 
 **Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
+**Enmendada:** 2026-09-13 · Leandro Carriego — se agregan `stocks.delisted_at` y
+`stocks.last_seen_at`, que `ADR-002` necesita para reconciliar el catálogo.
+
+> Enmendar un ADR ya `Aceptada` **es una excepción a la regla de este archivo**, que dice que una
+> decisión firmada no se edita en el fondo y que un cambio se escribe como ADR nuevo. Se hizo por
+> decisión explícita del humano y por esta vez: escribir un ADR entero que reemplace a éste para
+> agregar dos columnas habría dejado la definición de las cuatro tablas partida en dos lugares,
+> que es peor para quien lo lea después. La regla sigue vigente para lo que venga.
+
 **Contexto.** El enunciado pide persistir símbolo, nombre y moneda por acción favorita, por
 usuario, y evalúa explícitamente el modelo de datos.
 
@@ -57,7 +66,7 @@ usuario, y evalúa explícitamente el modelo de datos.
 
 - `users` — `id`, `username` (unique), `full_name`, `password_hash`, `created_at`
 - `stocks` — catálogo de símbolos: `symbol` (PK natural), `name`, `currency`, `exchange`,
-  `mic_code`, `country`, `type`
+  `mic_code`, `country`, `type`, `last_seen_at`, `delisted_at` (nullable)
 - `user_stocks` — favoritas: `user_id`, `symbol`, `added_at`, PK compuesta `(user_id, symbol)`
 - `quotes` — caché de cotizaciones: `symbol`, `interval`, `ts`, `open`, `high`, `low`,
   `close`, `volume`, PK compuesta `(symbol, interval, ts)`
@@ -84,6 +93,11 @@ ingesta de `ADR-002` descarta dos cosas:
    un símbolo duplicado en el catálogo.
 2. Todo símbolo que no matchee `^[A-Z0-9][A-Z0-9.\-]{0,8}$`. El símbolo viaja en la URL
    (`REQ-11`), y punto y guión son legales en un segmento pero la barra no.
+
+`last_seen_at` y `delisted_at` existen porque el catálogo se reconcilia contra una foto del
+proveedor que no trae ningún campo de estado (`ADR-002`): la única señal de que un símbolo dejó de
+cotizar es que ya no viene en la respuesta. `delisted_at` la registra sin borrar la fila —
+`user_stocks` y `quotes` la referencian—, y el autocomplete filtra `delisted_at IS NULL`.
 
 **Consecuencias.** Agregar una favorita no depende de la API externa: el símbolo ya está en
 `stocks`. Índice en `quotes(symbol, interval, ts DESC)` para servir los tramos del gráfico.
@@ -195,9 +209,9 @@ se asume porque la ingesta corrió alguna vez. `/api_usage` es gratis, así que 
 
 **Consecuencias.**
 
-`stocks` gana dos columnas que `ADR-001` no previó: `delisted_at` (nullable) y `last_seen_at`.
-**Esto toca una tabla definida en un ADR ya firmado** — o se acepta que `ADR-002` la extienda, o se
-enmienda `ADR-001`; es decisión del humano, no del agente.
+`stocks` necesita dos columnas que `ADR-001` no preveía: `last_seen_at` y `delisted_at`. Están
+declaradas allá, donde vive la definición de las cuatro tablas: `ADR-001` se enmendó por decisión
+explícita del humano el 2026-09-13, como excepción a la regla de que un ADR firmado no se edita.
 
 El filtro de ingesta de `ADR-001` —sin warrants, símbolo ruteable— se aplica **antes** de
 reconciliar: un símbolo descartado por el filtro no "desapareció", nunca entró.
