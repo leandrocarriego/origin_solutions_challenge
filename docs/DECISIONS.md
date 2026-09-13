@@ -48,7 +48,7 @@ es como es, y no sólo cómo es hoy.
 
 ## ADR-001 — Modelo de datos
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** El enunciado pide persistir símbolo, nombre y moneda por acción favorita, por
 usuario, y evalúa explícitamente el modelo de datos.
@@ -67,8 +67,45 @@ usuario, y evalúa explícitamente el modelo de datos.
 agregar dos veces el mismo símbolo sea imposible por construcción, no por un `if` en el
 service.
 
+`quotes.symbol` **también** referencia `stocks`. En esta aplicación todo símbolo llega desde el
+catálogo —se agrega una favorita eligiendo del autocomplete, y al gráfico se entra desde una
+favorita—, así que la FK no debería dispararse nunca. Por eso vale: si se dispara, avisó de un
+bug en vez de dejar acumular cotizaciones huérfanas de un símbolo inexistente.
+
+`quotes.interval` es `String` con un `CHECK` acotado a los tres valores de `REQ-16` (`1min`,
+`5min`, `15min`), espejado por un `StrEnum` en Python. No un `enum` nativo de Postgres: agregarle
+un valor es una migración incómoda y quitarlo es peor, mientras que un `CHECK` se altera con una
+línea.
+
+**La PK natural obliga a una condición sobre la ingesta**, y es parte de esta decisión. La
+ingesta de `ADR-002` descarta dos cosas:
+
+1. `type = "Warrant"`. Un warrant es un derivado, no una acción, y es el único tipo que produce
+   un símbolo duplicado en el catálogo.
+2. Todo símbolo que no matchee `^[A-Z0-9][A-Z0-9.\-]{0,8}$`. El símbolo viaja en la URL
+   (`REQ-11`), y punto y guión son legales en un segmento pero la barra no.
+
 **Consecuencias.** Agregar una favorita no depende de la API externa: el símbolo ya está en
 `stocks`. Índice en `quotes(symbol, interval, ts DESC)` para servir los tramos del gráfico.
+
+La condición sobre la ingesta está medida, no supuesta. Sobre el catálogo real de TwelveData al
+2026-09-13:
+
+| | Filas | Símbolos duplicados | Símbolos no ruteables |
+|---|---|---|---|
+| NYSE + NASDAQ sin filtrar | 7.572 | 1 (`ARQQW`, warrant) | 1 (`!otc/FLZH`) |
+| Sin warrants | 7.156 | 0 | 1 |
+| **Sin warrants y con símbolo ruteable** | **7.155** | **0** | **0** |
+
+Entre NYSE y NASDAQ hay **cero** símbolos en común: la colisión entre mercados que haría falsa a
+esta clave no existe en los datos. Se descarta el 5,5% del catálogo y sobreviven los tres
+símbolos del wireframe. Todo el catálogo es `USD`, pero `currency` se persiste igual porque
+`REQ-08` lo pide y porque una constante de hoy no es una constante.
+
+Es una foto. Si TwelveData listara mañana un símbolo repetido que no sea warrant, la ingesta no
+puede romperse: por eso es un **upsert idempotente** —`ADR-002` ya la define re-ejecutable—, que
+sobreescribe de forma determinista. El día que colisionen dos acciones comunes de verdad, esta
+decisión se revisa con datos, no antes.
 
 **Alternativas descartadas.**
 
@@ -80,6 +117,15 @@ service.
   sirve rangos. Pero completar los huecos de la serie es una query, no un `GET`, y se pierde en
   cada reinicio: el evaluador arranca frío y cada símbolo vuelve a costar cuota. Redis
   persistente es un servicio más para lo que Postgres ya hace.
+- *PK compuesta `(symbol, mic_code)` en `stocks`.* Es el modelo formalmente correcto: el mismo
+  ticker puede existir en dos mercados. Se descarta porque en este catálogo no existe —cero
+  colisiones sobre 7.155 filas medidas— y el par se propagaría a la URL, a cada favorita y a
+  cada fila de `quotes` para resolver un caso que la aplicación nunca ve. El enunciado tampoco
+  pide distinguirlos: `REQ-08` persiste símbolo, nombre y moneda, y el exchange no aparece.
+- *Ingestar sólo `type = "Common Stock"`.* También deja el catálogo sin duplicados, y con 5.747
+  filas en vez de 7.155. Se descarta porque tira 393 ADR (`ABEV`, `AMX`) y 214 REIT que no
+  colisionan ni rompen el ruteo: son empresas que alguien puede buscar. Se prefiere el filtro
+  más angosto que arregla el problema real (`GEN-10`, KISS).
 - *PKs sustitutas `id` en todas las tablas.* Es el default del ORM, y sobrevive a un cambio de
   ticker sin tocar FK. Pero la unicidad de `(user_id, symbol)` hay que declararla igual, y el
   símbolo es lo que viaja en la URL: el `id` no identifica nada que la app use.
@@ -98,7 +144,7 @@ consulta Postgres con `ILIKE` sobre símbolo y nombre, y devuelve como máximo 2
 
 **Consecuencias.** El autocomplete cuesta **cero** requests de cuota y responde en
 milisegundos. El catálogo puede quedar desactualizado, lo que es irrelevante para el
-challenge y se resuelve re-corriendo la ingesta. Ver A3 y A4 en `SPEC.md`.
+challenge y se resuelve re-corriendo la ingesta. Ver A3 y A4 en `docs/PROJECT_BRIEF.md` → *Ambigüedades*.
 
 **Alternativas descartadas.**
 
