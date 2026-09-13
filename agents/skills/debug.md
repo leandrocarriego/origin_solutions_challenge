@@ -77,7 +77,7 @@ problema es de diseño: escalá al arquitecto en vez de seguir parchando.
 
 ### 6) Verificar
 ```bash
-cd backend && uv run pytest -q && uv run ruff check app tests && uv run mypy app
+cd backend && uv run pytest -q && uv run ruff check app tests && uv run mypy app tests
 cd ../web && npx tsc --noEmit && npm run lint
 ```
 

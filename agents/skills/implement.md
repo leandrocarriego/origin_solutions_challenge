@@ -42,7 +42,7 @@ Construir la feature ejecutando su `tasks.md`, cada tarea por la skill que tiene
    prohíbe el Artículo VI.
 5. Antes de dar una tarea por terminada, correr lo que la verifica:
    ```bash
-   cd backend && uv run ruff format app tests && uv run ruff check app tests && uv run mypy app && uv run pytest
+   cd backend && uv run ruff format app tests && uv run ruff check app tests && uv run mypy app tests && uv run pytest
    cd frontend && npm run lint && npm run type-check
    ```
 6. Marcar en `tasks.md` lo que va quedando hecho.
