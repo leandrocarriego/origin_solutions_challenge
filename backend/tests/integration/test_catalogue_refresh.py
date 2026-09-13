@@ -49,35 +49,68 @@ class TestWhenTheCatalogueIsStale:
         """This is the guard that stops a restart loop from spending the day's quota."""
         await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
 
-        assert not await is_catalogue_stale(session, older_than=A_DAY)
+        assert not await is_catalogue_stale(session, older_than=A_DAY, exchange="NASDAQ")
 
     async def test_a_catalogue_older_than_the_window_is_stale(self, session: AsyncSession) -> None:
         """A day is the window ADR-002 chose, and it is an argument so it can be changed."""
         await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
         await age_the_catalogue(session, by=timedelta(hours=25))
 
-        assert await is_catalogue_stale(session, older_than=A_DAY)
+        assert await is_catalogue_stale(session, older_than=A_DAY, exchange="NASDAQ")
 
 
 class TestTheRefresherSpendsNothingItDoesNotNeed:
     """Every request it does not make is a request the chart can make instead."""
 
-    async def test_it_does_not_call_the_provider_when_the_catalogue_is_fresh(
+    async def test_it_does_not_call_the_provider_when_every_market_is_fresh(
         self, session: AsyncSession
     ) -> None:
-        """The whole point of the staleness check: no call at all, not a cheaper call."""
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
+        """The whole point of the staleness check: no call at all, not a cheaper call.
+
+        Every market, not the catalogue as a whole. The first version of this test refreshed
+        one and expected silence, which is what let a failed NASDAQ hide behind a fresh NYSE.
+        """
+        for exchange in CATALOGUE_EXCHANGES:
+            await reconcile_catalogue(
+                session,
+                StubProvider({exchange: [listed(f"X{exchange}", exchange=exchange)]}),
+                exchange,
+            )
         provider = StubProvider({"NASDAQ": [listed("TSLA")], "NYSE": []})
 
         await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
 
         assert provider.calls == []
 
+    async def test_a_market_that_failed_is_retried_while_the_other_stays_fresh(
+        self, session: AsyncSession
+    ) -> None:
+        """The bug the first real ingestion found, and the reason staleness is per market.
+
+        NYSE answered and NASDAQ did not, so the table as a whole looked fresh and the market
+        that failed was not retried for a day. It is retried on the next pass now, and the one
+        that succeeded is not asked again.
+        """
+        await refresh_catalogue_if_stale(
+            session,
+            StubProvider({"NYSE": [listed("A", exchange="NYSE")]}, failing={"NASDAQ"}),
+            older_than=A_DAY,
+        )
+        provider = StubProvider(
+            {"NASDAQ": [listed("TSLA")], "NYSE": [listed("A", exchange="NYSE")]}
+        )
+
+        await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+
+        assert provider.calls == ["NASDAQ"]
+
     async def test_it_refreshes_both_markets_when_the_catalogue_is_stale(
         self, session: AsyncSession
     ) -> None:
         """A4: NYSE and NASDAQ, because the brief's own grid is NASDAQ and its text says NYSE."""
-        provider = StubProvider({"NASDAQ": [listed("TSLA")], "NYSE": [listed("A")]})
+        provider = StubProvider(
+            {"NASDAQ": [listed("TSLA")], "NYSE": [listed("A", exchange="NYSE")]}
+        )
 
         await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
 
@@ -137,7 +170,9 @@ class TestTheFreshnessIsPublished:
         self, session: AsyncSession
     ) -> None:
         """A gauge that advances on failure is a dashboard that lies about being healthy."""
-        provider = StubProvider({"NASDAQ": [listed("TSLA")], "NYSE": [listed("A")]})
+        provider = StubProvider(
+            {"NASDAQ": [listed("TSLA")], "NYSE": [listed("A", exchange="NYSE")]}
+        )
         await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
         before = REGISTRY.get_sample_value("catalogue_last_success_timestamp_seconds")
 

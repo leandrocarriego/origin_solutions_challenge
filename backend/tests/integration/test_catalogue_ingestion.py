@@ -21,14 +21,17 @@ from app.providers import MarketDataProvider, ProviderUnavailable, QuotePoint, S
 
 
 def listed(
-    symbol: str, name: str = "A Company, Inc.", instrument_type: str = "Common Stock"
+    symbol: str,
+    name: str = "A Company, Inc.",
+    instrument_type: str = "Common Stock",
+    exchange: str = "NASDAQ",
 ) -> StockRecord:
     """One row as the provider would send it."""
     return StockRecord(
         symbol=symbol,
         name=name,
         currency="USD",
-        exchange="NASDAQ",
+        exchange=exchange,
         mic_code="XNGS",
         country="United States",
         instrument_type=instrument_type,

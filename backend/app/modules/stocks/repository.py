@@ -91,10 +91,18 @@ async def listed_symbols(session: AsyncSession, exchange: str) -> set[str]:
     return set(rows.all())
 
 
-async def last_seen(session: AsyncSession) -> datetime | None:
-    """When the catalogue was last refreshed, or None if it never was.
+async def last_seen(session: AsyncSession, exchange: str) -> datetime | None:
+    """When that market was last refreshed, or None if it never was.
+
+    Per market and not over the whole table. Each exchange is its own snapshot: one of them
+    succeeding says nothing about the other, and asking the table as a whole would let a
+    successful NYSE make a failed NASDAQ look fresh for a day.
 
     None is not "old", it is "unknown", and on first boot that difference is what tells an empty
     database from a stale one.
     """
-    return await session.scalar(select(func.max(Stock.last_seen_at)))
+    seen: datetime | None = await session.scalar(
+        select(func.max(Stock.last_seen_at)).where(Stock.exchange == exchange)
+    )
+
+    return seen

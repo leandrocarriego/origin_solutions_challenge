@@ -95,16 +95,27 @@ class CatalogueRefresh:
     skipped: bool
 
 
-async def is_catalogue_stale(session: AsyncSession, older_than: timedelta) -> bool:
-    """Whether the catalogue is old enough to be worth spending two requests on.
+async def is_catalogue_stale(
+    session: AsyncSession, older_than: timedelta, exchange: str | None = None
+) -> bool:
+    """Whether the catalogue is old enough to be worth spending a request on.
 
-    A catalogue nobody ever ingested is stale: an empty table is not fresh, it is unknown.
+    Per market when one is named, and "any of them" otherwise. That distinction is not
+    cosmetic: each exchange is its own snapshot, so asking the table as a whole lets a
+    successful NYSE make a failed NASDAQ look fresh -- and the failed one is then not retried
+    for a day. That is what happened on the first real ingestion.
+
+    A market nobody ever ingested is stale: an empty table is not fresh, it is unknown.
     """
-    seen = await last_seen(session)
-    if seen is None:
-        return True
+    markets = (exchange,) if exchange is not None else CATALOGUE_EXCHANGES
+    now = datetime.now(UTC)
 
-    return datetime.now(UTC) - seen > older_than
+    for market in markets:
+        seen = await last_seen(session, market)
+        if seen is None or now - seen > older_than:
+            return True
+
+    return False
 
 
 async def refresh_catalogue_if_stale(
@@ -122,13 +133,19 @@ async def refresh_catalogue_if_stale(
     the life of the process -- the catalogue would stop refreshing with nothing to show for it.
     A market that failed comes back in the result and in the log instead.
     """
-    if not await is_catalogue_stale(session, older_than=older_than):
+    stale = [
+        exchange
+        for exchange in CATALOGUE_EXCHANGES
+        if await is_catalogue_stale(session, older_than=older_than, exchange=exchange)
+    ]
+    if not stale:
+        await log.adebug("catalogue_refresh_skipped", reason="every market is fresh")
         return CatalogueRefresh(reconciled=(), failed=(), skipped=True)
 
     done: list[CatalogueReconciliation] = []
     failed: list[str] = []
 
-    for exchange in CATALOGUE_EXCHANGES:
+    for exchange in stale:
         try:
             done.append(await reconcile_catalogue(session, provider, exchange))
         except ProviderError as error:
