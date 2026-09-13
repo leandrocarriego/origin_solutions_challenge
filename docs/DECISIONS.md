@@ -252,14 +252,34 @@ un gráfico en modo tiempo real a intervalo de 1min consume ~480 requests en 8 h
 mercado. Dos usuarios y la cuota diaria de 800 se agota. La implementación ingenua
 —el navegador pide, el backend reenvía a TwelveData— no sobrevive a la demo.
 
+El intervalo lo elige el usuario entre los tres valores de `REQ-16`, y eso no se negocia por
+cuota: el wireframe pone un `select` que arranca vacío y un botón `Graficar`. No hay intervalo
+por defecto, y nada consume cuota hasta que el usuario elige.
+
 **Decisión.** El frontend nunca dispara una llamada al upstream. Un `QuoteService` en el
 backend resuelve cada pedido contra la tabla `quotes` y solo consulta TwelveData cuando el
 tramo pedido tiene un hueco y el dato está vencido para su intervalo (TTL = duración del
 intervalo). El resultado se persiste antes de responder. El refresco de tiempo real es
 polling del frontend **contra la API propia**, que en el caso normal se sirve de la base.
 
+**El polling corre sólo mientras el gráfico se está mirando.** Se corta cuando la pestaña deja de
+estar visible (`document.visibilityState`) y se reanuda al volver. Sin eso, una pestaña olvidada
+sigue renovando el TTL de su símbolo toda la rueda, y el Artículo II pasa a leerse "símbolos que
+alguien abrió alguna vez" en vez de "símbolos que alguien está mirando".
+
 **Consecuencias.** El consumo de la API externa escala con **símbolos distintos observados**,
 no con clientes conectados (NFR-05): diez usuarios mirando TSLA cuestan lo mismo que uno.
+
+El techo por rueda de 8 horas, con 798 créditos disponibles después del catálogo (`ADR-002`):
+
+| Intervalo | Créditos por símbolo | Símbolos en tiempo real a la vez |
+|---|---|---|
+| `1min` | 480 | 1 |
+| `5min` | 96 | 8 |
+| `15min` | 32 | 24 |
+
+Está escrito acá porque es el límite real del proyecto y conviene saberlo antes de la demo, no
+durante: tres gráficos a 1min agotan el día.
 La caché además da resiliencia — si el upstream falla, se sirve lo último conocido con un
 aviso. Costo: la lógica de detección de huecos es la parte no trivial del backend y necesita
 tests propios.
@@ -276,6 +296,11 @@ servicio más en el compose, sobre lo que ya vive en `quotes`.
 latencia constante y consumo predecible: el gráfico siempre sale de la base. Pero gasta cuota
 por símbolos que nadie está mirando — dos símbolos distintos a 1min ya son ~960 llamadas en una
 rueda, contra los 800 del día. El pull perezoso paga sólo por lo que alguien abrió.
+
+*Forzar `5min` por defecto, o esconder `1min`.* Multiplicaría por cinco los símbolos que entran
+en la cuota. Se descarta porque `REQ-16` da los tres valores al usuario y el enunciado se entrega
+como lo pide (Artículo VII): la cuota se administra con la caché y con la visibilidad, no
+recortándole opciones a la pantalla que el cliente especificó.
 
 El WebSocket propio se descarta en A2: el plan gratuito no tiene streaming detrás.
 
