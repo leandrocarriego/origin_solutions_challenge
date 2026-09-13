@@ -1,0 +1,77 @@
+[project]
+name = "origin-acciones-api"
+version = "0.1.0"
+description = "ORIGIN Acciones — API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "structlog>=26.1.0",
+    "prometheus-client>=0.21",
+    "sentry-sdk[fastapi]>=2.19",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "httpx>=0.28",
+    "mypy>=1.13",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# --- GEN-01 · formato y lint -------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# Dos de estas existen para que una convención deje de depender del review:
+#   BLE     -> ERR-01, excepción capturada a ciegas
+#   PLC0415 -> PY-03, import adentro de una función
+#   D       -> PY-11, docstring en toda función y método
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "ASYNC", "S", "A", "RUF", "D", "PLC0415"]
+ignore = [
+  "S101",  # assert: es como se escriben los tests
+  "D203",  # incompatible con D211; se elige D211 (sin línea en blanco antes de la clase)
+  "D213",  # incompatible con D212; se elige D212 (resumen en la primera línea)
+  "D401",  # modo imperativo: opinión de estilo, no de claridad
+  "D406", "D407", "D413",  # secciones tipo numpy: acá los docstrings son breves y sin secciones
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"] # credenciales de prueba, a propósito
+
+# --- PY-09 · tipos -----------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+# GEN-02: importar de un paquete un nombre que su __all__ no declara es un error de tipos,
+# no sólo una violación de convención.
+no_implicit_reexport = true
+plugins = ["pydantic.mypy"]
+
+# --- TEST-* ------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q --cov=app --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = ["app/__init__.py", "app/*/__init__.py"]

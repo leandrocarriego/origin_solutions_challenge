@@ -1,0 +1,43 @@
+/*
+ * The palette, in one place (UI-03).
+ *
+ * Neutral greys for surface, border and table headers; blue reserved for what is actually a
+ * link. No component writes a literal colour: they all read from here, so changing the palette
+ * is one file and not a grep.
+ */
+:root {
+  --surface: #ffffff;
+  --surface-muted: #f5f6f7;
+  --border: #d8dbdf;
+  --text: #1c1f23;
+  --text-muted: #5c6470;
+
+  --link: #1a5fb4;
+
+  --ok: #1a7f4b;
+  --warn: #9a6700;
+  --error: #b42318;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2rem;
+
+  --radius: 4px;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* UI-04: numbers, dates and symbols line up only in tabular mono. */
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--surface-muted);
+}

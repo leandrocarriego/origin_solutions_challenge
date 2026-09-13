@@ -1,0 +1,37 @@
+{
+  "//": "El backend vive en backend/ con su propio venv de uv. Sin esto, el editor resuelve los imports contra el Python del sistema y marca fastapi, sqlalchemy y pytest como inexistentes, aunque `uv run mypy` pase limpio.",
+
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "python.terminal.activateEnvironment": false,
+
+  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
+  "python.analysis.typeCheckingMode": "off",
+
+  "//mypy": "Se apaga el mypy del editor y se usa el del proyecto, para que la severidad sea la de pyproject.toml (strict = true) y no la del default de la extensión.",
+  "mypy-type-checker.interpreter": ["${workspaceFolder}/backend/.venv/bin/python"],
+  "mypy-type-checker.cwd": "${workspaceFolder}/backend",
+  "mypy-type-checker.args": ["--config-file=${workspaceFolder}/backend/pyproject.toml"],
+
+  "ruff.interpreter": ["${workspaceFolder}/backend/.venv/bin/python"],
+  "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml",
+
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.cwd": "${workspaceFolder}/backend",
+  "python.testing.pytestArgs": ["tests"],
+
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true
+  }
+}
