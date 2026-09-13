@@ -8,7 +8,12 @@
 #    from uv.lock the hook and the project disagree about formatting: the commit passes and CI
 #    fails, or the reverse. Through `uv run` there is one version, the locked one.
 #
-# 2. pytest-fast runs tests/unit and tests/architecture with --no-cov. Those are the tests that
+# 2. ruff runs with --no-cache. Its cache is keyed per file, so it does not know that adding
+#    app/security.py changes how `app.security` is classified in files that did not change --
+#    three import blocks passed here from a stale cache and failed in CI, which has none. A
+#    hook that answers from a cache is a hook that can lie, and this one costs milliseconds.
+#
+# 3. pytest-fast runs tests/unit and tests/architecture with --no-cov. Those are the tests that
 #    hold the boundaries (GEN-02, PY-06, PY-08, GEN-08) and they take under a second. Coverage
 #    (TEST-05) measures the whole suite, so demanding it from a subset would always be red:
 #    that one belongs to CI.
@@ -57,7 +62,7 @@ repos:
     hooks:
       - id: ruff-format
         name: ruff format (GEN-01, PY-07)
-        entry: uv run --directory backend ruff format --check app tests seed.py alembic
+        entry: uv run --directory backend ruff format --no-cache --check app tests seed.py alembic
         language: system
         types: [python]
         files: ^backend/
@@ -65,7 +70,7 @@ repos:
 
       - id: ruff-check
         name: ruff check (GEN-01, PY-07, PY-11, ERR-01)
-        entry: uv run --directory backend ruff check app tests seed.py alembic
+        entry: uv run --directory backend ruff check --no-cache app tests seed.py alembic
         language: system
         types: [python]
         files: ^backend/
