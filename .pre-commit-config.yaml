@@ -1,0 +1,103 @@
+# Los hooks que hacen cumplir, antes de que el código salga de la máquina, lo que
+# `CONVENTIONS.md` declara verificado automáticamente.
+#
+# Dos decisiones que conviene entender:
+#
+# 1. **`ruff`, `mypy` y `pytest` corren como hooks `local`, vía `uv run`**, y no desde el repo
+#    de hooks de ruff. Un `ruff` instalado por pre-commit tiene su propia versión, y el día que
+#    se desincroniza del `uv.lock` el formateo del hook y el del proyecto dejan de coincidir:
+#    el commit pasa y el CI falla, o al revés. Con `uv run` hay una sola versión, la del lock.
+#
+# 2. **`pytest-fast` corre `tests/unit` y `tests/architecture` con `--no-cov`.** Son los tests
+#    que sostienen las fronteras (`GEN-02`, `PY-06`, `PY-08`, `GEN-08`) y tardan menos de un
+#    segundo. La cobertura (`TEST-05`) mide la suite completa, así que exigirla sobre un
+#    subconjunto daría siempre rojo: eso es del CI, no de acá.
+#
+# Instalación:  make hooks     (o: uvx pre-commit install --install-hooks)
+
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  # --- Higiene de archivos (GIT-04) ------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-yaml
+      - id: check-json
+      # SEC-01: una clave privada que entró al historial ya no se saca con un commit.
+      - id: detect-private-key
+
+  # --- Mensajes de commit (GIT-03) -------------------------------------------------------------
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
+
+  # --- Backend (GEN-01, PY-07, PY-09, y las fronteras) -----------------------------------------
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format (GEN-01, PY-07)
+        entry: uv run --directory backend ruff format --check app tests
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+
+      - id: ruff-check
+        name: ruff check (GEN-01, PY-07, PY-11, ERR-01)
+        entry: uv run --directory backend ruff check app tests
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+
+      - id: mypy
+        name: mypy strict sobre app y tests (PY-09)
+        entry: uv run --directory backend mypy app tests
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+
+      - id: pytest-fast
+        name: tests de unidad y de arquitectura (GEN-02, GEN-08, PY-06, PY-08)
+        entry: uv run --directory backend pytest tests/unit tests/architecture --no-cov -q
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+
+  # --- Frontend (TS-01, TS-02, TS-04) ----------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: frontend-format
+        name: prettier (TS-04)
+        entry: npm --prefix frontend run format:check
+        language: system
+        files: ^frontend/
+        types_or: [ts, tsx, javascript, css, json]
+        pass_filenames: false
+
+      - id: frontend-lint
+        name: eslint (TS-02, TS-04)
+        entry: npm --prefix frontend run lint
+        language: system
+        files: ^frontend/
+        types_or: [ts, tsx]
+        pass_filenames: false
+
+      - id: frontend-types
+        name: tsc --noEmit (TS-01)
+        entry: npm --prefix frontend run type-check
+        language: system
+        files: ^frontend/
+        types_or: [ts, tsx]
+        pass_filenames: false

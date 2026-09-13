@@ -1,0 +1,191 @@
+# El CI corre lo que `CONVENTIONS.md` declara verificado en CI y no en el pre-commit:
+# `TEST-03` (la suite sin red ni API key), `TEST-05` (la cobertura sobre la suite completa),
+# `UI-02` y `UI-03` (los tests de pantalla), integración contra una base real y `alembic check`.
+#
+# Los hooks se pueden saltear con `--no-verify`; esto no.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Un push nuevo cancela la corrida anterior de la misma rama: nadie necesita el resultado
+# de un commit que ya fue reemplazado.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+
+    services:
+      # Los tests de integración de `TEST-02` corren contra una base real, no contra un doble.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: origin
+          POSTGRES_PASSWORD: origin
+          POSTGRES_DB: origin_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U origin -d origin_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://origin:origin@localhost:5432/origin_test
+      # TEST-03, y es el punto entero de esta variable: se declara VACÍA a propósito. Cualquier
+      # test que intente salir al proveedor falla por credencial ausente en vez de gastar cuota
+      # del Artículo II sin que nadie se entere.
+      TWELVEDATA_API_KEY: ""
+      # Sin DSN, Sentry no se inicializa: cero eventos y cero red desde el CI.
+      SENTRY_DSN: ""
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Instalar dependencias desde el lockfile
+        # --frozen falla si el lock no corresponde al pyproject, que es el Artículo IX:
+        # un build que no es reproducible no es verificable.
+        run: uv sync --frozen
+
+      - name: Formato y lint (GEN-01, PY-07, PY-11, ERR-01)
+        run: |
+          uv run ruff format --check app tests
+          uv run ruff check app tests
+
+      - name: Tipos (PY-09)
+        run: uv run mypy app tests
+
+      - name: Suite completa y cobertura (TEST-01..TEST-06, GEN-02, GEN-08, PY-06, PY-08)
+        run: uv run pytest
+
+      - name: Modelos sincronizados con las tablas (DB-01)
+        run: |
+          if [ -f alembic.ini ]; then
+            uv run alembic check
+          else
+            echo "::notice::alembic.ini todavía no existe (fase 0); DB-01 empieza a verificarse acá en cuanto aparezca."
+          fi
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar desde el lockfile
+        # `npm ci` y no `npm install`: respeta el lock en vez de actualizarlo (Artículo IX).
+        run: npm ci
+
+      - name: Tipos (TS-01)
+        run: npm run type-check
+
+      - name: Lint (TS-02, TS-04)
+        run: npm run lint
+
+      - name: Formato (TS-04)
+        run: npm run format:check
+
+      - name: Tests de pantalla (UI-02, UI-03)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  higiene:
+    name: Higiene y convenciones
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Se necesitan los commits del PR para revisar sus mensajes.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Higiene de archivos (GIT-04)
+        # Se saltean los hooks que backend/ y frontend/ ya corren con sus dependencias
+        # instaladas: acá no hay ni uv ni node_modules, y duplicarlos sólo gastaría minutos.
+        env:
+          SKIP: ruff-format,ruff-check,mypy,pytest-fast,frontend-format,frontend-lint,frontend-types
+        uses: pre-commit/action@v3.0.1
+
+      - name: Mensajes de commit (GIT-03)
+        # El hook `commit-msg` se saltea con `--no-verify`; esto no.
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$base" ]; then
+            echo "No es un pull request: no hay rango de commits que revisar."
+            exit 0
+          fi
+          tipos='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+          fallo=0
+          while IFS= read -r asunto; do
+            if printf '%s' "$asunto" | grep -qE "^($tipos)(\([a-z0-9._-]+\))?!?: .+"; then
+              echo "  ok  $asunto"
+            else
+              echo "  ✗   $asunto"
+              fallo=1
+            fi
+          done < <(git log --format=%s "$base..${{ github.event.pull_request.head.sha }}")
+          if [ "$fallo" = 1 ]; then
+            echo "::error::Hay mensajes fuera de Conventional Commits (GIT-03, Blocker)."
+            exit 1
+          fi
+        shell: bash
+
+  imagenes:
+    name: Imágenes de contenedor
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Construir el backend
+        run: docker build -t origin-backend:ci backend
+
+      - name: Construir el frontend
+        run: docker build -t origin-frontend:ci frontend
+
+      - name: La imagen del backend no lleva los tests adentro
+        # `.dockerignore` los excluye; si alguien lo toca, la imagen de producción se lleva la
+        # suite y sus dependencias. Esto lo nota.
+        run: |
+          if docker run --rm --entrypoint sh origin-backend:ci -c 'ls /app/tests' 2>/dev/null; then
+            echo "::error::La imagen de producción contiene /app/tests."
+            exit 1
+          fi
+          echo "La imagen no contiene tests."
