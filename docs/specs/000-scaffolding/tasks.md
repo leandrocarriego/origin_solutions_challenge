@@ -71,9 +71,9 @@ implementación.
 | # | Tarea | Skill | Rol | Cubre | Depende de | Firma |
 |---|-------|-------|-----|-------|------------|-------|
 | 11 | Tests de arquitectura: frontera entre módulos, capas del módulo, proveedor detrás de su interfaz, autorización de rutas | `add_tests` | Tester | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | — | ✅ **Leandro Carriego · 2026-09-13** |
-| 12 | Las cuatro tablas y su migración inicial | `add_database_migration` | Developer | REQ-18 · ADR-001 · DB-01 | ADR-001 ✅ | — |
-| 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON fijado | `add_integration` | Developer | ADR-006 · TEST-03 · ERR-05 | ADR-006 | — |
-| 14 | Ingesta del catálogo NYSE + NASDAQ, reconciliando contra la foto del proveedor | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 ✅ · 12, 13 | — |
+| 12 | Las cuatro tablas y su migración inicial | `add_database_migration` | Developer | REQ-18 · ADR-001 · DB-01 | ADR-001 ✅ | ✅ **Leandro Carriego · 2026-09-13** |
+| 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON fijado | `add_integration` | Developer | ADR-006 · TEST-03 · ERR-05 | ADR-006 ✅ | — |
+| 14 | Ingesta del catálogo NYSE + NASDAQ, reconciliando contra la foto del proveedor | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 ✅ · ADR-006 ✅ · 12, 13 | — |
 | 15 | Seed: 2 usuarios con Argon2 y favoritas demo (TSLA, AAPL, NFLX) | `add_backend_feature` | Developer | REQ-19 | ADR-004 · 12 | — |
 
 ### La tarea 11, en detalle
@@ -117,9 +117,12 @@ intentando leer las del otro— necesita endpoints y base, y va con la feature q
 
 ### Bloqueos abiertos
 
-- **`ADR-004`, `ADR-006` y `ADR-007` siguen en `Propuesta`.** Un ADR en `Propuesta` no es
-  autoridad y ningún plan lo puede citar (Artículo X). La tarea 13 depende de `ADR-006` y la 15 de
-  `ADR-004`; la 14 ya tiene su decisión firmada, pero depende de las dos anteriores.
+- **`ADR-004` sigue en `Propuesta`**, y la tarea 15 (el seed con Argon2) depende de él. Un ADR
+  en `Propuesta` no es autoridad y ningún plan lo puede citar (Artículo X).
+- **`ADR-006` define `search_stocks()`, que `ADR-002` descartó.** La reconciliación del catálogo
+  pide el listado completo de un exchange (`/stocks`), no `/symbol_search`. El protocolo necesita
+  un método que devuelva el catálogo, y es decisión del humano si se enmienda `ADR-006` o se
+  escribe uno nuevo.
 - **La tarea 11 espera la firma del Artículo VI**, no un ADR: los tests están escritos y el gate
   es que los leas.
 

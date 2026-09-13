@@ -394,7 +394,7 @@ mercado en el cliente y saber por qué falló un proveedor que el frontend ni co
 
 ## ADR-006 — El proveedor de datos detrás de una interfaz
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** La rúbrica evalúa extensibilidad, y TwelveData es un detalle de
 implementación que el enunciado eligió por ser gratis.
