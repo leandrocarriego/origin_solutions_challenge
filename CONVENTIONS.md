@@ -64,7 +64,7 @@ Cuando una convención de esa clase se rompe seguido, la respuesta correcta no e
 # Backend
 cd backend
 uv run ruff format --check app tests && uv run ruff check app tests   # GEN-01, PY-07
-uv run mypy app                                                       # PY-09
+uv run mypy app tests                                                 # PY-09
 uv run pytest                                                         # GEN-02, PY-06, PY-08, TEST-*
 
 # Frontend
@@ -233,6 +233,37 @@ Nunca por un id que venga del path, del query string o del body.
 
 El repositorio recibe el `user_id` del usuario autenticado y no tiene forma de recibir otro: la firma lo exige, y el test de aislamiento lo verifica con dos usuarios (Artículo III).
 
+### `GEN-10` - Major: SOLID, DRY y KISS, con su modo de falla escrito al lado.
+
+Los tres se aplican, y los tres se sobreaplican. Esta convención sirve en el review sólo si se cita junto con **cuál** y **por qué**: "esto viola DRY" sin argumento no es un hallazgo, es una opinión.
+
+**KISS gana por defecto.** Agregar estructura necesita una razón escrita; no agregarla, no. Una interfaz con una sola implementación que nadie va a reemplazar es más difícil de leer que la clase concreta que oculta.
+
+**SOLID.** El que más rinde acá es responsabilidad única, y ya está en la arquitectura: `router` traduce HTTP, `service` decide, `repository` accede a datos (`PY-06`). Inversión de dependencias también: el service conoce el protocolo del proveedor, no su implementación (`GEN-08`). *Modo de falla:* una interfaz por clase y una fábrica por interfaz, en un proyecto de cuatro módulos.
+
+**DRY.** Se aplica a **conocimiento duplicado**, no a texto parecido. Dos funciones con la misma forma y razones distintas para cambiar no son duplicación: unirlas crea un acoplamiento que se paga cuando una evoluciona. *Regla práctica:* a la tercera aparición se extrae, no a la segunda. *Modo de falla:* el helper con cinco parámetros booleanos que nació de unir dos casos que no eran el mismo.
+
+**KISS.** La solución más simple que resuelve el problema **de hoy**. *Modo de falla:* confundir simple con corto — un one-liner denso no es simple.
+
+**Cuando chocan**, el orden es: que funcione y esté testeado, después KISS, después DRY, después SOLID. SOLID es el que más estructura agrega y el más caro si se aplica antes de tiempo.
+
+### `GEN-11` - Major: Un patrón de diseño se nombra sólo cuando se gana el lugar.
+
+Antes de introducir uno, la pregunta es qué problema concreto resuelve **en este proyecto**, no si es conocido. Un patrón bien elegido se justifica en una línea; uno mal elegido necesita un párrafo.
+
+Cuando un `plan.md` introduce uno, lo declara con su alternativa descartada: es una decisión de diseño de la feature, y ahí es donde va (`docs/DECISIONS.md` es para lo transversal).
+
+Los que este proyecto ya usa:
+
+| Patrón | Dónde | Qué resuelve |
+|---|---|---|
+| **Strategy** (`Protocol`) | `MarketDataProvider` | Habilita el `FakeProvider` que hace correr la suite sin red (`TEST-03`) y deja el proveedor reemplazable (`NFR-07`) |
+| **Repository** | `repository.py` de cada módulo | Aísla SQLAlchemy del service, que así se testea sin base |
+| **Composition Root** | `app/main.py` | Un solo lugar donde se arma el grafo de dependencias |
+| **Test Double** | `FakeProvider` | Determinístico y sin gastar cuota (Artículo II) |
+
+Y los que **no**, porque acá no pagan: Factory (no hay familias de objetos que elegir en runtime), Observer o event bus (`ADR-009` lo descarta: un solo servicio), Unit of Work (la sesión de SQLAlchemy ya lo es), CQRS y Mediator (no hay complejidad de lectura/escritura que separar).
+
 ---
 
 ## Python (`PY-*`)
@@ -253,7 +284,7 @@ cd backend && grep -rnE "from typing import .*\b(List|Dict|Tuple|Set|Optional|Un
 
 ### `PY-03` - Major: Todos los imports van a nivel de módulo.
 
-Sin imports dentro de funciones o métodos. Ruff **no** lo detecta con el `select` actual (`E`, `F`, `I`, `UP`, `B`, `SIM`): depende del review.
+Sin imports dentro de funciones o métodos. Lo verifica **`PLC0415` de Ruff**, que está en el `select` de `backend/pyproject.toml` para eso.
 
 ```
 cd backend && grep -rnE "^\s+(import |from .+ import )" app | grep -v "TYPE_CHECKING"
@@ -263,7 +294,7 @@ cd backend && grep -rnE "^\s+(import |from .+ import )" app | grep -v "TYPE_CHEC
 
 Sin `Any` implícito. 
 
-`mypy` corre con `disallow_untyped_defs = false`, así que **no** atrapa una función sin anotar: esto lo verifica el review, no la herramienta. 
+`mypy` corre con `strict = true` (`backend/pyproject.toml`), que activa `disallow_untyped_defs`: una función sin anotar falla con `no-untyped-def`. Lo verifica la herramienta, no el review. 
 
 `PY-09` cubre lo demás.
 
@@ -317,12 +348,14 @@ Verificada por test (ver la tabla de arriba).
 cd backend && uv run pytest tests/architecture/test_route_authorization.py
 ```
 
-### `PY-09` - Blocker: `mypy` pasa limpio sobre `app/`.
+### `PY-09` - Blocker: `mypy` pasa limpio sobre `app/` y sobre `tests/`.
 
 Corre con `no_implicit_reexport = true`, así que además del tipado hace cumplir la frontera: un nombre importado de `app.modules.<modulo>` que ese paquete no declara en su `__all__` es error de `mypy`, no sólo hallazgo de review (`GEN-02`).
 
+Cubre `tests/` además de `app/`. Un test es código que se mantiene, y dejarlo afuera del chequeo permite que llame a una función con el tipo equivocado y siga verde: el test pasa, pero no está ejercitando la firma real.
+
 ```
-cd backend && uv run mypy app
+cd backend && uv run mypy app tests
 ```
 
 ### `PY-10` - Major: Nombres, PEP 8, y el guión bajo marca lo privado del archivo.
@@ -345,6 +378,20 @@ Un nombre sin guión bajo que no está en `__all__` es interno del módulo: visi
 
 ```
 cd backend && uv run ruff check --select N app
+```
+
+### `PY-11` - Major: Toda función, método y clase lleva docstring, y es breve.
+
+Incluye los tests, los `__init__.py` y los schemas de Pydantic. Una línea alcanza casi siempre: qué hace y, si no es obvio, por qué existe.
+
+**Sin `Args`, sin `Returns`, sin tipos.** Eso ya está en la firma, tipado y verificado por `mypy` (`PY-09`): repetirlo en prosa crea una segunda fuente que se desincroniza en el primer refactor. El docstring dice lo que la firma **no** puede decir.
+
+En un test, el docstring dice **qué comportamiento fija**, no qué hace el código. `"""Answers 200 while the process can serve."""` sirve; `"""Tests the health endpoint."""` es el nombre del test escrito de nuevo.
+
+En inglés, como todo el código (`GEN-07`).
+
+```
+cd backend && uv run ruff check --select D app tests
 ```
 
 ---
@@ -444,12 +491,17 @@ Los wireframes son claros. No se lee la preferencia del sistema operativo ni se 
 
 ## Manejo de errores (`ERR-*`)
 
-### `ERR-01` - Major: Ninguna excepción se traga en silencio.
+### `ERR-01` - Blocker: Ninguna excepción se traga en silencio.
 
 Un `except` que no loguea, no re-lanza y no decide nada es un hallazgo.
 
+Lo verifica **`BLE001` de Ruff**, que marca todo `except Exception` (y `except BaseException`) capturado a ciegas. Deja de depender de que alguien lea el diff, y por eso sube a Blocker: una regla que una herramienta puede sostener no tiene por qué sostenerla una persona.
+
+Se puede silenciar con `# noqa: BLE001`, y **el `noqa` obliga a escribir el porqué en la misma línea o en el docstring**. Hoy el repositorio tiene exactamente uno: la sonda `database_is_up` de `app/db.py`, que se traga la excepción porque quien pregunta quiere un sí o un no, y porque el texto de esa excepción lleva el DSN con la password (Artículo I). Un `noqa` sin justificación escrita es un hallazgo, igual que el `except` que evita.
+
 ```
-cd backend && grep -rn -A2 "except" app | grep -E "pass$|continue$"
+cd backend && uv run ruff check --select BLE app tests
+cd backend && grep -rn "noqa: BLE001" app tests   # cada uno tiene que tener su razón al lado
 ```
 
 ### `ERR-02` - Minor: Los mensajes de error tienen sentido para quien los lee.
@@ -532,6 +584,25 @@ cd backend && uv run pytest tests/integration/test_password_hashing.py
 ```
 
 Lo respalda `NFR-01` y lo detalla `ADR-004`.
+
+### `SEC-07` - Blocker: Toda ruta se piensa contra la OWASP API Security Top 10 (2023).
+
+No es una checklist de cierre: es la lista que se recorre **al diseñar el endpoint**, en el `plan.md`, cuando todavía es barato cambiarlo. La mitad de las diez no aplican a este proyecto, y decir cuáles y por qué es parte de la convención — una lista contestada con "no aplica" en silencio se lee igual que una no leída.
+
+Las que **sí** aplican acá, cada una con la regla que ya la cubre:
+
+| | Riesgo | Acá | Regla |
+|---|---|---|---|
+| **API1** | **BOLA** — autorización a nivel objeto rota | El riesgo principal del proyecto: favoritas de otro usuario | Artículo III, `GEN-09` |
+| **API2** | Autenticación rota | Login, JWT, expiración, Argon2id | `ADR-004`, `SEC-06` |
+| **API3** | BOPLA — exponer o aceptar campos de más | Los schemas de `io.py` son explícitos en las dos direcciones, nunca `model_config = {"extra": "allow"}` | `PY-01` |
+| **API4** | Consumo de recursos sin límite | La cuota de 800/día **es** este riesgo | Artículo II, `ADR-003` |
+| **API5** | Autorización a nivel función | Toda ruta declara su autenticación o está en `PUBLIC_ROUTES` con motivo | `PY-08` |
+| **API8** | Mala configuración | CORS acotado al origen del frontend, nunca `*`; Sentry sin PII ni variables locales | `SEC-02`, `ADR-009` |
+
+Las que **no** aplican, dicho de frente: **API6** (flujos de negocio sensibles: no hay pagos ni transferencias), **API7** (SSRF: la única URL saliente es la del proveedor, fija en `app/providers/`), **API9** (gestión de inventario: hay una sola versión y un solo ambiente público), **API10** (consumo inseguro de APIs de terceros — aplica parcialmente, y lo cubre `ERR-05`: la respuesta del proveedor se valida y se tipa, nunca se reenvía cruda).
+
+**API1 y API5 son distintos y se confunden.** API1 pregunta *"¿este usuario puede tocar **este objeto**?"*; API5, *"¿este usuario puede llamar a **este endpoint**?"*. La primera la sostiene el filtro por `sub` del token, la segunda la declaración de autorización de la ruta. Un endpoint puede pasar API5 y fallar API1.
 
 ---
 
@@ -702,9 +773,11 @@ Si una convención está marcada Blocker y no aparece en esta tabla, la tabla es
 | 14 | Formato o lint rotos : rompen el pre-commit | `PY-07`, `TS-04` |
 | 15 | Secretos commiteados | `SEC-01` |
 | 16 | Password guardada en texto plano, o hasheada con `md5`/`sha*` en vez de Argon2id | `SEC-06` |
-| 17 | Tests que salen a la red en vez de usar JSON fijado | `TEST-03` |
-| 18 | Commit directo a `main`, o mensaje fuera de Conventional Commits | `GIT-01`, `GIT-03` |
-| 19 | Pantalla que se aparta del wireframe, o texto cambiado respecto del enunciado | `UI-01`, `UI-02` |
+| 17 | Endpoint nuevo cuyo `plan.md` no recorrió la OWASP API Top 10 | `SEC-07` |
+| 18 | `except` a ciegas que no loguea, no re-lanza y no decide, o un `noqa: BLE001` sin razón escrita | `ERR-01` |
+| 19 | Tests que salen a la red en vez de usar JSON fijado | `TEST-03` |
+| 20 | Commit directo a `main`, o mensaje fuera de Conventional Commits | `GIT-01`, `GIT-03` |
+| 21 | Pantalla que se aparta del wireframe, o texto cambiado respecto del enunciado | `UI-01`, `UI-02` |
 
 ## Identificadores retirados
 
