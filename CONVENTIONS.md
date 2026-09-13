@@ -26,7 +26,7 @@ Cada convención tiene tres cosas:
 
 Esta es la distinción más importante del documento.
 
-Estas nueve convenciones **no dependen de que alguien las lea**: hay un test que falla, y la suite no pasa.
+Estas once convenciones **no dependen de que alguien las lea**: hay un test que falla, y la suite no pasa.
 
 **Dónde se verifican.** El hook `pytest-fast` del pre-commit corre `tests/unit` y `tests/architecture`, así que `GEN-02`, `PY-06`, `PY-08`, `GEN-08` y `GEN-09` frenan el commit antes de que salga de la máquina.
 
@@ -36,9 +36,11 @@ Estas nueve convenciones **no dependen de que alguien las lea**: hay un test que
 |---|---|---|
 | `GEN-02` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando archivo y línea: del import que entra a otro módulo por debajo de su paquete, del que reentra al propio paquete en vez de usar la ruta completa, y del `__init__.py` que tiene algo más que docstring, imports y un `__all__` literal. |
 | `PY-06` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando archivo y línea del import que cruza las capas adentro del módulo. |
+| `GEN-03` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla por cada archivo del kernel o de `providers/` que importa un módulo. `main.py` está excluido por nombre, y un test verifica que ese nombre siga siendo uno solo. |
+| `GEN-05` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando los dos módulos que se importan mutuamente. |
 | `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` | La suite falla por dos motivos: un cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor —sin distinguir mayúsculas— fuera de `app/providers/twelvedata.py` y `app/settings.py`. |
-| `GEN-09` | `backend/tests/integration/test_user_isolation.py` | La suite falla si un usuario alcanza datos de otro. |
-| `PY-08` | `backend/tests/architecture/test_route_authorization.py` (`TestRoutesDeclareAuthorization` + `TestRoutesEnforceAuthorization`) | La suite falla por cada endpoint que responde sin decidir quién lo llama. |
+| `GEN-09` | `backend/tests/integration/test_user_isolation.py` | La suite falla si un usuario alcanza datos de otro. La mitad estática ya corre: `TestNoRouteAcceptsAUserId` en `test_route_authorization.py` falla por cada ruta que acepta la identidad del usuario por path, query o body. |
+| `PY-08` | `backend/tests/architecture/test_route_authorization.py` (`TestRoutesDeclareAuthorization` + `TestRoutesEnforceAuthorization`) | La suite falla por cada endpoint que responde sin decidir quién lo llama, y por cada entrada de `PUBLIC_ROUTES` sin motivo escrito o que ya no corresponde a ninguna ruta montada. |
 | `TEST-03` | La suite corre en CI con `TWELVEDATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
 | `TEST-05` | `--cov-fail-under=80` en `backend/pyproject.toml` | `pytest` termina en rojo aunque todos los tests pasen. |
 | `UI-02` | `frontend/tests/copy.test.ts` | La suite falla y nombra el texto que no coincide con `docs/design/COPY.md`. |

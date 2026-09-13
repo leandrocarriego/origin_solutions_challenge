@@ -57,6 +57,7 @@ registradas como lo que son.
 | 7 | CI, pre-commit y el chequeo de idioma de los comentarios | GEN-07 | `scripts/check_comment_language.py` |
 | 8 | Observabilidad: métricas, Prometheus, Grafana y su dashboard del Artículo II | ADR-009 | `backend/tests/architecture/test_dashboard_metrics.py` |
 | 9 | Deploy al VPS con Traefik y TLS | — | — |
+| 10 | `argon2-cffi` y `pyjwt` declaradas con `uv add` | SEC-06 · ADR-004 · Art. IX | — |
 
 La tarea 8 **sí** cumplió el gate en la práctica: el test del dashboard se escribió primero, se
 verificó en rojo y recién después se construyó el dashboard. Se anota acá porque no hay firma
@@ -69,38 +70,58 @@ implementación.
 
 | # | Tarea | Skill | Rol | Cubre | Depende de | Firma |
 |---|-------|-------|-----|-------|------------|-------|
-| 10 | Tests de arquitectura: frontera entre módulos, capas del módulo, proveedor detrás de su interfaz, aislamiento por usuario | `add_tests` | Tester | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, GEN-09, PY-06 | — | — |
-| 11 | Las cuatro tablas y su migración inicial | `add_database_migration` | Developer | REQ-18 · ADR-001 · DB-01 | ADR-001 ✅ | — |
-| 12 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON fijado | `add_integration` | Developer | ADR-006 · TEST-03 · ERR-05 | ADR-006 | — |
-| 13 | Ingesta del catálogo NYSE + NASDAQ, idempotente y con el filtro de ADR-001 | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 · 11, 12 | — |
-| 14 | Seed: 2 usuarios con Argon2 y favoritas demo (TSLA, AAPL, NFLX) | `add_backend_feature` | Developer | REQ-19 | ADR-004 · 11 | — |
+| 11 | Tests de arquitectura: frontera entre módulos, capas del módulo, proveedor detrás de su interfaz, autorización de rutas | `add_tests` | Tester | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | — | **escritos, esperando firma** |
+| 12 | Las cuatro tablas y su migración inicial | `add_database_migration` | Developer | REQ-18 · ADR-001 · DB-01 | ADR-001 ✅ | — |
+| 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON fijado | `add_integration` | Developer | ADR-006 · TEST-03 · ERR-05 | ADR-006 | — |
+| 14 | Ingesta del catálogo NYSE + NASDAQ, idempotente y con el filtro de ADR-001 | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 · 12, 13 | — |
+| 15 | Seed: 2 usuarios con Argon2 y favoritas demo (TSLA, AAPL, NFLX) | `add_backend_feature` | Developer | REQ-19 | ADR-004 · 12 | — |
+
+### La tarea 11, en detalle
+
+Son tres archivos en `backend/tests/architecture/`, más el lector de código que comparten:
+
+| Archivo | Verifica |
+|---|---|
+| `source_tree.py` | No es un test: lee los `.py` con `ast` y resuelve los imports. Existe para que cada regla se pueda correr dos veces —contra `app/` y contra un árbol escrito a propósito para romperla—. |
+| `test_module_boundaries.py` | `GEN-02` (las dos cláusulas, la forma del `__init__`, ningún modelo del ORM exportado, y el `relationship()` que cruza), `GEN-03`, `GEN-05`, `PY-06` |
+| `test_provider_boundary.py` | `GEN-08`: ningún cliente HTTP fuera de `providers/`, y el nombre del proveedor en un solo archivo |
+| `test_route_authorization.py` | `PY-08` (declarada **y** ejercida) y la mitad estática del Artículo III: ninguna ruta acepta la identidad del usuario por path, query o body |
+
+**La mitad de estos tests hoy pasa en vacío**, y hay que decirlo antes de firmarlos: la fase 0 no
+creó ni un módulo, así que las aserciones contra `app/` corren sobre un conjunto vacío y seguirían
+en verde aunque el chequeo estuviera roto. Eso es exactamente el modo de falla más probable de un
+test de arquitectura y el más difícil de notar.
+
+Por eso cada regla va emparejada con un test que la corre contra un árbol escrito para romperla.
+Esos son los que hoy tienen filo, y son los que hay que mirar al firmar.
+
+Lo que **no** está acá: `GEN-09` completo. La mitad conductual —dos usuarios, filas de verdad, uno
+intentando leer las del otro— necesita endpoints y base, y va con la feature que los construye.
 
 ### Bloqueos abiertos
 
-Ninguna de estas cinco arranca sin resolver lo suyo, y las tres primeras son decisión humana:
-
 - **`ADR-002`, `ADR-004`, `ADR-006` y `ADR-007` siguen en `Propuesta`.** Un ADR en `Propuesta` no
-  es autoridad y ningún plan lo puede citar (Artículo X). Las tareas 12, 13 y 14 dependen de que
+  es autoridad y ningún plan lo puede citar (Artículo X). Las tareas 13, 14 y 15 dependen de que
   se firmen.
-- **Argon2 y la librería de JWT no son dependencias declaradas.** `SEC-06` las exige y hoy no
-  están en `backend/pyproject.toml`. Entran con `uv add`, nunca a mano (Artículo IX).
-- **La tarea 10 no depende de ningún ADR** y es la que más barato sale hacer primero: fija las
-  fronteras antes de que haya código que las viole.
+- **La tarea 11 espera la firma del Artículo VI**, no un ADR: los tests están escritos y el gate
+  es que los leas.
 
 ## Cobertura de requisitos
 
 | Requisito | Tareas | Test |
 |-----------|--------|------|
-| REQ-18 — modelo de datos en PostgreSQL | 11 | |
-| REQ-19 — seed mínimo para probar | 14 | |
+| REQ-18 — modelo de datos en PostgreSQL | 12 | |
+| REQ-19 — seed mínimo para probar | 15 | |
 | REQ-23 — repositorio con backend y frontend separados | 1 | |
 | REQ-25 — frontend en React ≥ 18 | 5 | `frontend/tests/HealthPage.test.tsx` |
-| Art. IV — fronteras entre módulos | 10 | |
-| ADR-001 — clave natural y filtro de ingesta | 11, 13 | |
-| ADR-002 — catálogo NYSE + NASDAQ | 13 | |
-| ADR-006 — proveedor detrás de su interfaz | 12 | |
+| Art. IV — fronteras entre módulos | 11 | `backend/tests/architecture/test_module_boundaries.py` |
+| ADR-001 — clave natural y filtro de ingesta | 12, 14 | |
+| ADR-002 — catálogo NYSE + NASDAQ | 14 | |
+| ADR-006 — proveedor detrás de su interfaz | 13 | `backend/tests/architecture/test_provider_boundary.py` |
 | ADR-007 — un comando para levantar todo | 2 | |
 | ADR-009 — observabilidad | 8 | `backend/tests/architecture/test_dashboard_metrics.py` |
+| SEC-06 — Argon2id para toda password | 10, 15 | |
+| PY-08 — toda ruta declara su autorización | 11 | `backend/tests/architecture/test_route_authorization.py` |
 
 `REQ-20` (publicar el repositorio), `REQ-21` (backup) y `REQ-22` (README) no están acá: son del
 cierre, no del andamiaje (`docs/ROADMAP.md` → *Cierre*).

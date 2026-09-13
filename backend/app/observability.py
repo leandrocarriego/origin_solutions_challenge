@@ -188,16 +188,14 @@ _MIN_SECRET_LENGTH = 8
 
 
 def _secret_values() -> tuple[str, ...]:
-    """Collect the literal secrets this process knows about."""
-    settings = get_settings()
-    values = [settings.twelvedata_api_key]
+    """The secrets worth blanking out literally.
 
-    # The DSN's password, which is what a SQLAlchemy traceback carries.
-    match = re.search(r"://[^:/@]+:([^@]+)@", settings.database_url)
-    if match:
-        values.append(match.group(1))
-
-    return tuple(value for value in values if len(value) >= _MIN_SECRET_LENGTH)
+    Which values are secret is the settings' business (GEN-08: nothing outside the provider and
+    the settings names the provider), and how short is too short is this file's.
+    """
+    return tuple(
+        value for value in get_settings().secret_values() if len(value) >= _MIN_SECRET_LENGTH
+    )
 
 
 def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:

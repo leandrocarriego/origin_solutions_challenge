@@ -241,11 +241,11 @@ Lo que gobierna este documento es el enforcement:
 
 - Violar una convención marcada como **Blocker** frena el review: se arregla o el changeset no pasa (`agents/skills/review_feature.md`).
 
-- Nueve convenciones no dependen de que alguien las lea, porque las verifica un test que rompe el
-  build: `GEN-02` (la frontera entre módulos), `PY-06` (el flujo adentro del módulo), `GEN-08` (el
-  proveedor detrás de la interfaz), `GEN-09` (aislamiento por usuario), `PY-08` (autorización de
-  rutas), `TEST-03` (la suite sin red ni API key), `TEST-05` (cobertura), y `UI-02` y `UI-03` en el
-  frontend.
+- Once convenciones no dependen de que alguien las lea, porque las verifica un test que rompe el
+  build: `GEN-02` (la frontera entre módulos), `GEN-03` (nada por debajo importa un módulo),
+  `GEN-05` (sin ciclos), `PY-06` (el flujo adentro del módulo), `GEN-08` (el proveedor detrás de la
+  interfaz), `GEN-09` (aislamiento por usuario), `PY-08` (autorización de rutas), `TEST-03` (la
+  suite sin red ni API key), `TEST-05` (cobertura), y `UI-02` y `UI-03` en el frontend.
   El detalle de cuál frena el pre-commit y cuál el CI está en `CONVENTIONS.md` → *Convenciones verificadas por un test que rompe el build*.
   El resto depende del `Developer` que las aplica y del `Code-Reviewer` que las recorre.
 
