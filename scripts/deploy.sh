@@ -72,10 +72,22 @@ ssh "$HOST" "cd '${REMOTE_DIR}' && for i in \$(seq 1 30); do
 done; echo '    backend NO llegó a healthy'; docker compose -f docker-compose.prod.yml logs --tail 40 backend; exit 1"
 
 # --- 5. Cleanup, ours only ---------------------------------------------------------------------
-# `--filter label=` limits the removal to this project's images. Everyone else's, and the
-# shared build cache, are left untouched.
+# Three passes, and the third is the one that was missing. A dangling image loses its name, so
+# a `reference=` filter never matches one; and an image tagged with a previous commit is not
+# dangling at all, so nothing removed it and every deploy left the last version behind.
+#
+# `docker rmi` refuses to remove an image a container is using, which is the safety net here:
+# the running tag cannot be deleted even if this filter were wrong.
 echo "==> Limpiando imágenes viejas de este proyecto"
-ssh "$HOST" "docker image prune -f --filter label=com.docker.compose.project=${PROJECT} 2>/dev/null || true; \
-             docker images --filter 'reference=${PROJECT}-*' --filter 'dangling=true' -q | xargs -r docker rmi 2>/dev/null || true"
+ssh "$HOST" "
+  docker image prune -f --filter label=com.docker.compose.project=${PROJECT} 2>/dev/null || true
+
+  docker images --filter 'reference=${PROJECT}-*' --filter 'dangling=true' -q \
+    | xargs -r docker rmi 2>/dev/null || true
+
+  docker images --filter 'reference=${PROJECT}-*' --format '{{.Repository}}:{{.Tag}}' \
+    | grep -v ':${VERSION}\$' \
+    | xargs -r docker rmi 2>/dev/null || true
+"
 
 echo "==> Listo: https://${DOMAIN}"
