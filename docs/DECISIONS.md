@@ -316,3 +316,67 @@ falle, y una pantalla en blanco sin explicación es un modo de falla, no una dec
 **Alternativas descartadas.** Una UI "linda" con Tailwind y componentes. Es trabajo que el enunciado
 declara que no va a mirar, y cada pixel que se aleja del mockup es una diferencia que el evaluador
 tiene que interpretar.
+
+---
+
+## ADR-009 — Observabilidad: logs, métricas, dashboard y errores
+
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
+
+**Contexto.** El Artículo II es la afirmación central de ingeniería de este proyecto: el consumo
+del proveedor escala con símbolos observados, no con clientes conectados. Hoy esa afirmación no se
+puede verificar desde afuera — se lee en el README y se cree o no. `ERR-07` ya exige que toda
+llamada al proveedor quede registrada con su símbolo, intervalo, rango, resultado y si fue cache
+hit, precisamente porque *"con una cuota de 800 requests por día, no poder responder en qué se
+gastó es no poder operar el sistema"*. Falta el mecanismo que convierta esa exigencia en algo
+consultable.
+
+**Decisión.** Cuatro capas, de la más barata a la más cara:
+
+1. **Logs estructurados** en JSON con `structlog`, y un middleware que le asigna un `request_id`
+   a cada pedido y lo propaga a todas sus líneas. Sin correlación, dos usuarios concurrentes
+   producen logs entreverados que no se pueden leer.
+2. **Métricas Prometheus** en `/metrics`: las estándar por ruta (rate, errores, duración) más tres
+   propias que son las que importan acá — `provider_requests_total{symbol,interval,outcome}`,
+   `quote_cache_hits_total` / `quote_cache_misses_total`, y `provider_quota_remaining`.
+3. **Prometheus + Grafana** en el VPS, detrás de Traefik, con un dashboard: cuota consumida hoy,
+   tasa de aciertos de caché, latencia p95 y tasa de error.
+4. **Sentry** para excepciones, con `include_local_variables=False`, `send_default_pii=False` y un
+   `before_send` que enmascara secretos.
+
+**Consecuencias.** El Artículo II deja de ser una afirmación y pasa a ser un número graficado: se
+puede mostrar que diez usuarios sobre un mismo símbolo cuestan una sola llamada. `NFR-05` gana su
+evidencia.
+
+Se paga con tres cosas. **RAM**: unos 350 MB en un VPS compartido con otros proyectos en
+producción. **Una dependencia externa**: Sentry recibe trazas de nuestras excepciones, y eso
+convierte al Artículo I en un requisito de configuración y no sólo de código — el SDK captura las
+variables locales de cada frame por defecto, así que sin desactivarlo el DSN de Postgres y la URL
+del proveedor con su `apikey` salen del servidor. Por eso `SEC-06` incluye el evento de Sentry
+entre las salidas que audita. **Superficie**: `/metrics` no lleva autenticación y expone nombres de
+símbolos; queda accesible sólo desde la red interna de Docker, nunca publicado por Traefik.
+
+**La excepción al Artículo VII, dicha de frente.** Las capas 1 y 2 no son alcance nuevo: `ERR-03`
+exige logging estructurado y `ERR-07` exige la auditoría de llamadas, así que implementarlas es
+cumplir convenciones que ya existen. **Las capas 3 y 4 sí son alcance que el enunciado no pide.**
+Se construyen igual, y la razón se escribe acá para que no se lea como descuido: la rúbrica evalúa
+mantenibilidad y escalabilidad, y un `NFR` sobre consumo de cuota que nadie puede verificar es un
+`NFR` sin cumplir. Es una excepción deliberada, no un olvido.
+
+**Alternativas descartadas.**
+
+*Sólo logs, sin métricas.* Es lo más barato y cubre `ERR-07` al pie de la letra. Se descarta porque
+responder "cuánta cuota queda hoy" obligaría a parsear logs con `grep` y contar a mano: un contador
+que ya está sumado cuesta 8 bytes y contesta en un scrape.
+
+*OpenTelemetry con Tempo o Jaeger para trazas distribuidas.* Es el estándar de la industria y sería
+la respuesta correcta en un sistema de varios servicios. Acá hay **uno**: la traza mostraría
+`router → service → repository → postgres`, que es exactamente lo que ya dice una línea de log con
+su duración. Se paga complejidad por una respuesta que ya se tiene. Si `quotes` se extrajera algún
+día —que es lo que el Artículo IV deja abierto—, esta decisión se revisa.
+
+*Loki para agregación de logs.* Paga a partir de varios servicios o varias réplicas. Con uno,
+`docker compose logs` alcanza.
+
+*Datadog o New Relic.* Costo desproporcionado para un proyecto de este tamaño, y meten un agente
+propietario en el camino de una aplicación que se entrega para ser leída.

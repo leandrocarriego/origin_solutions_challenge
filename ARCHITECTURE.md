@@ -18,11 +18,21 @@ origin_solutions_challenge/
 ├── scripts/              scripts para el seed de la db (pg_dump de la base sembrada), etc
 ├── docs/                 brief, decisiones, specs, diseño
 ├── agents/               roles y skills del proceso SDD
+├── infra/                configuración de la observabilidad desplegada (ADR-009)
+│   ├── prometheus/       qué se scrapea
+│   └── grafana/          datasource, provisioning y los dashboards como código
 ├── docker-compose.yml
 └── Makefile
 ```
 
 El stack completo, está en `docs/PROJECT_BRIEF.md` → *Stack*.
+
+**`infra/` no es un tercer proyecto.** No tiene código ni dependencias: es la configuración de
+los servicios de observabilidad que se despliegan junto a los otros dos. Los dashboards viven
+ahí como JSON versionado y no como algo que alguien clickeó, y un test
+(`backend/tests/architecture/test_dashboard_metrics.py`) verifica que cada métrica que grafican
+exista de verdad en el código — un contador renombrado deja los paneles en blanco sin romper
+nada, que es peor que un error porque parece "no hubo tráfico".
 
 **`frontend` nunca importa de `backend` y `backend` nunca sirve el frontend.** 
 
