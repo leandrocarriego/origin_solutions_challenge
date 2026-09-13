@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, select, update
+from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -82,3 +82,12 @@ async def listed_symbols(session: AsyncSession, exchange: str) -> set[str]:
     )
 
     return set(rows.all())
+
+
+async def last_seen(session: AsyncSession) -> datetime | None:
+    """When the catalogue was last refreshed, or None if it never was.
+
+    None is not "old", it is "unknown", and on first boot that difference is what tells an empty
+    database from a stale one.
+    """
+    return await session.scalar(select(func.max(Stock.last_seen_at)))

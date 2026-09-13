@@ -28,6 +28,9 @@ services:
       # Empty on purpose: no events and no network while developing (TEST-03).
       SENTRY_DSN: ""
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      # The fake provider locally, so `make up` reaches no network and spends none of the 800
+      # daily requests (Article II). Set it to "twelvedata" with a key to exercise the real one.
+      MARKET_DATA_PROVIDER: fake
       # The entrypoint runs `alembic upgrade head` in every environment. Here it also loads the
       # demo dataset (REQ-19), because without data there is nothing to develop against. The
       # seed is idempotent: it runs on every `make up`.

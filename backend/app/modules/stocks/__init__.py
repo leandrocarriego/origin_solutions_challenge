@@ -1,7 +1,10 @@
 """The catalogue: ingestion, search and everything that describes a symbol.
 
-Nothing is exported yet. `get_stocks(symbols) -> list[StockInfo]` belongs here and arrives with
-`002-favorite-stocks`; phase 0 only creates the table.
+What it exports today is the background refresh, which the composition root starts. The rest of
+the module -- `get_stocks(symbols) -> list[StockInfo]`, the router -- arrives with
+`002-favorite-stocks`.
 """
 
-__all__ = []
+from app.modules.stocks.service import keep_the_catalogue_fresh
+
+__all__ = ["keep_the_catalogue_fresh"]

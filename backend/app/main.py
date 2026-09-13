@@ -7,11 +7,17 @@ it is what the reverse proxy and the deploy ask the process about itself. A modu
 when a domain language appears, and "health" is not one.
 """
 
+import asyncio
+import contextlib
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.db import database_is_up
+from app.modules.stocks import keep_the_catalogue_fresh
 from app.observability import (
     RequestContextMiddleware,
     configure_logging,
@@ -26,7 +32,24 @@ settings = get_settings()
 configure_logging()
 configure_sentry()
 
-app = FastAPI(title="ORIGIN Acciones", version=settings.version)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Start what has to outlive a request, and stop it when the process goes away.
+
+    The catalogue refresher is the only one: ADR-002 decided the catalogue keeps itself current
+    instead of waiting for somebody to remember, and this is where "keeps itself" is wired.
+    """
+    refresher = asyncio.create_task(keep_the_catalogue_fresh())
+
+    yield
+
+    refresher.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await refresher
+
+
+app = FastAPI(title="ORIGIN Acciones", version=settings.version, lifespan=lifespan)
 
 # Outermost, so the request id covers CORS and every error the layers below turn into a response.
 app.add_middleware(RequestContextMiddleware)

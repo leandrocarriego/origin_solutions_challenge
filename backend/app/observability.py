@@ -29,6 +29,7 @@ from starlette.types import ASGIApp
 from app.settings import get_settings
 
 __all__ = [
+    "CATALOGUE_LAST_SUCCESS",
     "PROVIDER_QUOTA_REMAINING",
     "PROVIDER_REQUESTS",
     "QUOTE_CACHE_HITS",
@@ -69,6 +70,11 @@ QUOTE_CACHE_MISSES = Counter(
 PROVIDER_QUOTA_REMAINING = Gauge(
     "provider_quota_remaining",
     "Requests left in today's provider allowance.",
+)
+
+CATALOGUE_LAST_SUCCESS = Gauge(
+    "catalogue_last_success_timestamp_seconds",
+    "When the catalogue was last reconciled against the provider, as a unix timestamp.",
 )
 
 HTTP_REQUESTS = Counter(

@@ -576,6 +576,64 @@
         },
         "overrides": []
       }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Antigüedad del catálogo",
+      "description": "Cuánto hace que la ingesta reconcilió el catálogo contra el proveedor (ADR-002). Si esto crece sin parar, el refresco de fondo murió y el autocompletado está sirviendo una foto vieja sin avisar.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "origin-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "origin-prometheus"
+          },
+          "expr": "time() - catalogue_last_success_timestamp_seconds",
+          "legendFormat": "antigüedad"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 90000
+              },
+              {
+                "color": "red",
+                "value": 172800
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "graphMode": "area"
+      }
     }
   ]
 }
