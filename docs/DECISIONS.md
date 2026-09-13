@@ -55,9 +55,9 @@ es como es, y no sólo cómo es hoy.
 
 > Enmendar un ADR ya `Aceptada` **es una excepción a la regla de este archivo**, que dice que una
 > decisión firmada no se edita en el fondo y que un cambio se escribe como ADR nuevo. Se hizo por
-> decisión explícita del humano y por esta vez: escribir un ADR entero que reemplace a éste para
-> agregar dos columnas habría dejado la definición de las cuatro tablas partida en dos lugares,
-> que es peor para quien lo lea después. La regla sigue vigente para lo que venga.
+> decisión explícita del humano: escribir un ADR entero que reemplace a éste para agregar dos
+> columnas habría dejado la definición de las cuatro tablas partida en dos lugares, que es peor
+> para quien lo lea después. `ADR-006` se enmendó el mismo día por la misma razón.
 
 **Contexto.** El enunciado pide persistir símbolo, nombre y moneda por acción favorita, por
 usuario, y evalúa explícitamente el modelo de datos.
@@ -392,22 +392,53 @@ mercado en el cliente y saber por qué falló un proveedor que el frontend ni co
 
 ---
 
-## ADR-006 — El proveedor de datos detrás de una interfaz
+## ADR-006 — El proveedor de datos detrás de una clase abstracta
 
 **Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
+
+**Enmendada:** 2026-09-13 · Leandro Carriego — dos cambios el mismo día en que se firmó:
+`MarketDataProvider` pasa de `Protocol` a clase abstracta, y `search_stocks()` se reemplaza por
+`list_stocks(exchange)`.
 
 **Contexto.** La rúbrica evalúa extensibilidad, y TwelveData es un detalle de
 implementación que el enunciado eligió por ser gratis.
 
-**Decisión.** Un protocolo `MarketDataProvider` con `search_stocks()` y `get_time_series()`.
-`TwelveDataProvider` lo implementa; se inyecta por dependencia de FastAPI.
+**Decisión.** Una clase abstracta `MarketDataProvider` en `app/providers/base.py`, con dos
+métodos y tipos propios —nunca el JSON del proveedor—:
 
-**Consecuencias.** Los tests usan un `FakeProvider` determinístico y no tocan la red (NFR-06).
+- `list_stocks(exchange)` — el catálogo completo de un mercado, que es lo que la reconciliación
+  de `ADR-002` compara contra la tabla.
+- `get_time_series(symbol, interval, start, end)` — la serie que alimenta el gráfico y la caché
+  de `ADR-003`.
+
+`TwelveDataProvider` y `FakeProvider` heredan de ella. Se inyecta por dependencia de FastAPI, y
+lo que el service conoce es la clase abstracta.
+
+**No hay método de búsqueda, y es deliberado.** `search_stocks()` era `/symbol_search`, el
+endpoint que `ADR-002` descartó: el autocomplete consulta Postgres, no al proveedor. Un método
+del contrato que nadie llama es superficie que alguien tiene que implementar en el `FakeProvider`
+y mantener sincronizada (Artículo VII).
+
+**Consecuencias.** Olvidarse de un método falla **al instanciar**, no al type-checkear: el error
+existe aunque nadie corra `mypy`. A cambio, los dos proveedores y cualquier doble de test tienen
+que importar y heredar la abstracción, así que la implementación depende del contrato. Con dos
+implementaciones y una sola familia de tests, es barato.
+
+Los tests usan un `FakeProvider` determinístico y no tocan la red (NFR-06).
 Cambiar de proveedor es una clase nueva y una línea de wiring. Es también la respuesta
 concreta a "extensibilidad" cuando el evaluador pregunte por ella.
 
-**Alternativas descartadas.** Llamar a TwelveData directo desde el `QuoteService` y aislar la
-red en los tests con `respx`. Tiene algo real a favor: menos indirección, y la suite igual corre
+**Alternativas descartadas.**
+
+*`typing.Protocol` en vez de una clase abstracta*, que es lo que decía este ADR al firmarse. A
+favor real: la implementación no importa ni hereda nada, así que la infraestructura no depende del
+contrato, y cualquier objeto con la forma correcta sirve de doble sin heredar. Se descartó porque
+su único enforcement es `mypy`: un método faltante pasa desapercibido para el intérprete. La
+diferencia es chica —`PY-09` es Blocker y corre en pre-commit y en CI— y se eligió la que falla
+sola.
+
+*Llamar a TwelveData directo desde el `QuoteService` y aislar la
+red en los tests con `respx`.* Tiene algo real a favor: menos indirección, y la suite igual corre
 sin red ni API key (NFR-06). Se descartó porque ata cada test de service al JSON del proveedor a
 nivel HTTP —un cambio de formato rompe tests que no hablan de formato— y porque el Artículo IV
 no la deja abierta: nombra a `MarketDataProvider` como lo que conocen los services.
@@ -482,59 +513,6 @@ falle, y una pantalla en blanco sin explicación es un modo de falla, no una dec
 **Alternativas descartadas.** Una UI "linda" con Tailwind y componentes. Es trabajo que el enunciado
 declara que no va a mirar, y cada pixel que se aleja del mockup es una diferencia que el evaluador
 tiene que interpretar.
-
----
-
-## ADR-010 — El proveedor detrás de una clase abstracta, y el método que el catálogo necesita
-
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
-
-**Reemplaza a:** `ADR-006`, que queda `Reemplazada por ADR-010` en cuanto éste se firme.
-
-**Contexto.** `ADR-006` se firmó el 2026-09-13 y ese mismo día le aparecieron dos correcciones.
-No se enmienda: ya se hizo una excepción con `ADR-001` y la regla de este archivo dice que una
-decisión que cambia se reemplaza. Dos cambios de fondo sobre la misma decisión son exactamente el
-caso para el que existe `Reemplazada por`.
-
-Lo que cambia:
-
-1. **`search_stocks()` no va.** Es `/symbol_search`, el endpoint que `ADR-002` descartó. El
-   autocomplete consulta Postgres y no al proveedor; lo que la ingesta necesita es el listado
-   completo de un exchange.
-2. **Clase abstracta en vez de `Protocol`.** Decisión del humano, con el argumento a favor
-   escrito abajo.
-
-**Decisión.** `MarketDataProvider` es una **ABC** en `app/providers/base.py`, con dos métodos y
-tipos propios —nunca el JSON del proveedor—:
-
-- `list_stocks(exchange: str)` — el catálogo completo de un mercado, que es lo que la
-  reconciliación de `ADR-002` compara contra la tabla.
-- `get_time_series(symbol, interval, start, end)` — la serie que alimenta el gráfico y la caché
-  de `ADR-003`.
-
-`TwelveDataProvider` y `FakeProvider` heredan de ella. Se inyecta por dependencia de FastAPI, y
-lo que el service conoce es la clase abstracta.
-
-**Consecuencias.** Olvidarse de un método falla **al instanciar**, no al type-checkear: el error
-existe aunque nadie corra `mypy`. Es lo que se compró con el cambio.
-
-El costo es el que tiene: los dos proveedores y cualquier doble de test tienen que heredar e
-importar la abstracción, así que la implementación depende del contrato. Con dos
-implementaciones y una sola familia de tests, es barato.
-
-No hay método de búsqueda en el protocolo, y eso es deliberado: buscar es una query a Postgres
-(`ADR-002`), no una capacidad del proveedor.
-
-**Alternativas descartadas.**
-
-*`typing.Protocol`*, que era lo que decía `ADR-006`. A favor real: la implementación no importa
-ni hereda nada, así que la infraestructura no depende del contrato, y cualquier objeto con la
-forma correcta sirve de doble sin heredar. Se descarta porque su único enforcement es `mypy`: un
-método faltante pasa desapercibido para el intérprete. Acá `PY-09` es Blocker y corre en
-pre-commit y en CI, así que en la práctica la diferencia es chica — se elige la que falla sola.
-
-*Dejar `search_stocks()` "por si acaso".* Un método del contrato que nadie llama es superficie que
-alguien va a tener que implementar en el `FakeProvider` y mantener sincronizada. Artículo VII.
 
 ---
 
