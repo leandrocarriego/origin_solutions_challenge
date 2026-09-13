@@ -1,8 +1,10 @@
-# Fuente ejecutable de los comandos del proyecto. `README.md` los explica; acá se corren.
+# Executable source of the project's commands. README.md explains them; here they run.
 #
-# Regla: si un comando aparece en `CONVENTIONS.md` como verificación de una convención, acá
-# se lo llama igual, sin variantes. Un comando que se escribe distinto en dos lugares termina
-# divergiendo, y el día que diverge nadie sabe cuál de los dos es el que vale.
+# Rule: when a command appears in CONVENTIONS.md as a convention's verification, it is called
+# here exactly the same way, with no variants. A command spelled differently in two places
+# eventually diverges, and once it does nobody can tell which spelling counts.
+#
+# The `## ...` descriptions are what `make help` prints, so they stay in Spanish (GEN-07).
 
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
@@ -14,7 +16,7 @@ COMPOSE  := docker compose
 .PHONY: help install hooks lint format typecheck test test-fast check build \
         up down logs ps dev-backend dev-frontend deploy clean
 
-# --- Ayuda ------------------------------------------------------------------------------------
+# --- Help -------------------------------------------------------------------------------------
 
 help:  ## Lista los comandos disponibles
 	@echo "ORIGIN Acciones — comandos"
@@ -24,7 +26,7 @@ help:  ## Lista los comandos disponibles
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 	@echo
 
-# --- Puesta en marcha ---------------------------------------------------------------------------
+# --- Setup --------------------------------------------------------------------------------------
 
 install:  ## Instala las dependencias de ambos proyectos desde sus lockfiles
 	cd $(BACKEND) && uv sync --frozen
@@ -33,7 +35,7 @@ install:  ## Instala las dependencias de ambos proyectos desde sus lockfiles
 hooks:  ## Instala los hooks de pre-commit (pre-commit y commit-msg)
 	uvx pre-commit install --install-hooks
 
-# --- Verificación (los mismos comandos que CONVENTIONS.md) --------------------------------------
+# --- Verification (the same commands CONVENTIONS.md states) -------------------------------------
 
 lint:  ## Formato y lint de backend y frontend (GEN-01, PY-07, TS-02, TS-04)
 	cd $(BACKEND) && uv run ruff format --check app tests && uv run ruff check app tests
@@ -56,7 +58,7 @@ test-fast:  ## Sólo unidad y arquitectura, sin cobertura: lo que corre el pre-c
 
 check: lint typecheck test  ## Todo lo anterior, en el orden en que conviene fallar
 
-# --- Desarrollo ---------------------------------------------------------------------------------
+# --- Development --------------------------------------------------------------------------------
 
 dev-backend:  ## Levanta el backend con recarga en http://localhost:8000
 	cd $(BACKEND) && uv run uvicorn app.main:app --reload --port 8000
@@ -67,7 +69,7 @@ dev-frontend:  ## Levanta el frontend con recarga en http://localhost:5173
 build:  ## Compila el frontend para producción
 	cd $(FRONTEND) && npm run build
 
-# --- Infraestructura local ----------------------------------------------------------------------
+# --- Local infrastructure -----------------------------------------------------------------------
 
 up:  ## Levanta todo con docker compose (ADR-007)
 	$(COMPOSE) up -d --build
@@ -81,12 +83,12 @@ logs:  ## Sigue los logs de todos los servicios
 ps:  ## Estado de los servicios locales
 	$(COMPOSE) ps
 
-# --- Producción ---------------------------------------------------------------------------------
+# --- Production ---------------------------------------------------------------------------------
 
 deploy:  ## Despliega al VPS (requiere el ssh host `mendri` y su .env)
 	./scripts/deploy.sh
 
-# --- Limpieza ------------------------------------------------------------------------------------
+# --- Cleanup -------------------------------------------------------------------------------------
 
 clean:  ## Borra cachés y artefactos de build locales
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .mypy_cache \

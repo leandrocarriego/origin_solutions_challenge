@@ -33,16 +33,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 
-# --- GEN-01 · formato y lint -------------------------------------------------
+# --- GEN-01 · format and lint-------------------------------------------------
 [tool.ruff]
 line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-# Dos de estas existen para que una convención deje de depender del review:
-#   BLE     -> ERR-01, excepción capturada a ciegas
-#   PLC0415 -> PY-03, import adentro de una función
-#   D       -> PY-11, docstring en toda función y método
+# Three of these exist so a convention stops depending on the review:
+#   BLE     -> ERR-01, blindly caught exception
+#   PLC0415 -> PY-03, import inside a function
+#   D       -> PY-11, docstring on every function and method
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "ASYNC", "S", "A", "RUF", "D", "PLC0415"]
 ignore = [
   "S101",  # assert: es como se escriben los tests
@@ -58,12 +58,12 @@ convention = "pep257"
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S105", "S106"] # credenciales de prueba, a propósito
 
-# --- PY-09 · tipos -----------------------------------------------------------
+# --- PY-09 · types------------------------------------------------------------
 [tool.mypy]
 python_version = "3.12"
 strict = true
-# GEN-02: importar de un paquete un nombre que su __all__ no declara es un error de tipos,
-# no sólo una violación de convención.
+# GEN-02: importing from a package a name its __all__ does not declare is a type error, not
+# only a convention violation.
 no_implicit_reexport = true
 plugins = ["pydantic.mypy"]
 

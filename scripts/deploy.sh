@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 #
-# Despliega en el VPS, que comparte con otros proyectos en producción.
+# Deploys to the VPS, which is shared with other projects in production.
 #
-# Dos reglas que vienen de eso:
-#   - La limpieza es SIEMPRE acotada a este proyecto. Un `docker system prune -a` borraría la
-#     caché de build y las imágenes de los otros seis, y eso es tirar el VPS por otra puerta.
-#   - Si algo falla, se aborta antes de tocar lo que está corriendo.
+# Two rules follow from that:
+#   - Cleanup is ALWAYS scoped to this project. A `docker system prune -a` would wipe the build
+#     cache and the images of the other six, which is taking the VPS down through another door.
+#   - If anything fails, abort before touching what is already running.
+#
+# The echoed messages are terminal output for the team, so they stay in Spanish (GEN-07).
 set -euo pipefail
 
 HOST="${DEPLOY_HOST:-mendri}"
 REMOTE_DIR="${DEPLOY_DIR:-/srv/projects/mendri/origin-solutions-challenge}"
 PROJECT="origin-solutions-challenge"
 
-# Un pull de varios cientos de MB deja la conexión sin tráfico el tiempo suficiente para que
-# el sshd del otro lado la corte. Pasó una vez, con el deploy a medio terminar: sin health
-# check y sin limpieza. El keepalive es lo que lo evita.
+# A pull of several hundred MB leaves the connection idle long enough for the far side's sshd
+# to drop it. That happened once, leaving the deploy half finished: no health check and no
+# cleanup. The keepalive is what prevents it.
 SSH_OPTS=(-o ServerAliveInterval=20 -o ServerAliveCountMax=15)
 ssh() { command ssh "${SSH_OPTS[@]}" "$@"; }
 LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,15 +26,15 @@ DOMAIN="${DOMAIN:-origin-solutions-challenge.mendrisoftware.com}"
 
 echo "==> Desplegando ${VERSION} en ${HOST}:${REMOTE_DIR}"
 
-# --- 1. Sanidad local antes de subir nada ------------------------------------------------------
+# --- 1. Local sanity before uploading anything -------------------------------------------------
 echo "==> Verificando el árbol local"
 if [ -n "$(git -C "$LOCAL_DIR" status --porcelain)" ]; then
   echo "    aviso: hay cambios sin commitear; se despliega el árbol de trabajo, no el commit"
 fi
 
-# --- 2. Sincronizar el código ------------------------------------------------------------------
-# --delete deja el destino igual al origen: sin esto cada deploy acumula archivos que ya no
-# existen, que es exactamente la basura que hay que evitar.
+# --- 2. Sync the code --------------------------------------------------------------------------
+# --delete leaves the destination identical to the source: without it every deploy piles up
+# files that no longer exist, which is exactly the litter to avoid.
 echo "==> Sincronizando"
 ssh "$HOST" "mkdir -p '${REMOTE_DIR}'"
 rsync -az --delete \
@@ -48,10 +50,10 @@ rsync -az --delete \
   -e "ssh ${SSH_OPTS[*]}" \
   "${LOCAL_DIR}/" "${HOST}:${REMOTE_DIR}/"
 
-# --- 3. Construir y levantar -------------------------------------------------------------------
+# --- 3. Build and start ------------------------------------------------------------------------
 echo "==> Bajando imágenes externas"
-# Primero el pull, solo. Si se corta la red, se corta acá y no con los servicios a medio
-# recrear: lo que está corriendo sigue corriendo.
+# The pull first, on its own. If the network drops it drops here and not with the services
+# half recreated: whatever is running keeps running.
 ssh "$HOST" "cd '${REMOTE_DIR}' && \
   export VERSION='${VERSION}' DOMAIN='${DOMAIN}' && \
   docker compose -f docker-compose.prod.yml --env-file .env pull --quiet --ignore-buildable"
@@ -61,7 +63,7 @@ ssh "$HOST" "cd '${REMOTE_DIR}' && \
   export VERSION='${VERSION}' DOMAIN='${DOMAIN}' && \
   docker compose -f docker-compose.prod.yml --env-file .env up -d --build --remove-orphans"
 
-# --- 4. Esperar a que esté sano ----------------------------------------------------------------
+# --- 4. Wait until it is healthy ---------------------------------------------------------------
 echo "==> Esperando health"
 ssh "$HOST" "cd '${REMOTE_DIR}' && for i in \$(seq 1 30); do
   estado=\$(docker inspect --format '{{.State.Health.Status}}' ${PROJECT}-backend-1 2>/dev/null || echo starting)
@@ -69,9 +71,9 @@ ssh "$HOST" "cd '${REMOTE_DIR}' && for i in \$(seq 1 30); do
   sleep 2
 done; echo '    backend NO llegó a healthy'; docker compose -f docker-compose.prod.yml logs --tail 40 backend; exit 1"
 
-# --- 5. Limpieza, sólo de lo nuestro -----------------------------------------------------------
-# `--filter label=` limita el borrado a las imágenes de este proyecto. Las de los demás y la
-# caché compartida quedan intactas.
+# --- 5. Cleanup, ours only ---------------------------------------------------------------------
+# `--filter label=` limits the removal to this project's images. Everyone else's, and the
+# shared build cache, are left untouched.
 echo "==> Limpiando imágenes viejas de este proyecto"
 ssh "$HOST" "docker image prune -f --filter label=com.docker.compose.project=${PROJECT} 2>/dev/null || true; \
              docker images --filter 'reference=${PROJECT}-*' --filter 'dangling=true' -q | xargs -r docker rmi 2>/dev/null || true"

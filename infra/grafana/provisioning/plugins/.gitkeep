@@ -1,2 +1,2 @@
-Vacío a propósito. Grafana registra un error en cada arranque si el directorio no existe,
-y un error falso en los logs entrena a ignorarlos.
+Empty on purpose. Grafana logs an error on every start when the directory is missing,
+and a false error in the logs trains people to ignore them.

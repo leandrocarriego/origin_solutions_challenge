@@ -1,10 +1,9 @@
 # Deploy on a VPS shared with other projects in production.
 #
 # Three rules that come from that, and are not negotiable here:
-#   1. No published ports on a public interface. Traefik owns :80 and :443; everything else stays
-#      on internal networks. The one exception is monitoring, bound to 127.0.0.1 so it is
-#      reachable only through an SSH tunnel -- the same pattern the other projects on this host
-#      already use, and not an opening to the internet.
+#   1. No published ports on a public interface. Traefik owns :80 and :443; everything else
+#      stays on internal networks. Monitoring binds to 127.0.0.1, which is the same pattern the
+#      other projects on this host already use and not an opening to the internet.
 #   2. Every container has a memory limit. A runaway process must not take the box down with it.
 #   3. A distinct project name, so compose never touches another project's containers.
 name: origin-solutions-challenge
@@ -84,10 +83,10 @@ services:
       traefik.http.middlewares.origin-challenge-https.redirectscheme.permanent: "true"
       traefik.http.services.origin-challenge.loadbalancer.server.port: "80"
 
-  # --- Observabilidad, capa 3 (ADR-009) --------------------------------------------------------
-  # Grafana es publico y tiene login. Prometheus NO: no tiene ninguna clase de autenticacion,
-  # asi que publicarlo seria publicar cada metrica y cada nombre de simbolo observado a quien
-  # pase. Se queda en loopback y se llega por `ssh -L 9090:127.0.0.1:9090 mendri`.
+  # --- Observability, layer 3 (ADR-009) --------------------------------------------------------
+  # Grafana is public and has a login. Prometheus is NOT: it has no authentication of any kind,
+  # so publishing it would publish every metric and every observed symbol name to whoever walks
+  # past. It stays on loopback, reached with `ssh -L 9090:127.0.0.1:9090 mendri`.
 
   prometheus:
     image: prom/prometheus:v3.1.0
@@ -120,27 +119,27 @@ services:
         limits:
           memory: 256M
 
-  # Grafana SI sale a internet, en https://<dominio>/grafana, detras de su propio login.
-  # Va por path y no por subdominio porque mendrisoftware.com no tiene DNS wildcard: un
-  # `grafana.` necesitaria un registro en Cloudflare que este deploy no puede crear.
+  # Grafana IS reachable from the internet, at https://<domain>/grafana, behind its own login.
+  # It is served under a path rather than a subdomain because mendrisoftware.com has no wildcard
+  # DNS: a `grafana.` host would need a Cloudflare record this deploy cannot create.
   #
-  # Version: se sigue la ultima estable. Un Grafana publico varias versiones atras es una
-  # lista publica de vulnerabilidades conocidas con una URL al lado.
+  # Version: the current stable one. A public Grafana several releases behind is a published
+  # list of known vulnerabilities with a URL next to it.
   grafana:
     image: grafana/grafana:13.2.1
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
-      # Grafana tiene que saber bajo que URL lo ven, o los redirects del login apuntan a /.
+      # Grafana has to know the URL it is seen under, or the login redirects point at /.
       GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-      # Nadie se registra, nadie crea organizaciones, nadie edita nada.
+      # Nobody signs up, nobody creates organisations, nobody edits anything.
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_USERS_ALLOW_ORG_CREATE: "false"
       GF_USERS_VIEWERS_CAN_EDIT: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
-      # De aca para abajo, todo es porque esta expuesto a internet.
+      # Everything from here down is because it is exposed to the internet.
       GF_SECURITY_COOKIE_SECURE: "true"
       GF_SECURITY_COOKIE_SAMESITE: lax
       GF_SECURITY_STRICT_TRANSPORT_SECURITY: "true"
@@ -148,15 +147,15 @@ services:
       GF_SECURITY_CONTENT_SECURITY_POLICY: "true"
       GF_SECURITY_X_CONTENT_TYPE_OPTIONS: "true"
       GF_SECURITY_X_XSS_PROTECTION: "true"
-      # Gravatar y los snapshots publicos son dos salidas al exterior que nadie pidio.
+      # Gravatar and public snapshots are two outbound paths nobody asked for.
       GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
-      # Grafana baja plugins de internet al arrancar (pyroscope, lokiexplore). No usamos
-      # ninguno, y cada uno es codigo de terceros ejecutandose en un servicio publico.
+      # Grafana downloads plugins from the internet at startup (pyroscope, lokiexplore). None
+      # of them are used, and each is third-party code running inside a public service.
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
-      # Grafana es un proceso Go, y el GC de Go no sabe nada del limite del cgroup: crece
-      # hasta que el kernel lo mata. Bajo una rafaga de 150 pedidos llego al 97% de 512M.
-      # GOMEMLIMIT le pone la meta adentro del limite, asi el GC trabaja mas en vez de morir.
+      # Grafana is a Go process, and Go's GC knows nothing about the cgroup limit: it grows
+      # until the kernel intervenes. Under a burst of 150 requests it reached 97% of 512M.
+      # GOMEMLIMIT puts the target inside the limit, so the GC works harder instead of dying.
       GOMEMLIMIT: 380MiB
       # Nothing phones home: no usage reporting, no update checks, no news feed.
       GF_ANALYTICS_REPORTING_ENABLED: "false"
@@ -167,7 +166,7 @@ services:
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      # Loopback ademas del acceso publico: sirve para verificar sin salir a internet.
+      # Loopback in addition to the public route: useful for verifying without the internet.
       - "127.0.0.1:3000:3000"
     networks:
       - internal
@@ -183,29 +182,31 @@ services:
     deploy:
       resources:
         limits:
-          # Grafana 13 arranca en ~210 MB. Con 256 quedaba al 83% en reposo, sin margen para
-          # el primer pico: se lo vio salir y reiniciar bajo una rafaga de 150 pedidos.
+          # Grafana 13 starts at ~210 MB. At 256 it sat at 83% while idle, with no room for
+          # the first spike: it was seen exiting and restarting under a burst of 150 requests.
           memory: 512M
     labels:
       traefik.enable: "true"
       traefik.docker.network: traefik
-      # Sin stripPrefix a proposito: con SERVE_FROM_SUB_PATH Grafana espera recibir /grafana.
+      # No stripPrefix on purpose: with SERVE_FROM_SUB_PATH, Grafana expects to receive
+      # /grafana.
       traefik.http.routers.origin-grafana.rule: Host(`${DOMAIN}`) && PathPrefix(`/grafana`)
-      # Explicita, para no depender de que Traefik ordene por largo de regla contra el frontend.
+      # Explicit, so this does not depend on Traefik ranking by rule length against the
+      # frontend.
       traefik.http.routers.origin-grafana.priority: "100"
       traefik.http.routers.origin-grafana.entrypoints: websecure
       traefik.http.routers.origin-grafana.tls: "true"
       traefik.http.routers.origin-grafana.tls.certresolver: cloudflare
       traefik.http.services.origin-grafana.loadbalancer.server.port: "3000"
-      # Limite de tasa, como segunda capa. La proteccion propia de Grafana ya bloquea al
-      # usuario tras 5 intentos fallidos --responde 401 generico, sin decir que esta
-      # bloqueado, para no confirmar que la cuenta existe-- pero es por usuario: no frena a
-      # quien escanea CVEs contra rutas que no son el login.
+      # Rate limit, as a second layer. Grafana's own protection already blocks a user after
+      # five failed attempts -- it answers a generic 401 rather than saying "blocked", so it
+      # does not confirm the account exists -- but that is per user: it does not stop anyone
+      # scanning CVEs against paths that are not the login.
       #
-      # sourcecriterion por CF-Connecting-IP y no por IP de origen: Cloudflare es proxy de
-      # este dominio, asi que para Traefik *todos* los visitantes comparten las IPs del edge
-      # de Cloudflare. Agrupar por esas IPs castigaria a usuarios legitimos en masa; el
-      # header lleva la IP real del cliente.
+      # sourcecriterion by CF-Connecting-IP and not by source IP: Cloudflare proxies this
+      # domain, so as far as Traefik can tell *every* visitor shares Cloudflare's edge IPs.
+      # Bucketing by those would punish legitimate users en masse; the header carries the
+      # client's real address.
       traefik.http.middlewares.origin-grafana-rl.ratelimit.average: "50"
       traefik.http.middlewares.origin-grafana-rl.ratelimit.burst: "100"
       traefik.http.middlewares.origin-grafana-rl.ratelimit.period: 1s
