@@ -322,7 +322,7 @@ El WebSocket propio se descarta en A2: el plan gratuito no tiene streaming detr�
 
 ## ADR-004 — Autenticación con JWT y Argon2
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** El enunciado evalúa seguridad y no especifica mecanismo.
 
