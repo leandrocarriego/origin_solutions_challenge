@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 import sentry_sdk
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app import observability
@@ -108,14 +109,22 @@ async def session() -> AsyncIterator[AsyncSession]:
     """A session against the real database, inside a transaction that is always rolled back.
 
     Integration tests run against Postgres and not against a double (TEST-02), so they need the
-    schema that `alembic upgrade head` creates. What they must not need is cleanup: every test
-    opens its own transaction and the rollback undoes it, so the order tests run in cannot
-    change what they see.
+    schema that `alembic upgrade head` creates. What they must not need is cleanup, and they
+    must not need an empty database either: a developer who ran `make up` has the seed's rows in
+    there, and a test that only passes on a pristine database fails later for a reason that
+    looks nothing like the cause.
+
+    So the transaction starts by emptying the four tables and ends by rolling back. TRUNCATE is
+    transactional in Postgres, so the developer's data is untouched: every test sees a known
+    state, and the order they run in cannot change what they see.
     """
     engine = create_async_engine(get_settings().database_url)
 
     async with engine.connect() as connection:
         transaction = await connection.begin()
+        await connection.execute(
+            text("TRUNCATE users, stocks, user_stocks, quotes RESTART IDENTITY CASCADE")
+        )
         factory = async_sessionmaker(
             bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
         )
