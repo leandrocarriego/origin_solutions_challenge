@@ -228,6 +228,10 @@ services:
     restart: unless-stopped
     command: ["-config.file=/etc/loki/loki.yml"]
     user: "10001:10001"
+    environment:
+      # Go's GC knows nothing about the cgroup limit: it grows until the kernel intervenes.
+      # This puts the target inside the limit, so it works harder instead of dying.
+      GOMEMLIMIT: 300MiB
     volumes:
       - ./infra/loki/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
@@ -258,6 +262,8 @@ services:
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy/data
       - /etc/alloy/config.alloy
+    environment:
+      GOMEMLIMIT: 150MiB
     volumes:
       - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
       - alloy_data:/var/lib/alloy/data
@@ -269,7 +275,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          # Measured at 88 MB against a 128 MB limit, which is 69% and no room for a burst.
+          memory: 192M
 
   # The Docker socket is root on the host, and Alloy only needs to list containers and read
   # their output. This proxy is what makes that difference real: GET on /containers and nothing
