@@ -81,12 +81,12 @@ jobs:
         run: uv run pytest
 
       - name: Modelos sincronizados con las tablas (DB-01)
+        # `alembic check` compares the models against the database as it is, so the database has
+        # to be migrated first. Without the upgrade the check reports every table as missing and
+        # DB-01 fails for the wrong reason -- or, with no revisions yet, passes for one.
         run: |
-          if [ -f alembic.ini ]; then
-            uv run alembic check
-          else
-            echo "::notice::alembic.ini todavía no existe (fase 0); DB-01 empieza a verificarse acá en cuanto aparezca."
-          fi
+          uv run alembic upgrade head
+          uv run alembic check
 
   frontend:
     name: Frontend

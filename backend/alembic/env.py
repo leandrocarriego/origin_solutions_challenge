@@ -17,6 +17,12 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+# Imported for the side effect: importing a model module is what registers its table on
+# Base.metadata. Nothing below uses these names.
+import app.modules.auth.models
+import app.modules.favorites.models
+import app.modules.quotes.models
+import app.modules.stocks.models  # noqa: F401 -- the last of the four binds nothing new
 from app.db import Base
 from app.settings import get_settings
 
@@ -27,9 +33,13 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
-# Importing the modules is what registers their tables on Base.metadata. Without this the
-# autogenerate would see an empty schema and cheerfully write a migration that drops everything.
-# Each module is added here when it is created; there are none yet.
+# The imports above are what register the tables on Base.metadata; nothing else uses those
+# names, hence the noqa. Without them autogenerate sees an empty schema and cheerfully writes a
+# migration that drops everything.
+#
+# A module that owns a table and is missing from that list is the failure this file exists to
+# avoid, so a test checks the list against the modules: see
+# tests/architecture/test_data_model.py::TestTheSchemaCompositionRoot.
 target_metadata = Base.metadata
 
 

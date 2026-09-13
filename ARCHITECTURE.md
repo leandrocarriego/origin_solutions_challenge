@@ -161,7 +161,7 @@ users ──┐
 | Tabla | Dueño | Clave |
 |---|---|---|
 | `users` | `auth/` | `id` |
-| `stocks` | `stocks/` | `symbol` — el catálogo ingestado una vez (`ADR-002`) |
+| `stocks` | `stocks/` | `symbol` — el catálogo, que la ingesta reconcilia contra la foto del proveedor (`ADR-002`) |
 | `user_stocks` | `favorites/` | compuesta `(user_id, symbol)` |
 | `quotes` | `quotes/` | compuesta `(symbol, interval, ts)`, índice por `(symbol, interval, ts DESC)` |
 

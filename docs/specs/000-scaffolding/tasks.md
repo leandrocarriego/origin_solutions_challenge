@@ -58,10 +58,15 @@ registradas como lo que son.
 | 8 | Observabilidad: métricas, Prometheus, Grafana y su dashboard del Artículo II | ADR-009 | `backend/tests/architecture/test_dashboard_metrics.py` |
 | 9 | Deploy al VPS con Traefik y TLS | — | — |
 | 10 | `argon2-cffi` y `pyjwt` declaradas con `uv add` | SEC-06 · ADR-004 · Art. IX | — |
+| 11 | Tests de arquitectura: fronteras, capas, proveedor y autorización de rutas | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | `tests/architecture/` — firmados 2026-09-13 |
+| 12 | Las cuatro tablas y su migración inicial | REQ-18 · ADR-001 · DB-01 | `tests/architecture/test_data_model.py` — firmados 2026-09-13 |
 
-La tarea 8 **sí** cumplió el gate en la práctica: el test del dashboard se escribió primero, se
-verificó en rojo y recién después se construyó el dashboard. Se anota acá porque no hay firma
-registrada, no porque el orden haya sido el otro.
+Las tareas **11 y 12 sí pasaron el gate**: sus tests se escribieron antes, se verificaron en
+rojo y se firmaron el 2026-09-13 (encabezado de este archivo). Están en esta tabla porque ya están
+hechas, no porque se hayan salteado nada.
+
+La tarea 8 lo cumplió en la práctica pero sin firma registrada: el test del dashboard se escribió
+primero y se verificó en rojo, sólo que todavía no existía este archivo donde anotarlo.
 
 ## Pendiente
 
@@ -70,8 +75,6 @@ implementación.
 
 | # | Tarea | Skill | Rol | Cubre | Depende de | Firma |
 |---|-------|-------|-----|-------|------------|-------|
-| 11 | Tests de arquitectura: frontera entre módulos, capas del módulo, proveedor detrás de su interfaz, autorización de rutas | `add_tests` | Tester | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | — | ✅ **Leandro Carriego · 2026-09-13** |
-| 12 | Las cuatro tablas y su migración inicial | `add_database_migration` | Developer | REQ-18 · ADR-001 · DB-01 | ADR-001 ✅ | ✅ **Leandro Carriego · 2026-09-13** |
 | 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON fijado | `add_integration` | Developer | ADR-006 · TEST-03 · ERR-05 | ADR-006 ✅ | — |
 | 14 | Ingesta del catálogo NYSE + NASDAQ, reconciliando contra la foto del proveedor | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 ✅ · ADR-006 ✅ · 12, 13 | — |
 | 15 | Seed: 2 usuarios con Argon2 y favoritas demo (TSLA, AAPL, NFLX) | `add_backend_feature` | Developer | REQ-19 | ADR-004 · 12 | — |

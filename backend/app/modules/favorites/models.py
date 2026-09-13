@@ -1,0 +1,37 @@
+"""The favourites table (ADR-001)."""
+
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db import Base
+
+SYMBOL_LENGTH = 12
+
+
+class UserStock(Base):
+    """One symbol a user follows.
+
+    The composite primary key is what makes adding the same favourite twice impossible
+    (TEST-04). It is a constraint of the schema and not an `if` in a service, so it holds even
+    for the second request of a double click that the first one has not finished serving.
+
+    Neither the name nor the currency are copied here. REQ-08 asks for them persisted, and they
+    are -- in `stocks`, once, where the ingestion keeps them current.
+    """
+
+    __tablename__ = "user_stocks"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    # A foreign key across modules is legitimate: modules separate code, not schema, and this
+    # is a guarantee of the engine. What is not allowed is a relationship() that crosses, which
+    # would couple the two models without leaving an import behind (GEN-02).
+    symbol: Mapped[str] = mapped_column(
+        String(SYMBOL_LENGTH), ForeignKey("stocks.symbol"), primary_key=True
+    )
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
