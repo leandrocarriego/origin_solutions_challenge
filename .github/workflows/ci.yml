@@ -71,11 +71,11 @@ jobs:
 
       - name: Formato y lint (GEN-01, PY-07, PY-11, ERR-01)
         run: |
-          uv run ruff format --check app tests
-          uv run ruff check app tests
+          uv run ruff format --check app tests seed.py alembic
+          uv run ruff check app tests seed.py alembic
 
       - name: Tipos (PY-09)
-        run: uv run mypy app tests
+        run: uv run mypy app tests seed.py alembic
 
       - name: Suite completa y cobertura (TEST-01..TEST-06, GEN-02, GEN-08, PY-06, PY-08)
         run: uv run pytest
@@ -147,7 +147,7 @@ jobs:
         uses: pre-commit/action@v3.0.1
 
       - name: Comentarios en inglés (GEN-07)
-        run: ./scripts/check_comment_language.sh
+        run: python3 scripts/check_comment_language.py
 
       - name: Mensajes de commit (GIT-03)
         # The commit-msg hook is skipped by --no-verify; this is not.

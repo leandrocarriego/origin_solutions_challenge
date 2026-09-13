@@ -268,7 +268,7 @@ las excepciones.
 - Los tests unitarios y de integración pasan (`uv run pytest`).
 - Hay migración creada y aplicada si se tocaron modelos.
 - Los type hints están completos; `uv run ruff format app && uv run ruff check --fix app` sin errores
-  y `uv run mypy app tests` limpio (`PY-09`: `no_implicit_reexport` es lo que hace cumplir el `__all__`).
+  y `uv run mypy app tests seed.py alembic` limpio (`PY-09`: `no_implicit_reexport` es lo que hace cumplir el `__all__`).
 - Los nombres siguen `PY-10` (`snake_case`, `PascalCase`, `UPPER_SNAKE_CASE`, guión bajo adelante
   para lo privado del archivo): esto lo mira el review, no la herramienta.
 - Sin dependencias circulares: ni entre las capas del módulo, ni entre módulos. Si A entra al paquete

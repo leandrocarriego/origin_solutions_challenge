@@ -28,6 +28,10 @@ services:
       # Empty on purpose: no events and no network while developing (TEST-03).
       SENTRY_DSN: ""
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      # The entrypoint runs `alembic upgrade head` in every environment. Here it also loads the
+      # demo dataset (REQ-19), because without data there is nothing to develop against. The
+      # seed is idempotent: it runs on every `make up`.
+      SEED_ON_START: "true"
     ports:
       - "8000:8000"
     depends_on:

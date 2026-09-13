@@ -45,18 +45,24 @@ target-version = "py312"
 #   D       -> PY-11, docstring on every function and method
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "ASYNC", "S", "A", "RUF", "D", "PLC0415"]
 ignore = [
-  "S101",  # assert: es como se escriben los tests
-  "D203",  # incompatible con D211; se elige D211 (sin línea en blanco antes de la clase)
-  "D213",  # incompatible con D212; se elige D212 (resumen en la primera línea)
-  "D401",  # modo imperativo: opinión de estilo, no de claridad
-  "D406", "D407", "D413",  # secciones tipo numpy: acá los docstrings son breves y sin secciones
+  "S101",  # assert: it is how tests are written
+  "D203",  # conflicts with D211; D211 wins (no blank line before the class)
+  "D213",  # conflicts with D212; D212 wins (summary on the first line)
+  "D401",  # imperative mood: a style opinion, not a clarity one
+  "D406", "D407", "D413",  # numpy sections: docstrings here are brief and sectionless (PY-11)
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
 
+[tool.ruff.lint.isort]
+# `alembic` is the library, not the alembic/ directory next to this file. Without this, isort
+# classifies it as first-party and reorders the imports of every migration.
+known-third-party = ["alembic"]
+
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"] # credenciales de prueba, a propósito
+# Test credentials, on purpose.
+"tests/**" = ["S105", "S106"]
 
 # --- PY-09 · types------------------------------------------------------------
 [tool.mypy]

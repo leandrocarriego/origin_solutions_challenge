@@ -38,15 +38,15 @@ hooks:  ## Instala los hooks de pre-commit (pre-commit y commit-msg)
 # --- Verification (the same commands CONVENTIONS.md states) -------------------------------------
 
 lint:  ## Formato y lint de backend y frontend (GEN-01, PY-07, TS-02, TS-04)
-	cd $(BACKEND) && uv run ruff format --check app tests && uv run ruff check app tests
+	cd $(BACKEND) && uv run ruff format --check app tests seed.py alembic && uv run ruff check app tests seed.py alembic
 	cd $(FRONTEND) && npm run format:check && npm run lint
 
 format:  ## Reescribe el código con el formateador de cada proyecto
-	cd $(BACKEND) && uv run ruff format app tests && uv run ruff check --fix app tests
+	cd $(BACKEND) && uv run ruff format app tests seed.py alembic && uv run ruff check --fix app tests seed.py alembic
 	cd $(FRONTEND) && npm run format
 
 typecheck:  ## Chequeo de tipos (PY-09, TS-01)
-	cd $(BACKEND) && uv run mypy app tests
+	cd $(BACKEND) && uv run mypy app tests seed.py alembic
 	cd $(FRONTEND) && npm run type-check
 
 test:  ## Suite completa con cobertura (TEST-*, UI-02, UI-03)

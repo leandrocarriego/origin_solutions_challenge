@@ -32,6 +32,13 @@ WORKDIR /app
 COPY --from=builder --chown=origin:origin /app/.venv /app/.venv
 COPY --from=builder --chown=origin:origin /app/app /app/app
 
+# The schema and the two scripts that bring a container up: migrations run on every start, the
+# seed only when SEED_ON_START says so.
+COPY --chown=origin:origin alembic.ini ./alembic.ini
+COPY --chown=origin:origin alembic ./alembic
+COPY --chown=origin:origin seed.py ./seed.py
+COPY --chown=origin:origin docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -44,5 +51,7 @@ EXPOSE 8000
 # a process that is up but cannot serve.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status==200 else 1)"
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

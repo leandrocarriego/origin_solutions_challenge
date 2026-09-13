@@ -63,8 +63,9 @@ Cuando una convención de esa clase se rompe seguido, la respuesta correcta no e
 ```
 # Backend
 cd backend
-uv run ruff format --check app tests && uv run ruff check app tests   # GEN-01, PY-07
-uv run mypy app tests                                                 # PY-09
+uv run ruff format --check app tests seed.py alembic   # GEN-01, PY-07
+uv run ruff check app tests seed.py alembic
+uv run mypy app tests seed.py alembic                  # PY-09
 uv run pytest                                                         # GEN-02, PY-06, PY-08, TEST-*
 
 # Frontend
@@ -210,7 +211,7 @@ Es el Artículo VIII aplicado igual que siempre: un idioma para cada audiencia.
 Lo verifica un script, y lo corren el pre-commit y el CI. Busca marcadores inequívocos del castellano —se dejan afuera `no`, `es`, `son`, `si`, `la`, `un`, `sin`, `solo` y `version`, que se escriben igual en inglés— y sólo mira **líneas de comentario**: la salida en español (`make help`, los `name:` de los hooks, los pasos de CI, los `echo`) no se toca.
 
 ```
-./scripts/check_comment_language.sh
+python3 scripts/check_comment_language.py
 ```
 
 ### `GEN-08` - Blocker: Todo proveedor externo se consume detrás de su interfaz, y la salida al mundo vive en `app/providers/`.
@@ -349,14 +350,14 @@ Verificada por test (ver la tabla de arriba).
 cd backend && uv run pytest tests/architecture/test_route_authorization.py
 ```
 
-### `PY-09` - Blocker: `mypy` pasa limpio sobre `app/` y sobre `tests/`.
+### `PY-09` - Blocker: `mypy` pasa limpio sobre todo el código del backend.
 
 Corre con `no_implicit_reexport = true`, así que además del tipado hace cumplir la frontera: un nombre importado de `app.modules.<modulo>` que ese paquete no declara en su `__all__` es error de `mypy`, no sólo hallazgo de review (`GEN-02`).
 
-Cubre `tests/` además de `app/`. Un test es código que se mantiene, y dejarlo afuera del chequeo permite que llame a una función con el tipo equivocado y siga verde: el test pasa, pero no está ejercitando la firma real.
+Cubre `app/`, `tests/`, `seed.py` y `alembic/`. Un test es código que se mantiene, y dejarlo afuera permite que llame a una función con el tipo equivocado y siga verde: el test pasa, pero no está ejercitando la firma real. Lo mismo vale para el seed y para `alembic/env.py`, que son los dos archivos que corren **antes** que la aplicación: si fallan, no arranca nada.
 
 ```
-cd backend && uv run mypy app tests
+cd backend && uv run mypy app tests seed.py alembic
 ```
 
 ### `PY-10` - Major: Nombres, PEP 8, y el guión bajo marca lo privado del archivo.

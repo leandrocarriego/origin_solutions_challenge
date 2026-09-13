@@ -44,6 +44,10 @@ services:
       # Empty is allowed while phase 0 only serves health. The quotes module reads it and
       # will fail loudly the moment it needs the provider, which is the right place to notice.
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      # SEED_ON_START is absent here, and that is the whole point. The entrypoint still runs
+      # `alembic upgrade head`, so the schema is never behind the code; but the seed creates
+      # users whose passwords are in the repository, and it also refuses outright when the
+      # environment is production, so this would take two mistakes rather than one.
     networks:
       - internal
     depends_on:

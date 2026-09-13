@@ -171,7 +171,7 @@ Primero, lo que ya está verificado y no se revisa a ojo:
 
 ```bash
 cd backend && uv run ruff format --check app tests && uv run ruff check app tests  # GEN-01, PY-07
-cd backend && uv run mypy app tests                                                # PY-09
+cd backend && uv run mypy app tests seed.py alembic                                             # PY-09
 cd backend && uv run pytest   # GEN-02, PY-06, GEN-08, GEN-09, PY-08, TEST-03, TEST-05
 cd frontend && npx tsc --noEmit                                                    # TS-01
 cd frontend && npm run lint && npm run format:check                        # TS-02, TS-04
