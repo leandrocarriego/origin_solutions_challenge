@@ -46,7 +46,7 @@ El enunciado completo y el *por qué es no negociable* de cada una viven en `CON
 ## Fronteras entre módulos (ESTRICTO)
 
 El backend es un **monolito modular por dominios**: `auth`, `stocks`, `favorites`, `quotes`. Tres
-fronteras, y las tres las verifica un test en `api/tests/architecture/`:
+fronteras, y las tres las verifica un test en `backend/tests/architecture/`:
 
 > **1. El contrato de un módulo es su paquete: lo que declara `__all__` en su `__init__.py`.**
 >
@@ -62,7 +62,7 @@ fronteras, y las tres las verifica un test en `api/tests/architecture/`:
 ❌ from app.modules.stocks.service import get_stocks           # interior ajeno
 ❌ from app.modules.stocks.models import Stock                 # interior ajeno
 ✅ from app.modules.stocks import get_stocks, StockInfo        # el paquete, lo que exporta
-✅ from app.shared.db import get_session
+✅ from app.db import get_session
 
 # adentro de stocks/, al revés:
 ✅ from app.modules.stocks.repository import StockRepository   # ruta completa entre hermanos
@@ -76,13 +76,15 @@ Las dos cosas las verifica el test.
 > **2. Adentro del módulo el flujo va `router` → `service` → `repository`**, en un solo sentido.
 > Un router no importa SQLAlchemy; un service no importa `fastapi`.
 
-> **3. El proveedor externo se consume sólo a través de `MarketDataProvider`.**
-> El nombre `twelvedata` aparece en un solo archivo: `app/providers/twelvedata.py`.
+> **3. Todo proveedor externo vive detrás de su interfaz, y la salida al mundo es `app/providers/`.**
+> Ningún archivo de afuera importa un cliente HTTP (`httpx`, `requests`, `aiohttp`,
+> `urllib.request`): un service que arma la URL a mano ya salió por la ventana, y puede no nombrar
+> al proveedor nunca. El nombre `twelvedata` aparece sólo en `app/providers/twelvedata.py`.
 
 Si este documento y un test se contradicen, **gana el test**: un test rompe el build, un documento
 no. El porqué de cada una está en `CONSTITUTION.md` (Artículo IV); la anatomía del módulo y el
 recorrido de una cotización, en `ARCHITECTURE.md`; el enunciado verificable con su severidad y su
-comando, en `CONVENTIONS.md` (`GEN-02`, `GEN-03`, `GEN-05`, `GEN-08`, `PY-06`, `PY-11`).
+comando, en `CONVENTIONS.md` (`GEN-02`, `GEN-03`, `GEN-05`, `GEN-08`, `PY-06`, `PY-10`).
 
 ### Dónde va el código
 
@@ -131,14 +133,14 @@ El agente DEBE disparar agentes en segundo plano con el rol que corresponda seg�
 
 - Arquitectura de backend, fronteras entre módulos o decisiones de FastAPI → `Backend-Architect`
 - Arquitectura de frontend o decisiones de React/Vite → `Frontend-Architect`
-- Implementar features nuevas o cambios del cliente → `Developer`
-- Diseñar o extender la suite de tests, cobertura, casos borde. Ejecutar los tests y realizar pruebas manuales → `Tester`
+- Escribir los tests de una feature **antes** de que exista su implementación, extender la suite, cobertura y casos borde. Ejecutar los tests y realizar pruebas manuales → `Tester`
+- Poner en verde los tests ya aprobados, implementar features nuevas o cambios del cliente → `Developer`
 - Revisar cambios / review de PR / quality gate → `Code-Reviewer`
 - Commitear/pushear un cambio testeado y abrir un PR → `Release-Manager`
 
 ### Cadena de un feature
 
-Los roles no son intercambiables: tienen un orden, y dos de sus pasos son gates.
+Los roles no son intercambiables: tienen un orden, y **tres** de sus pasos son gates.
 
 ```
                     ┌─────────────── Lead ───────────────┐
@@ -148,20 +150,32 @@ Los roles no son intercambiables: tienen un orden, y dos de sus pasos son gates.
   Solution-Designer   ──►  /specify · /clarify              →  spec.md
                            ✍️  GATE: firma del cliente (/approve-spec)
   Architect (back/front) ──►  /plan · /tasks   →  plan.md (Constitution Check) · tasks.md
-  Developer           ──►  /implement + tests unitarios de su lógica
-  Tester              ──►  integración · E2E · casos borde · cobertura
+  Tester              ──►  los tests de la historia, en rojo: unitarios,
+                           integración, E2E y casos borde
+                           ✍️  GATE: aprobación humana (/approve-tests)
+  Developer           ──►  /implement: pone en verde los tests aprobados
   Lead                ──►  /converge: ¿el código es lo que se firmó?
   Code-Reviewer       ──►  🚦 GATE de calidad (/review-feature)
   Release-Manager     ──►  /ship → PR contra `main`, y la spec pasa a archive/
 ```
 
-Dos inversiones que son errores, no variantes:
+Tres inversiones que son errores, no variantes:
 
 - El **Solution-Designer va antes que el arquitecto**. La spec es el input del `/plan`; al revés se
   estaría resolviendo técnicamente un alcance que el cliente no firmó, y el gate deja de serlo.
 
-- El **Tester va antes que el Code-Reviewer**. El reviewer verifica que existan tests: si el tester
-  corre después, el gate aprueba código sin cobertura y los hallazgos llegan tarde.
+- El **Tester va antes que el Developer**, y escribe **todos** los tests: también los unitarios de
+  la lógica pura. Es el Artículo VI, y lo que compra es que el humano fije qué significa
+  "terminado" **antes** de que exista una implementación que defender. Un test escrito después
+  describe lo que el código hace; escrito antes, describe lo que tiene que hacer.
+
+- El **Code-Reviewer va último**. Verifica que los tests aprobados sigan siendo los que corren: si
+  llegara antes, el gate de calidad aprobaría código cuyo contrato todavía nadie firmó.
+
+Consecuencia de la inversión, y hay que asumirla: **el `plan.md` pasa a ser load-bearing.** El
+Tester escribe contra módulos, services, firmas y endpoints que todavía no existen, así que el plan
+tiene que fijarlos. Si el plan no alcanza para escribir el test, se vuelve a `/plan` — no se
+inventa la firma ni se espera a que el Developer la decida.
 
 `debug` es transversal: se dispara en cualquier paso, bajo el rol del área afectada.
 
@@ -171,11 +185,11 @@ Dos inversiones que son errores, no variantes:
 |---|---|
 | Definir el alcance | `/specify` · `/clarify` · `/approve-spec` |
 | Planificar | `/plan` · `/tasks` · `/analyze` |
-| Construir | `/implement` |
+| Construir | `/approve-tests` · `/implement` |
 | Cerrar | `/converge` · `/review-feature` · `/ship` |
 | Transversales | `/status` (radiografía del proyecto) |
 
-**Ningún comando contiene su procedimiento**: los once son punteros de una línea a una skill, que
+**Ningún comando contiene su procedimiento**: los doce son punteros de una línea a una skill, que
 es donde vive el procedimiento y que cualquiera puede seguir a mano. 
 Consecuencia práctica: **una regla nueva va en la skill, nunca en el comando.** 
 El porqué, en `agents/skills/README.md`.
@@ -229,7 +243,7 @@ Lo que gobierna este documento es el enforcement:
 
 - Nueve convenciones no dependen de que alguien las lea, porque las verifica un test que rompe el
   build: `GEN-02` (la frontera entre módulos), `PY-06` (el flujo adentro del módulo), `GEN-08` (el
-  proveedor detrás de la interfaz), `GEN-09` (aislamiento por usuario), `PY-09` (autorización de
+  proveedor detrás de la interfaz), `GEN-09` (aislamiento por usuario), `PY-08` (autorización de
   rutas), `TEST-03` (la suite sin red ni API key), `TEST-05` (cobertura), y `UI-02` y `UI-03` en el
   frontend. 
   El detalle de cuál frena el pre-commit y cuál el CI está en `CONVENTIONS.md` → *Convenciones verificadas por un test que rompe el build*. 
@@ -248,17 +262,19 @@ La convención de ramas y el formato de los mensajes están en `CONVENTIONS.md` 
 
 ## Definition of Done
 
-- El código compila y pasa los chequeos de tipos (`PY-10`, `TS-01`).
+- El código compila y pasa los chequeos de tipos (`PY-09`, `TS-01`).
+
+- Los tests se escribieron **antes** de la implementación y el humano los aprobó, con quién y cuándo registrado en `tasks.md` (Artículo VI, `/approve-tests`). Los que corren son los que se firmaron: si alguno cambió después, volvió a firmarse.
 
 - Existen tests unitarios de la lógica pura y de integración de endpoints y base de datos (`TEST-01`, `TEST-02`), y la cobertura no bajó (`TEST-05`).
 
 - El proveedor se testea contra JSON fijado: **la suite corre sin red y sin API key** (`TEST-03`).
 
-- No hay violaciones de las fronteras: ningún módulo importa el interior de otro (`GEN-02`), el flujo adentro del módulo va en un solo sentido (`PY-06`), toda llamada al proveedor pasa por `MarketDataProvider` (`GEN-08`) y ninguna query de datos del usuario confía en un id del request (`GEN-09`).
+- No hay violaciones de las fronteras: ningún módulo importa el interior de otro (`GEN-02`), el flujo adentro del módulo va en un solo sentido (`PY-06`), todo proveedor externo se consume detrás de su interfaz en `app/providers/`, y ningún archivo de afuera importa un cliente HTTP (`GEN-08`) y ninguna query de datos del usuario confía en un id del request (`GEN-09`).
 
 - Los modelos de base de datos están sincronizados con las tablas (`DB-01`).
 
-- **Toda pantalla nueva o tocada reproduce su diseño** (`UI-01`) y usa los textos literales del enunciado (`UI-02`); los avisos de estado van arriba del dato que califican (`UI-07`).
+- **Toda pantalla nueva o tocada reproduce su diseño** (`UI-01`) y usa los textos literales del enunciado (`UI-02`); los avisos de estado van arriba del dato que califican (`UI-05`).
 
 - Los modos de falla del proveedor están cubiertos (`ERR-05`).
 

@@ -3,7 +3,7 @@
 Los principios **no negociables** del proyecto. 
 Es la autoridad número uno: cuando este documento y cualquier otro se contradicen gana este.
 
-**Versión** 1.0.0
+**Versión** 1.0.1
 
 **Ratificada** 2026-09-12
 
@@ -104,10 +104,11 @@ Un test **nunca** se debilita para pasar un gate.
 
 Si un test molesta, o el código está mal o el test está mal: las dos cosas se arreglan, ninguna se silencia.
 
-Cada test desarrollado por el agente debe ser aprovado por el humano **sin excepcion** antes de pasar al desarrollo de la implementacion.
+Cada test desarrollado por el agente debe ser **aprobado por el humano, sin excepción**, antes de pasar al desarrollo de la implementación. Los tests van primero, se firman, y recién entonces se escribe el código que los pone en verde. Un test aprobado no se reescribe después para que pase: si resulta equivocado, se corrige y se firma de nuevo.
 
-**Por qué es no negociable:** además de lo obvio, una suite que sale a la red consume la cuota del
-Artículo II. La suite completa corre sin red y sin API key, o no es una suite.
+**Por qué es no negociable:** un test escrito después de la implementación describe lo que el código hace; escrito antes, describe lo que tiene que hacer. La diferencia es quién define "terminado": el agente que ya resolvió algo, o la persona que pidió el resultado. Y en un proceso donde la mayor parte del trabajo la hacen agentes, la firma sobre los tests es el único punto donde el humano fija el contrato en términos ejecutables y no en prosa.
+
+Aparte de eso, lo obvio: una suite que sale a la red consume la cuota del Artículo II. La suite completa corre sin red y sin API key, o no es una suite.
 
 ## Artículo VII — El enunciado es el contrato, y sus ambigüedades se declaran
 
@@ -134,7 +135,7 @@ puede leer no puede ser firmado por el cliente.
 
 Backend con `uv`, frontend con `npm`, y siempre con su lockfile actualizado en el mismo commit.
 
-Se prohibe `pip install`, `requirements.txt` y edición a mano de versiones.
+Se prohíbe `pip install`, `requirements.txt` y edición a mano de versiones.
 
 **Por qué es no negociable:** un build que no es reproducible no es verificable, y todo lo demás que
 dice esta constitución depende de poder verificar.
@@ -149,9 +150,7 @@ Y **nunca** escribe `Aceptada` ni completa *Decidida por*.
 
 Un ADR en `Propuesta` no es autoridad: ningún `plan.md` lo puede citar para justificar un enfoque.
 
-**Por qué es no negociable:** es un proceso donde la mayor parte del trabajo la hacen agentes. 
-Un ADR es el registro de un juicio con consecuencias, y el humano a cargo debe **defender
-cada decisión de arquitectura que tomo**, y una decisión que no tomó no la puede defender.
+**Por qué es no negociable:** en un proceso donde la mayor parte del trabajo la hacen agentes, la arquitectura terminaría decidida por quien redactó más rápido. Un ADR es el registro de un juicio con consecuencias, y el humano a cargo tiene que **defender cada decisión de arquitectura en una entrevista**: una decisión que no tomó no la puede defender.
 
 ---
 
