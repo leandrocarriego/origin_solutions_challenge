@@ -57,6 +57,11 @@ ignore = [
   "D213",  # conflicts with D212; D212 wins (summary on the first line)
   "D401",  # imperative mood: a style opinion, not a clarity one
   "D406", "D407", "D413",  # numpy sections: docstrings here are brief and sectionless (PY-11)
+  # N818 asks every exception to end in Error. The domain ones are named for the condition
+  # instead -- `raise SymbolNotFound(...)` reads as the sentence it is -- and the base class
+  # that groups them, ProviderError, does carry the suffix. Django names its exceptions the
+  # same way (ObjectDoesNotExist, MultipleObjectsReturned).
+  "N818",
 ]
 
 [tool.ruff.lint.pydocstyle]

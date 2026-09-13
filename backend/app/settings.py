@@ -20,12 +20,27 @@ class Settings(BaseSettings):
     # Article I: this never leaves the backend, and never reaches a VITE_* variable.
     twelvedata_api_key: str = ""
 
+    # Which module under app/providers/ serves market data. It lives here because GEN-08 keeps
+    # the provider's name to one file plus this one: a composition root that imported the class
+    # to wire it would have written the name in a third. Set it to "fake" and nothing reaches
+    # the network.
+    market_data_provider: str = "twelvedata"
+
     # Empty disables Sentry, which is what local and CI want: no events, no network.
     sentry_dsn: str = ""
     sentry_environment: str = "local"
 
     # Narrowed to the frontend origin, never "*": the API answers with credentials.
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+
+    @property
+    def market_data_api_key(self) -> str:
+        """The credential of whichever provider is configured.
+
+        The provider's name may not appear outside this file (GEN-08), so the wiring asks for
+        the credential by what it is for and not by who issued it.
+        """
+        return self.twelvedata_api_key
 
     def secret_values(self) -> tuple[str, ...]:
         """Every literal secret this process holds, for whoever has to blank them out.

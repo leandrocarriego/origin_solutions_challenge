@@ -1,0 +1,58 @@
+{
+  "data": [
+    {
+      "symbol": "!otc/FLZH",
+      "name": "Flash Sports & Media, Inc.",
+      "currency": "USD",
+      "exchange": "NASDAQ",
+      "mic_code": "XNCM",
+      "country": "United States",
+      "type": "Common Stock",
+      "figi_code": "",
+      "cfi_code": "ESVUFR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "currency": "USD",
+      "exchange": "NASDAQ",
+      "mic_code": "XNGS",
+      "country": "United States",
+      "type": "Common Stock",
+      "figi_code": "BBG000B9Y5X2",
+      "cfi_code": "ESVUFR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "NFLX",
+      "name": "Netflix Inc.",
+      "currency": "USD",
+      "exchange": "NASDAQ",
+      "mic_code": "XNGS",
+      "country": "United States",
+      "type": "Common Stock",
+      "figi_code": "BBG000CLD9D1",
+      "cfi_code": "ESVUFR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "TSLA",
+      "name": "Tesla, Inc.",
+      "currency": "USD",
+      "exchange": "NASDAQ",
+      "mic_code": "XNGS",
+      "country": "United States",
+      "type": "Common Stock",
+      "figi_code": "BBG000N9P426",
+      "cfi_code": "ESVUFR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    }
+  ],
+  "count": 4,
+  "status": "ok"
+}

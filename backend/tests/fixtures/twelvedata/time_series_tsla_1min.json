@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "symbol": "TSLA",
+    "interval": "1min",
+    "currency": "USD",
+    "exchange_timezone": "America/New_York",
+    "exchange": "NASDAQ",
+    "mic_code": "XNGS",
+    "type": "Common Stock"
+  },
+  "values": [
+    {
+      "datetime": "2026-09-11 15:59:00",
+      "open": "365.42999",
+      "high": "365.56",
+      "low": "365.26999",
+      "close": "365.47000",
+      "volume": "381056"
+    },
+    {
+      "datetime": "2026-09-11 15:58:00",
+      "open": "365.47000",
+      "high": "365.55",
+      "low": "365.39001",
+      "close": "365.43839",
+      "volume": "167407"
+    },
+    {
+      "datetime": "2026-09-11 15:57:00",
+      "open": "365.82001",
+      "high": "365.94681",
+      "low": "365.45001",
+      "close": "365.45001",
+      "volume": "132539"
+    },
+    {
+      "datetime": "2026-09-11 15:56:00",
+      "open": "365.73001",
+      "high": "365.85999",
+      "low": "365.64001",
+      "close": "365.81000",
+      "volume": "113491"
+    },
+    {
+      "datetime": "2026-09-11 15:55:00",
+      "open": "365.67001",
+      "high": "365.79",
+      "low": "365.070007",
+      "close": "365.71500",
+      "volume": "146723"
+    }
+  ],
+  "status": "ok"
+}

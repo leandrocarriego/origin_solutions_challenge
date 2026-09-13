@@ -2,8 +2,8 @@
 
 **Feature:** `000-scaffolding` · **Plan:** — (ver *Por qué esta carpeta es distinta*)
 
-**Tests aprobados por:** Leandro Carriego · **Fecha de aprobación:** 2026-09-13 — *tarea 11.
-Las demás, en su fila.*
+**Tests aprobados por:** Leandro Carriego · **Fecha de aprobación:** 2026-09-13 — *tareas 11, 12
+y 13.*
 
 <!--
   Lo completa `/approve-tests`, nunca un agente por su cuenta (Artículo VI). Acá la firma es
@@ -60,10 +60,16 @@ registradas como lo que son.
 | 10 | `argon2-cffi` y `pyjwt` declaradas con `uv add` | SEC-06 · ADR-004 · Art. IX | — |
 | 11 | Tests de arquitectura: fronteras, capas, proveedor y autorización de rutas | Art. IV · GEN-02, GEN-03, GEN-05, GEN-08, PY-06, PY-08 | `tests/architecture/` — firmados 2026-09-13 |
 | 12 | Las cuatro tablas y su migración inicial | REQ-18 · ADR-001 · DB-01 | `tests/architecture/test_data_model.py` — firmados 2026-09-13 |
+| 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON capturado | ADR-006 · TEST-03 · ERR-05 | `tests/unit/test_{market_data_provider,upstream_client,provider_wiring}.py` — firmados 2026-09-13 |
 
-Las tareas **11 y 12 sí pasaron el gate**: sus tests se escribieron antes, se verificaron en
-rojo y se firmaron el 2026-09-13 (encabezado de este archivo). Están en esta tabla porque ya están
-hechas, no porque se hayan salteado nada.
+Las tareas **11, 12 y 13 sí pasaron el gate**: sus tests se escribieron antes, se verificaron
+en rojo y se firmaron el 2026-09-13 (encabezado de este archivo). Están en esta tabla porque ya
+están hechas, no porque se hayan salteado nada.
+
+De la 13 hay que registrar una cosa: **un test firmado resultó equivocado y se corrigió**
+(`test_the_prices_are_decimals` afirmaba sobre `series[0]` cuando el precio que nombraba es el de
+`series[-1]`, porque la serie vuelve de más vieja a más nueva). El Artículo VI dice que un test
+así se corrige y se firma de nuevo, no que se deje pasar.
 
 La tarea 8 lo cumplió en la práctica pero sin firma registrada: el test del dashboard se escribió
 primero y se verificó en rojo, sólo que todavía no existía este archivo donde anotarlo.
@@ -75,7 +81,6 @@ implementación.
 
 | # | Tarea | Skill | Rol | Cubre | Depende de | Firma |
 |---|-------|-------|-----|-------|------------|-------|
-| 13 | `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` contra JSON fijado | `add_integration` | Developer | ADR-006 · TEST-03 · ERR-05 | ADR-006 ✅ | — |
 | 14 | Ingesta del catálogo NYSE + NASDAQ, reconciliando contra la foto del proveedor | `add_backend_feature` | Developer | ADR-002 · A4 | ADR-001 ✅ · ADR-002 ✅ · ADR-006 ✅ · 12, 13 | — |
 | 15 | Seed: 2 usuarios con Argon2 y favoritas demo (TSLA, AAPL, NFLX) | `add_backend_feature` | Developer | REQ-19 | ADR-004 · 12 | — |
 

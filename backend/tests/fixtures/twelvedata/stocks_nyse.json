@@ -1,0 +1,84 @@
+{
+  "data": [
+    {
+      "symbol": "A",
+      "name": "Agilent Technologies Inc.",
+      "currency": "USD",
+      "exchange": "NYSE",
+      "mic_code": "XNYS",
+      "country": "United States",
+      "type": "Common Stock",
+      "figi_code": "BBG000C2V541",
+      "cfi_code": "ESVUFR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "AAC.UN",
+      "name": "Ares Acquisition Corporation",
+      "currency": "USD",
+      "exchange": "NYSE",
+      "mic_code": "XNYS",
+      "country": "United States",
+      "type": "Common Stock",
+      "figi_code": "",
+      "cfi_code": "ESVUFR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "ABR-D",
+      "name": "Arbor Realty Trust, Inc.",
+      "currency": "USD",
+      "exchange": "NYSE",
+      "mic_code": "XNYS",
+      "country": "United States",
+      "type": "REIT",
+      "figi_code": "BBG000KMVDV1",
+      "cfi_code": "EPNNDR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "ACHR.WT",
+      "name": "Archer Aviation Inc. Redeemable Warrants, each whole warrant exercisable for one Class A common stock at an exercise price of $11.50",
+      "currency": "USD",
+      "exchange": "NYSE",
+      "mic_code": "XNYS",
+      "country": "United States",
+      "type": "Warrant",
+      "figi_code": "",
+      "cfi_code": "",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "AAT",
+      "name": "American Assets Trust Inc.",
+      "currency": "USD",
+      "exchange": "NYSE",
+      "mic_code": "XNYS",
+      "country": "United States",
+      "type": "REIT",
+      "figi_code": "BBG00161BCW4",
+      "cfi_code": "",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    },
+    {
+      "symbol": "ABEV",
+      "name": "Ambev S.A. ADR",
+      "currency": "USD",
+      "exchange": "NYSE",
+      "mic_code": "XNYS",
+      "country": "United States",
+      "type": "American Depositary Receipt",
+      "figi_code": "BBG000BN5XM4",
+      "cfi_code": "EDMXDR",
+      "isin": "request_access_via_add_ons",
+      "cusip": "request_access_via_add_ons"
+    }
+  ],
+  "count": 6,
+  "status": "ok"
+}
