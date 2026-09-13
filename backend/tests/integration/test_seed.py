@@ -9,13 +9,13 @@ in production, because the passwords it writes are in the repository.
 """
 
 import pytest
-from app.security import verify_password
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User
 from app.modules.favorites.models import UserStock
 from app.modules.stocks.models import Stock
+from app.security import verify_password
 from app.settings import get_settings
 from seed import DEMO_FAVOURITES, DEMO_USERS, SeedRefused, seed
 

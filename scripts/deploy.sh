@@ -21,21 +21,43 @@ SSH_OPTS=(-o ServerAliveInterval=20 -o ServerAliveCountMax=15)
 ssh() { command ssh "${SSH_OPTS[@]}" "$@"; }
 LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-VERSION="$(git -C "$LOCAL_DIR" rev-parse --short HEAD)"
+# What gets deployed is a ref of the remote, never the working tree. The tree is where work in
+# progress lives: deploying it means production can hold code that is on nobody's branch, that
+# no CI run ever saw and that no reviewer read.
+DEPLOY_REF="${DEPLOY_REF:-origin/main}"
 DOMAIN="${DOMAIN:-origin-solutions-challenge.mendrisoftware.com}"
 
-echo "==> Desplegando ${VERSION} en ${HOST}:${REMOTE_DIR}"
+# --- 1. Resolve what is going out, before touching anything -----------------------------------
+echo "==> Trayendo ${DEPLOY_REF}"
+git -C "$LOCAL_DIR" fetch origin --quiet
 
-# --- 1. Local sanity before uploading anything -------------------------------------------------
-echo "==> Verificando el árbol local"
-if [ -n "$(git -C "$LOCAL_DIR" status --porcelain)" ]; then
-  echo "    aviso: hay cambios sin commitear; se despliega el árbol de trabajo, no el commit"
+if ! git -C "$LOCAL_DIR" rev-parse --verify --quiet "${DEPLOY_REF}^{commit}" >/dev/null; then
+  echo "    error: ${DEPLOY_REF} no existe" >&2
+  exit 1
+fi
+
+VERSION="$(git -C "$LOCAL_DIR" rev-parse --short "$DEPLOY_REF")"
+SUBJECT="$(git -C "$LOCAL_DIR" log -1 --format=%s "$DEPLOY_REF")"
+
+echo "==> Desplegando ${VERSION} en ${HOST}:${REMOTE_DIR}"
+echo "    ${SUBJECT}"
+
+if [ "$(git -C "$LOCAL_DIR" rev-parse HEAD)" != "$(git -C "$LOCAL_DIR" rev-parse "$DEPLOY_REF")" ]; then
+  echo "    aviso: tu HEAD no es ${DEPLOY_REF}; lo que sale es ${DEPLOY_REF}, no lo que tenés acá"
 fi
 
 # --- 2. Sync the code --------------------------------------------------------------------------
+# From a clean export of the ref and not from the working directory: `git archive` writes exactly
+# what is committed, so an untracked file cannot reach production by accident.
+#
 # --delete leaves the destination identical to the source: without it every deploy piles up
-# files that no longer exist, which is exactly the litter to avoid.
+# files that no longer exist, which is exactly the litter to avoid. `.env` is excluded, so the
+# secrets that live only on the server survive it.
 echo "==> Sincronizando"
+SOURCE="$(mktemp -d)"
+trap 'rm -rf "$SOURCE"' EXIT
+git -C "$LOCAL_DIR" archive "$DEPLOY_REF" | tar -x -C "$SOURCE"
+
 ssh "$HOST" "mkdir -p '${REMOTE_DIR}'"
 rsync -az --delete \
   --exclude '.git/' \
@@ -48,7 +70,7 @@ rsync -az --delete \
   --exclude '.mypy_cache/' \
   --exclude '.ruff_cache/' \
   -e "ssh ${SSH_OPTS[*]}" \
-  "${LOCAL_DIR}/" "${HOST}:${REMOTE_DIR}/"
+  "${SOURCE}/" "${HOST}:${REMOTE_DIR}/"
 
 # --- 3. Build and start ------------------------------------------------------------------------
 echo "==> Bajando imágenes externas"

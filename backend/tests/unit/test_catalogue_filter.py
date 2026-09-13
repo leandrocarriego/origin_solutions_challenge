@@ -12,8 +12,8 @@ Two rules, and the reason for each:
 """
 
 import pytest
-from app.modules.stocks.service import is_worth_ingesting
 
+from app.modules.stocks.service import is_worth_ingesting
 from app.providers import StockRecord
 
 

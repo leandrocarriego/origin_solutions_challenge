@@ -10,6 +10,7 @@ database wrong from minute one, and it is the first thing anyone auditing securi
 """
 
 import pytest
+
 from app.security import hash_password, verify_password
 
 PASSWORD = "una-clave-de-demo"
