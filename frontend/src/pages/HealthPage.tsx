@@ -6,7 +6,7 @@
  * brief does not ask for this screen.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 
 import { fetchHealth, type HealthStatus } from '../api/health';
 import './HealthPage.css';
