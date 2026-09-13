@@ -244,12 +244,14 @@ services:
       - "127.0.0.1:3100:3100"
     networks:
       - internal
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3100/ready"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 45s
+    # No healthcheck, and that is the honest option rather than the lazy one: the image is
+    # distroless -- no shell, no wget, no curl -- so anything Docker could exec inside it does
+    # not exist. The check that was here reported unhealthy forever, which is worse than none:
+    # a red that always means nothing is a red nobody reads.
+    #
+    # Readiness is observable from outside instead: `curl 127.0.0.1:3100/ready` on the host, and
+    # Grafana's own datasource test. Nothing depends on Loki being up either -- Alloy retries,
+    # and the application does not know it exists.
     deploy:
       resources:
         limits:
