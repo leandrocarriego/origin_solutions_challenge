@@ -148,7 +148,7 @@ decisión se revisa con datos, no antes.
 
 ## ADR-002 — El catálogo de símbolos se ingesta, y la ingesta reconcilia
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** El autocomplete dispara por cada tecla y la cuota es de 800 requests por día, así
 que proxear el catálogo está descartado por el Artículo II. Eso no estaba en discusión.
@@ -259,7 +259,7 @@ no es motivo para borrar su historia.
 
 ## ADR-003 — Caché de cotizaciones y polling compartido por símbolo
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** Este es el problema de ingeniería central del challenge. Un solo usuario con
 un gráfico en modo tiempo real a intervalo de 1min consume ~480 requests en 8 horas de
