@@ -648,10 +648,10 @@ Servicios, parsers, normalización. Los escribe el `Developer` para su propia l�
 
 Los fixtures van en `backend/tests/fixtures/twelvedata/`.
 
-**La suite completa corre sin red y sin backend key**.
+**La suite completa corre sin red y sin API key**.
 
 ```
-cd backend && SOME_API_KEY= uv run pytest
+cd backend && TWELVEDATA_API_KEY= uv run pytest
 ```
 
 ### `TEST-04` - Major: Toda alta de favorita tiene su test de idempotencia, agregar dos veces el mismo símbolo no duplica ni falla.
