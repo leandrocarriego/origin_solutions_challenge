@@ -1,0 +1,321 @@
+# Deploy on a VPS shared with other projects in production.
+#
+# Three rules that come from that, and are not negotiable here:
+#   1. No published ports on a public interface. Traefik owns :80 and :443; everything else
+#      stays on internal networks. Monitoring binds to 127.0.0.1, which is the same pattern the
+#      other projects on this host already use and not an opening to the internet.
+#   2. Every container has a memory limit. A runaway process must not take the box down with it.
+#   3. A distinct project name, so compose never touches another project's containers.
+name: origin-solutions-challenge
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: origin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: origin
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U origin -d origin"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  backend:
+    image: origin-solutions-challenge-backend:${VERSION:-latest}
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://origin:${POSTGRES_PASSWORD}@db:5432/origin
+      CORS_ORIGINS: '["https://${DOMAIN}"]'
+      VERSION: ${VERSION:-latest}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: production
+      # Empty is allowed while phase 0 only serves health. The quotes module reads it and
+      # will fail loudly the moment it needs the provider, which is the right place to notice.
+      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      # The real provider here, which is what makes the catalogue refresh of ADR-002 real: two
+      # requests a day out of 800. With an empty key it fails loudly and the freshness gauge
+      # stops advancing, which is visible on the dashboard.
+      MARKET_DATA_PROVIDER: twelvedata
+      # SEED_ON_START is absent here, and that is the whole point. The entrypoint still runs
+      # `alembic upgrade head`, so the schema is never behind the code; but the seed creates
+      # users whose passwords are in the repository, and it also refuses outright when the
+      # environment is production, so this would take two mistakes rather than one.
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  frontend:
+    image: origin-solutions-challenge-frontend:${VERSION:-latest}
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    networks:
+      - internal
+      - traefik
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: traefik
+      # HTTPS only; the http router exists to send everyone to it.
+      traefik.http.routers.origin-challenge.rule: Host(`${DOMAIN}`)
+      traefik.http.routers.origin-challenge.entrypoints: websecure
+      traefik.http.routers.origin-challenge.tls: "true"
+      traefik.http.routers.origin-challenge.tls.certresolver: cloudflare
+      traefik.http.routers.origin-challenge-http.rule: Host(`${DOMAIN}`)
+      traefik.http.routers.origin-challenge-http.entrypoints: web
+      traefik.http.routers.origin-challenge-http.middlewares: origin-challenge-https
+      traefik.http.middlewares.origin-challenge-https.redirectscheme.scheme: https
+      traefik.http.middlewares.origin-challenge-https.redirectscheme.permanent: "true"
+      traefik.http.services.origin-challenge.loadbalancer.server.port: "80"
+
+  # --- Observability, layer 3 (ADR-009) --------------------------------------------------------
+  # Grafana is public and has a login. Prometheus is NOT: it has no authentication of any kind,
+  # so publishing it would publish every metric and every observed symbol name to whoever walks
+  # past. It stays on loopback, reached with `ssh -L 9090:127.0.0.1:9090 mendri`.
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Bounded on both axes: a metrics database that can fill the disk of a shared VPS is a
+      # way of taking the box down slowly.
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=512MB
+      - --web.enable-lifecycle
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - internal
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # Grafana IS reachable from the internet, at https://<domain>/grafana, behind its own login.
+  # It is served under a path rather than a subdomain because mendrisoftware.com has no wildcard
+  # DNS: a `grafana.` host would need a Cloudflare record this deploy cannot create.
+  #
+  # Version: the current stable one. A public Grafana several releases behind is a published
+  # list of known vulnerabilities with a URL next to it.
+  grafana:
+    image: grafana/grafana:13.2.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      # Grafana has to know the URL it is seen under, or the login redirects point at /.
+      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # Nobody signs up, nobody creates organisations, nobody edits anything.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_USERS_VIEWERS_CAN_EDIT: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Everything from here down is because it is exposed to the internet.
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: lax
+      GF_SECURITY_STRICT_TRANSPORT_SECURITY: "true"
+      GF_SECURITY_STRICT_TRANSPORT_SECURITY_MAX_AGE_SECONDS: "31536000"
+      GF_SECURITY_CONTENT_SECURITY_POLICY: "true"
+      GF_SECURITY_X_CONTENT_TYPE_OPTIONS: "true"
+      GF_SECURITY_X_XSS_PROTECTION: "true"
+      # Gravatar and public snapshots are two outbound paths nobody asked for.
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      # Grafana downloads plugins from the internet at startup (pyroscope, lokiexplore). None
+      # of them are used, and each is third-party code running inside a public service.
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      # Grafana is a Go process, and Go's GC knows nothing about the cgroup limit: it grows
+      # until the kernel intervenes. Under a burst of 150 requests it reached 97% of 512M.
+      # GOMEMLIMIT puts the target inside the limit, so the GC works harder instead of dying.
+      GOMEMLIMIT: 380MiB
+      # Nothing phones home: no usage reporting, no update checks, no news feed.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      # Loopback in addition to the public route: useful for verifying without the internet.
+      - "127.0.0.1:3000:3000"
+    networks:
+      - internal
+      - traefik
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/grafana/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          # Grafana 13 starts at ~210 MB. At 256 it sat at 83% while idle, with no room for
+          # the first spike: it was seen exiting and restarting under a burst of 150 requests.
+          memory: 512M
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: traefik
+      # No stripPrefix on purpose: with SERVE_FROM_SUB_PATH, Grafana expects to receive
+      # /grafana.
+      traefik.http.routers.origin-grafana.rule: Host(`${DOMAIN}`) && PathPrefix(`/grafana`)
+      # Explicit, so this does not depend on Traefik ranking by rule length against the
+      # frontend.
+      traefik.http.routers.origin-grafana.priority: "100"
+      traefik.http.routers.origin-grafana.entrypoints: websecure
+      traefik.http.routers.origin-grafana.tls: "true"
+      traefik.http.routers.origin-grafana.tls.certresolver: cloudflare
+      traefik.http.services.origin-grafana.loadbalancer.server.port: "3000"
+      # Rate limit, as a second layer. Grafana's own protection already blocks a user after
+      # five failed attempts -- it answers a generic 401 rather than saying "blocked", so it
+      # does not confirm the account exists -- but that is per user: it does not stop anyone
+      # scanning CVEs against paths that are not the login.
+      #
+      # sourcecriterion by CF-Connecting-IP and not by source IP: Cloudflare proxies this
+      # domain, so as far as Traefik can tell *every* visitor shares Cloudflare's edge IPs.
+      # Bucketing by those would punish legitimate users en masse; the header carries the
+      # client's real address.
+      traefik.http.middlewares.origin-grafana-rl.ratelimit.average: "50"
+      traefik.http.middlewares.origin-grafana-rl.ratelimit.burst: "100"
+      traefik.http.middlewares.origin-grafana-rl.ratelimit.period: 1s
+      traefik.http.middlewares.origin-grafana-rl.ratelimit.sourcecriterion.requestheadername: CF-Connecting-IP
+      traefik.http.routers.origin-grafana.middlewares: origin-grafana-rl
+
+  # --- Logs: the third datasource, so a spike and the lines that explain it share a pane -------
+  #
+  # Loki indexes labels and not the text of the line, which is what makes it affordable here and
+  # is also the trade-off: filtering by service or level is instant, full text over a wide range
+  # is a scan. For one project's logs on a shared VPS that is the right side of the deal.
+
+  loki:
+    image: grafana/loki:3.7.7
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    user: "10001:10001"
+    environment:
+      # Go's GC knows nothing about the cgroup limit: it grows until the kernel intervenes.
+      # This puts the target inside the limit, so it works harder instead of dying.
+      GOMEMLIMIT: 300MiB
+    volumes:
+      - ./infra/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      # Loopback only. Loki has no authentication, and the logs carry more than the metrics do.
+      - "127.0.0.1:3100:3100"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  # Alloy tails the containers of this project and pushes what it reads to Loki. It keeps
+  # `docker logs` working, which a logging driver would not: the container still writes its own
+  # json file and Alloy follows it.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      GOMEMLIMIT: 150MiB
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+    networks:
+      - internal
+    depends_on:
+      - loki
+      - socket-proxy
+    deploy:
+      resources:
+        limits:
+          # Measured at 88 MB against a 128 MB limit, which is 69% and no room for a burst.
+          memory: 192M
+
+  # The Docker socket is root on the host, and Alloy only needs to list containers and read
+  # their output. This proxy is what makes that difference real: GET on /containers and nothing
+  # else. On a VPS shared with other projects, handing an agent the raw socket would hand it
+  # every container on the box.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      # Alloy reads /networks too: without it the discovery cannot compute the network labels of
+      # a container and refuses the whole refresh with a 403.
+      NETWORKS: "1"
+      POST: "0"
+      # Everything else stays off: no exec, no images, no volumes, no swarm, no info.
+      ALLOW_START: "0"
+      ALLOW_STOP: "0"
+      ALLOW_RESTARTS: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+
+networks:
+  internal:
+  traefik:
+    external: true
+
+volumes:
+  db_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alloy_data:

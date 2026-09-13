@@ -171,7 +171,7 @@ Primero, lo que ya está verificado y no se revisa a ojo:
 
 ```bash
 cd backend && uv run ruff format --check app tests && uv run ruff check app tests  # GEN-01, PY-07
-cd backend && uv run mypy app                                                      # PY-09
+cd backend && uv run mypy app tests seed.py alembic                                             # PY-09
 cd backend && uv run pytest   # GEN-02, PY-06, GEN-08, GEN-09, PY-08, TEST-03, TEST-05
 cd frontend && npx tsc --noEmit                                                    # TS-01
 cd frontend && npm run lint && npm run format:check                        # TS-02, TS-04
@@ -188,7 +188,7 @@ Después, área por área — el detalle y el comando de cada una están en `CON
 | Python | `PY-01` … `PY-10` | `PY-01`, `PY-02`, `PY-04`, `PY-05`, `PY-06`, `PY-07`, `PY-08`, `PY-09` |
 | TypeScript y frontend | `TS-01` … `TS-07` | `TS-01`, `TS-02`, `TS-04` |
 | Diseño de interfaz | `UI-01` … `UI-06` | `UI-01`, `UI-02` |
-| Manejo de errores | `ERR-01` … `ERR-07` | `ERR-03`, `ERR-04`, `ERR-05` |
+| Manejo de errores | `ERR-01` … `ERR-07` | `ERR-01`, `ERR-03`, `ERR-04`, `ERR-05` |
 | Configuración y secretos | `SEC-01` … `SEC-06` | `SEC-01`, `SEC-02`, `SEC-06` |
 | Dependencias | `DEP-01` … `DEP-04` | `DEP-01`, `DEP-02`, `DEP-03` |
 | Git y commits | `GIT-01` … `GIT-04` | `GIT-01`, `GIT-03` |
@@ -208,9 +208,11 @@ privado del ARCHIVO, el `__all__` marca lo público hacia OTROS MÓDULOS. Un nom
 que no está en `__all__` es interno del módulo: lo ven sus hermanos, no lo ve el resto del sistema.
 
 Los que más se escapan porque **ninguna herramienta los detecta**, y por eso hay que mirarlos a
-mano: `PY-03` (imports dentro de funciones — el `select` de Ruff no lo cubre), `PY-04` (mypy corre
-con `disallow_untyped_defs = false`, así que una función sin anotar pasa), `ERR-01` (excepciones
-tragadas) y `SEC-04` (valores hardcodeados).
+mano: `SEC-04` (valores hardcodeados) y `ERR-02` (mensajes de error que no le sirven a quien los
+lee). Los otros tres que solían estar en esta lista —`PY-03`, `PY-04` y `ERR-01`— pasaron a
+verificarse solos: `PLC0415` y `BLE001` de Ruff, y `mypy` con `strict = true`. Lo que sí queda
+para el ojo humano de `ERR-01` es el **`noqa: BLE001` sin razón escrita**, que la herramienta no
+puede juzgar.
 
 Testing y base de datos tienen sección propia más abajo.
 

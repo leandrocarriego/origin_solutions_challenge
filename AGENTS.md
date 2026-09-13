@@ -1,11 +1,11 @@
 # Guía de Agentes — ORIGIN Acciones
 
-**Este es el punto de entrada.** 
+**Este es el punto de entrada.**
 Todo lo que un agente necesita para trabajar en este repositorio está acá, o se delega desde acá al documento que corresponda.
 
 ## El proyecto
 
-**ORIGIN Acciones** es una aplicación web para seguir la cotización de acciones en tiempo real. 
+**ORIGIN Acciones** es una aplicación web para seguir la cotización de acciones en tiempo real.
 Los datos vienen de la API pública de **TwelveData**.
 
 El desarrollo se dirige por **Spec-Driven Development (SDD)**, con comandos y plantillas propios **inspirados en GitHub Spec Kit**, que no está instalado ni es una dependencia.
@@ -40,7 +40,7 @@ Cuando un documento y un **test** se contradicen, gana el test: un test rompe el
 ## Reglas del dominio (INVIOLABLES)
 
 Son los artículos **I, II, III, VII y X** de la constitución, que está importada arriba y por lo
-tanto ya en contexto. 
+tanto ya en contexto.
 El enunciado completo y el *por qué es no negociable* de cada una viven en `CONSTITUTION.md`.
 
 ## Fronteras entre módulos (ESTRICTO)
@@ -69,8 +69,8 @@ fronteras, y las tres las verifica un test en `backend/tests/architecture/`:
 ❌ from app.modules.stocks import get_stocks                   # reentra al __init__
 ```
 
-El `__init__.py` de un módulo es **sólo** docstring, imports y un `__all__` que es una lista literal de strings. 
-Nada de lógica, y nada exportado que sea un modelo de SQLAlchemy: un contrato que devuelve el ORM no aisló nada. 
+El `__init__.py` de un módulo es **sólo** docstring, imports y un `__all__` que es una lista literal de strings.
+Nada de lógica, y nada exportado que sea un modelo de SQLAlchemy: un contrato que devuelve el ORM no aisló nada.
 Las dos cosas las verifica el test.
 
 > **2. Adentro del módulo el flujo va `router` → `service` → `repository`**, en un solo sentido.
@@ -104,8 +104,8 @@ necesita de verdad — todo lo que entra ahí es superficie que hay que sostener
 
 ### Estructura de las specs
 
-Una carpeta por feature en `docs/specs/<NNN-feature>/`, numerada y correlativa. 
-El nombre es un identificador técnico **en inglés** (`001-authentication`) que la rama hereda tal cual; el contenido de los artefactos va en español. 
+Una carpeta por feature en `docs/specs/<NNN-feature>/`, numerada y correlativa.
+El nombre es un identificador técnico **en inglés** (`001-authentication`) que la rama hereda tal cual; el contenido de los artefactos va en español.
 Al entregarse, la carpeta pasa a `archive/` y su número no se reutiliza nunca.
 
 Qué artefacto escribe cada rol, cuáles son opcionales y cómo se encadenan: **`docs/specs/README.md`**.
@@ -119,8 +119,8 @@ Este repositorio define roles explícitos en `agents/roles/`.
 Si el usuario no especifica un rol, el agente DEBE asumir:
 - **Lead**
 
-Definido como alias en `agents/roles/default.md`. 
-Consecuencia deliberada: por defecto el agente **orquesta y delega**, no escribe código. 
+Definido como alias en `agents/roles/default.md`.
+Consecuencia deliberada: por defecto el agente **orquesta y delega**, no escribe código.
 Para trabajar directamente sobre el código hay que asumir un rol que lo permita.
 
 ### Selección automática de rol
@@ -190,8 +190,8 @@ inventa la firma ni se espera a que el Developer la decida.
 | Transversales | `/status` (radiografía del proyecto) |
 
 **Ningún comando contiene su procedimiento**: los doce son punteros de una línea a una skill, que
-es donde vive el procedimiento y que cualquiera puede seguir a mano. 
-Consecuencia práctica: **una regla nueva va en la skill, nunca en el comando.** 
+es donde vive el procedimiento y que cualquiera puede seguir a mano.
+Consecuencia práctica: **una regla nueva va en la skill, nunca en el comando.**
 El porqué, en `agents/skills/README.md`.
 
 ### Regla de invocación del rol
@@ -204,13 +204,13 @@ Antes de planificar o editar código, el agente DEBE:
 
 ## Gestión de dependencias (ESTRICTO)
 
-Backend con **uv**, frontend con **npm**, sin excepciones. 
-Las reglas y sus comandos están en `CONVENTIONS.md` → `DEP-01` a `DEP-04`. 
+Backend con **uv**, frontend con **npm**, sin excepciones.
+Las reglas y sus comandos están en `CONVENTIONS.md` → `DEP-01` a `DEP-04`.
 Violarlas es **Blocker** en el review.
 
 ## Skills (OBLIGATORIO)
 
-Las skills están definidas en `agents/skills/` y se identifican por **nombre**, no por orden numérico. 
+Las skills están definidas en `agents/skills/` y se identifican por **nombre**, no por orden numérico.
 
 Para cualquier tarea, el agente DEBE:
 
@@ -222,18 +222,18 @@ Para cualquier tarea, el agente DEBE:
 
 Si aplican varias skills, la prioridad es **safety/debug → fronteras → implementación**.
 
-**Enforcement:** cuando se dispara una skill, sus pasos DEBEN seguirse en orden y su validación DEBE completarse antes de declarar el éxito. 
-Si un paso no se puede ejecutar, el agente se detiene y pide aclaración. 
+**Enforcement:** cuando se dispara una skill, sus pasos DEBEN seguirse en orden y su validación DEBE completarse antes de declarar el éxito.
+Si un paso no se puede ejecutar, el agente se detiene y pide aclaración.
 Saltearse una skill existente se considera un error.
 
 ### Dónde está el mapa
 
-El índice completo (cada skill con su comando, su rol dueño y para qué sirve) está en **`agents/skills/README.md`**. 
+El índice completo (cada skill con su comando, su rol dueño y para qué sirve) está en **`agents/skills/README.md`**.
 No se duplica acá: una skill nueva se registra en un solo lugar, y un índice que deriva de otro se desincroniza el día que alguien agregue una.
 
 ## Reglas de código (ESTRICTO)
 
-Las convenciones de código viven en **`CONVENTIONS.md`**, que es su fuente única: ahí está cada regla con su identificador estable (`PY-04`, `TS-02`, `ERR-01`, …), su severidad y el comando que la verifica. 
+Las convenciones de código viven en **`CONVENTIONS.md`**, que es su fuente única: ahí está cada regla con su identificador estable (`PY-04`, `TS-02`, `ERR-01`, …), su severidad y el comando que la verifica.
 
 Si una convención no está ahí, no es una convención del proyecto.
 
@@ -241,20 +241,20 @@ Lo que gobierna este documento es el enforcement:
 
 - Violar una convención marcada como **Blocker** frena el review: se arregla o el changeset no pasa (`agents/skills/review_feature.md`).
 
-- Nueve convenciones no dependen de que alguien las lea, porque las verifica un test que rompe el
-  build: `GEN-02` (la frontera entre módulos), `PY-06` (el flujo adentro del módulo), `GEN-08` (el
-  proveedor detrás de la interfaz), `GEN-09` (aislamiento por usuario), `PY-08` (autorización de
-  rutas), `TEST-03` (la suite sin red ni API key), `TEST-05` (cobertura), y `UI-02` y `UI-03` en el
-  frontend. 
-  El detalle de cuál frena el pre-commit y cuál el CI está en `CONVENTIONS.md` → *Convenciones verificadas por un test que rompe el build*. 
+- Once convenciones no dependen de que alguien las lea, porque las verifica un test que rompe el
+  build: `GEN-02` (la frontera entre módulos), `GEN-03` (nada por debajo importa un módulo),
+  `GEN-05` (sin ciclos), `PY-06` (el flujo adentro del módulo), `GEN-08` (el proveedor detrás de la
+  interfaz), `GEN-09` (aislamiento por usuario), `PY-08` (autorización de rutas), `TEST-03` (la
+  suite sin red ni API key), `TEST-05` (cobertura), y `UI-02` y `UI-03` en el frontend.
+  El detalle de cuál frena el pre-commit y cuál el CI está en `CONVENTIONS.md` → *Convenciones verificadas por un test que rompe el build*.
   El resto depende del `Developer` que las aplica y del `Code-Reviewer` que las recorre.
 
 - Las reglas del dominio (INVIOLABLES) de más arriba y las fronteras entre módulos siguen siendo de este documento y de `ARCHITECTURE.md`; `CONVENTIONS.md` las referencia, no las reemplaza.
 
 ## Flujo de Git (ESTRICTO)
 
-`main` es la rama estable y desplegable. 
-Rama por feature (`feat/<NNN-feature>`), quality gate antes del merge, y el PR lo abre `/ship`. 
+`main` es la rama estable y desplegable.
+Rama por feature (`feat/<NNN-feature>`), quality gate antes del merge, y el PR lo abre `/ship`.
 
 **NUNCA commitear directo a `main`.**
 
@@ -300,8 +300,8 @@ Los comandos que **verifican una convención** viven en `CONVENTIONS.md`, junto 
 
 Documentación y artefactos de spec en **español**; código, commits y docstrings en **inglés**.
 
-Los strings que ve el usuario en español y **verbatim de `docs/design/COPY.md`**. 
-La excepción son los **nombres** de carpeta de spec y de rama, que son identificadores técnicos y van en inglés. 
+Los strings que ve el usuario en español y **verbatim de `docs/design/COPY.md`**.
+La excepción son los **nombres** de carpeta de spec y de rama, que son identificadores técnicos y van en inglés.
 Las respuestas en el chat, en español.
 
 `spec.md` es además el artefacto **cara al cliente**: no lleva decisiones técnicas (nada de stack,

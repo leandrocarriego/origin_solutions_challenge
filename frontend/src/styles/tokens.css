@@ -1,0 +1,49 @@
+/*
+ * The stylesheet: Tailwind, and the only palette it is allowed to produce (UI-03).
+ *
+ * `--color-*: initial` wipes Tailwind's default palette before ours is declared, so `bg-blue-500`
+ * and the other 250 built-in shades stop existing. That is deliberate: UI-03 says no component
+ * invents a colour, and a class that is not a class produces no CSS at all -- it does not fail
+ * the build, it fails on screen, which is where someone actually looks. Adding a colour means
+ * adding it here, and that is the point.
+ *
+ * Neutral greys for surface, border and table headers; blue reserved for what is actually a link.
+ */
+
+@import 'tailwindcss';
+
+@theme {
+  --color-*: initial;
+
+  /* CSS-wide keywords, which are not part of any palette. */
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f6f7;
+  --color-border: #d8dbdf;
+  --color-text: #1c1f23;
+  --color-text-muted: #5c6470;
+
+  --color-link: #1a5fb4;
+
+  --color-ok: #1a7f4b;
+  --color-warn: #9a6700;
+  --color-error: #b42318;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* UI-04: numbers, dates and symbols line up only in tabular mono. */
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/*
+ * Spacing, radius and the type scale stay on Tailwind's defaults. A second scale next to theirs
+ * would be one more thing to keep in sync for no gain (GEN-10: KISS over DRY over SOLID).
+ */
+
+@layer base {
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-text);
+  }
+}

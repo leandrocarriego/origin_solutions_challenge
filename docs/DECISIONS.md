@@ -48,7 +48,16 @@ es como es, y no sólo cómo es hoy.
 
 ## ADR-001 — Modelo de datos
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
+
+**Enmendada:** 2026-09-13 · Leandro Carriego — se agregan `stocks.delisted_at` y
+`stocks.last_seen_at`, que `ADR-002` necesita para reconciliar el catálogo.
+
+> Enmendar un ADR ya `Aceptada` **es una excepción a la regla de este archivo**, que dice que una
+> decisión firmada no se edita en el fondo y que un cambio se escribe como ADR nuevo. Se hizo por
+> decisión explícita del humano: escribir un ADR entero que reemplace a éste para agregar dos
+> columnas habría dejado la definición de las cuatro tablas partida en dos lugares, que es peor
+> para quien lo lea después. `ADR-006` se enmendó el mismo día por la misma razón.
 
 **Contexto.** El enunciado pide persistir símbolo, nombre y moneda por acción favorita, por
 usuario, y evalúa explícitamente el modelo de datos.
@@ -57,7 +66,7 @@ usuario, y evalúa explícitamente el modelo de datos.
 
 - `users` — `id`, `username` (unique), `full_name`, `password_hash`, `created_at`
 - `stocks` — catálogo de símbolos: `symbol` (PK natural), `name`, `currency`, `exchange`,
-  `mic_code`, `country`, `type`
+  `mic_code`, `country`, `type`, `last_seen_at`, `delisted_at` (nullable)
 - `user_stocks` — favoritas: `user_id`, `symbol`, `added_at`, PK compuesta `(user_id, symbol)`
 - `quotes` — caché de cotizaciones: `symbol`, `interval`, `ts`, `open`, `high`, `low`,
   `close`, `volume`, PK compuesta `(symbol, interval, ts)`
@@ -67,8 +76,50 @@ usuario, y evalúa explícitamente el modelo de datos.
 agregar dos veces el mismo símbolo sea imposible por construcción, no por un `if` en el
 service.
 
+`quotes.symbol` **también** referencia `stocks`. En esta aplicación todo símbolo llega desde el
+catálogo —se agrega una favorita eligiendo del autocomplete, y al gráfico se entra desde una
+favorita—, así que la FK no debería dispararse nunca. Por eso vale: si se dispara, avisó de un
+bug en vez de dejar acumular cotizaciones huérfanas de un símbolo inexistente.
+
+`quotes.interval` es `String` con un `CHECK` acotado a los tres valores de `REQ-16` (`1min`,
+`5min`, `15min`), espejado por un `StrEnum` en Python. No un `enum` nativo de Postgres: agregarle
+un valor es una migración incómoda y quitarlo es peor, mientras que un `CHECK` se altera con una
+línea.
+
+**La PK natural obliga a una condición sobre la ingesta**, y es parte de esta decisión. La
+ingesta de `ADR-002` descarta dos cosas:
+
+1. `type = "Warrant"`. Un warrant es un derivado, no una acción, y es el único tipo que produce
+   un símbolo duplicado en el catálogo.
+2. Todo símbolo que no matchee `^[A-Z0-9][A-Z0-9.\-]{0,8}$`. El símbolo viaja en la URL
+   (`REQ-11`), y punto y guión son legales en un segmento pero la barra no.
+
+`last_seen_at` y `delisted_at` existen porque el catálogo se reconcilia contra una foto del
+proveedor que no trae ningún campo de estado (`ADR-002`): la única señal de que un símbolo dejó de
+cotizar es que ya no viene en la respuesta. `delisted_at` la registra sin borrar la fila —
+`user_stocks` y `quotes` la referencian—, y el autocomplete filtra `delisted_at IS NULL`.
+
 **Consecuencias.** Agregar una favorita no depende de la API externa: el símbolo ya está en
 `stocks`. Índice en `quotes(symbol, interval, ts DESC)` para servir los tramos del gráfico.
+
+La condición sobre la ingesta está medida, no supuesta. Sobre el catálogo real de TwelveData al
+2026-09-13:
+
+| | Filas | Símbolos duplicados | Símbolos no ruteables |
+|---|---|---|---|
+| NYSE + NASDAQ sin filtrar | 7.572 | 1 (`ARQQW`, warrant) | 1 (`!otc/FLZH`) |
+| Sin warrants | 7.156 | 0 | 1 |
+| **Sin warrants y con símbolo ruteable** | **7.155** | **0** | **0** |
+
+Entre NYSE y NASDAQ hay **cero** símbolos en común: la colisión entre mercados que haría falsa a
+esta clave no existe en los datos. Se descarta el 5,5% del catálogo y sobreviven los tres
+símbolos del wireframe. Todo el catálogo es `USD`, pero `currency` se persiste igual porque
+`REQ-08` lo pide y porque una constante de hoy no es una constante.
+
+Es una foto. Si TwelveData listara mañana un símbolo repetido que no sea warrant, la ingesta no
+puede romperse: por eso es un **upsert idempotente** —`ADR-002` ya la define re-ejecutable—, que
+sobreescribe de forma determinista. El día que colisionen dos acciones comunes de verdad, esta
+decisión se revisa con datos, no antes.
 
 **Alternativas descartadas.**
 
@@ -80,50 +131,144 @@ service.
   sirve rangos. Pero completar los huecos de la serie es una query, no un `GET`, y se pierde en
   cada reinicio: el evaluador arranca frío y cada símbolo vuelve a costar cuota. Redis
   persistente es un servicio más para lo que Postgres ya hace.
+- *PK compuesta `(symbol, mic_code)` en `stocks`.* Es el modelo formalmente correcto: el mismo
+  ticker puede existir en dos mercados. Se descarta porque en este catálogo no existe —cero
+  colisiones sobre 7.155 filas medidas— y el par se propagaría a la URL, a cada favorita y a
+  cada fila de `quotes` para resolver un caso que la aplicación nunca ve. El enunciado tampoco
+  pide distinguirlos: `REQ-08` persiste símbolo, nombre y moneda, y el exchange no aparece.
+- *Ingestar sólo `type = "Common Stock"`.* También deja el catálogo sin duplicados, y con 5.747
+  filas en vez de 7.155. Se descarta porque tira 393 ADR (`ABEV`, `AMX`) y 214 REIT que no
+  colisionan ni rompen el ruteo: son empresas que alguien puede buscar. Se prefiere el filtro
+  más angosto que arregla el problema real (`GEN-10`, KISS).
 - *PKs sustitutas `id` en todas las tablas.* Es el default del ORM, y sobrevive a un cambio de
   ticker sin tocar FK. Pero la unicidad de `(user_id, symbol)` hay que declararla igual, y el
   símbolo es lo que viaja en la URL: el `id` no identifica nada que la app use.
 
 ---
 
-## ADR-002 — El catálogo de símbolos se ingesta, no se proxea
+## ADR-002 — El catálogo de símbolos se ingesta, y la ingesta reconcilia
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
-**Contexto.** El autocomplete dispara por cada tecla. La cuota es de 800 requests por día.
+**Contexto.** El autocomplete dispara por cada tecla y la cuota es de 800 requests por día, así
+que proxear el catálogo está descartado por el Artículo II. Eso no estaba en discusión.
 
-**Decisión.** `/stocks?exchange=NYSE` y `?exchange=NASDAQ` se ingestan una sola vez a la
-tabla `stocks` (comando de seed, re-ejecutable). El endpoint `GET /api/stocks/search?q=`
-consulta Postgres con `ILIKE` sobre símbolo y nombre, y devuelve como máximo 20 filas.
+Lo que sí: una ingesta que corre una vez y se re-ejecuta a mano deja un catálogo que **envejece en
+silencio**, y el catálogo es de dónde sale todo símbolo que la aplicación conoce. Un símbolo que
+falta se lee igual que uno que no existe.
 
-**Consecuencias.** El autocomplete cuesta **cero** requests de cuota y responde en
-milisegundos. El catálogo puede quedar desactualizado, lo que es irrelevante para el
-challenge y se resuelve re-corriendo la ingesta. Ver A3 y A4 en `SPEC.md`.
+Dos cosas medidas sobre la API real el 2026-09-13, porque las dos cambian el diseño:
+
+| | |
+|---|---|
+| `GET /stocks?exchange=NYSE` | **1 crédito**, 843 KB, 3.070 filas |
+| `GET /api_usage` | **0 créditos** |
+| Campo que indique si el símbolo sigue listado | **ninguno** |
+
+**Decisión.**
+
+**1. El catálogo vive en `stocks` y el autocomplete consulta Postgres.** `GET
+/api/stocks/search?q=` hace `ILIKE` sobre símbolo y nombre y devuelve como máximo 20 filas. Cuesta
+cero cuota y responde en milisegundos.
+
+**2. La ingesta reconcilia contra la foto, no acumula.** Es la corrección central de este ADR.
+`/stocks` devuelve **lo que está listado hoy** y no trae ningún campo de estado: la única señal de
+que un símbolo dejó de cotizar es que **ya no viene en la respuesta**. Un `upsert` no puede ver esa
+señal —por construcción, no por descuido—, así que un catálogo mantenido a upserts sólo crece y
+diverge de la realidad para siempre.
+
+Por cada exchange, tres conjuntos:
+
+| En la foto | En `stocks` | Acción |
+|---|---|---|
+| sí | no | insertar |
+| sí | sí | actualizar `name`, `currency`, `type`, y limpiar `delisted_at` si estaba |
+| no | sí | marcar `delisted_at = now()` |
+
+**Nunca `DELETE`.** `user_stocks` y `quotes` referencian `stocks` (`ADR-001`): borrar una fila es
+borrarle una favorita a alguien o tirar su histórico. Una acción que deja de cotizar sigue
+existiendo, y el usuario que la tenía guardada tiene que seguir viendo su nombre.
+
+El autocomplete filtra `delisted_at IS NULL`. Una favorita ya agregada resuelve igual.
+
+**3. Se refresca solo, y el número dice que es gratis.** Dos créditos por refresco completo (NYSE +
+NASDAQ) sobre 800 diarios: **0,25% de la cuota**. Al arrancar el proceso, si la última ingesta
+exitosa tiene más de 24 horas; y después cada 24 horas. La condición de antigüedad es lo que evita
+que un contenedor en ciclo de reinicio queme cuota: `restart: unless-stopped` puede intentarlo
+muchas veces por minuto.
+
+**4. Una foto a medias no reconcilia nada.** La reconciliación es **por exchange y sólo si la
+descarga de ese exchange se completó**. Si falla la llamada de NASDAQ, marcar como deslistado todo
+lo que "no vino" deslistaría NASDAQ entero. Es el modo de falla más caro de esta decisión y por eso
+la atomicidad es parte de ella, no un detalle de implementación.
+
+**5. La frescura se mide, no se supone.** Un gauge `catalog_last_success_timestamp_seconds` y su
+panel en Grafana (`ADR-009`). "El catálogo está al día" pasa a ser algo que se mira, y no algo que
+se asume porque la ingesta corrió alguna vez. `/api_usage` es gratis, así que alimentar también
+`provider_quota_remaining` no cuesta cuota.
+
+**Consecuencias.**
+
+`stocks` necesita dos columnas que `ADR-001` no preveía: `last_seen_at` y `delisted_at`. Están
+declaradas allá, donde vive la definición de las cuatro tablas: `ADR-001` se enmendó por decisión
+explícita del humano el 2026-09-13, como excepción a la regla de que un ADR firmado no se edita.
+
+El filtro de ingesta de `ADR-001` —sin warrants, símbolo ruteable— se aplica **antes** de
+reconciliar: un símbolo descartado por el filtro no "desapareció", nunca entró.
+
+La ingesta pasa a ser un proceso con estado observable, no un script de seed. Vive en el backend
+detrás de `MarketDataProvider` (`ADR-006`), no en `scripts/`: gasta cuota, y todo lo que gasta
+cuota pasa por el proveedor.
+
+Un símbolo nuevo aparece en el autocomplete con **hasta 24 horas de retraso**. Es el costo que
+queda, está acotado y es ajustable bajando el intervalo: cada refresco extra son 2 créditos.
 
 **Alternativas descartadas.**
 
-*Proxy directo a `/symbol_search`, con debounce.* Es lo que sugiere el enunciado y tiene algo
-real a favor: catálogo siempre al día, cero código de ingesta, matching resuelto por el
-proveedor. Pero el debounce baja el consumo sin acotarlo —crece con los usuarios— y el plan
-gratis corta en **8 requests por minuto por clave**, no por usuario: uno tipeando rápido le
-devuelve un 429 al gráfico del de al lado. Artículo II.
+*Proxy directo a `/symbol_search`, con debounce.* Es lo que sugiere el enunciado y tiene algo real a
+favor: catálogo siempre al día, cero código de ingesta, matching resuelto por el proveedor. Pero el
+debounce baja el consumo sin acotarlo —crece con los usuarios— y el plan gratis corta en **8
+requests por minuto por clave**, no por usuario: uno tipeando rápido le devuelve un 429 al gráfico
+del de al lado. Artículo II.
 
-*Cachear las búsquedas bajo demanda*, como `ADR-003` con las cotizaciones. A favor, la
-coherencia: una sola estrategia de caché, y se paga sólo lo que alguien busca. Pero cada prefijo
-nuevo es un miss, y ese miss lo paga el usuario mientras tipea. Peor: un catálogo a medio llenar
-miente, y un símbolo que nadie buscó todavía se lee igual que uno que no existe. El hueco de una
-serie se detecta; el de un catálogo, no.
+*Cachear las búsquedas bajo demanda*, como `ADR-003` con las cotizaciones. A favor, la coherencia:
+una sola estrategia de caché, y se paga sólo lo que alguien busca. Pero cada prefijo nuevo es un
+miss, y ese miss lo paga el usuario mientras tipea. Peor: un catálogo a medio llenar miente, y un
+símbolo que nadie buscó todavía se lee igual que uno que no existe. El hueco de una serie se
+detecta; el de un catálogo, no.
+
+*Ingesta por `upsert`, re-ejecutable a mano.* Era la decisión anterior de este ADR, y decía que un
+catálogo desactualizado "es irrelevante para el challenge". Se descarta por dos motivos. El
+primero es que no converge: sin campo de estado en la respuesta, el upsert no puede representar una
+baja, así que el catálogo acumula símbolos muertos de manera monótona. El segundo es que "se
+resuelve re-corriendo la ingesta" pone la corrección en manos de que alguien se acuerde, y lo que
+depende de que alguien se acuerde no es una propiedad del sistema.
+
+*Consultar `/symbol_search` cuando la búsqueda local no devuelve nada.* Taparía la ventana de 24
+horas para un símbolo recién listado, con un costo acotado: sólo ante cero resultados. Se descarta
+por el Artículo VII —el enunciado no lo pide— y porque reintroduce una llamada al proveedor
+disparada por lo que el usuario tipea, que es exactamente lo que este ADR saca del medio. El
+refresco programado cierra el mismo agujero sin esa puerta.
+
+*`DELETE` de los símbolos que ya no vienen.* Deja la tabla limpia y es lo que "reconciliar" sugiere
+a primera vista. Se descarta porque `user_stocks` y `quotes` tienen FK a `stocks`: el borrado o
+falla, o cascadea y le saca al usuario una favorita que él guardó. Que una acción deje de cotizar
+no es motivo para borrar su historia.
 
 ---
 
 ## ADR-003 — Caché de cotizaciones y polling compartido por símbolo
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** Este es el problema de ingeniería central del challenge. Un solo usuario con
 un gráfico en modo tiempo real a intervalo de 1min consume ~480 requests en 8 horas de
 mercado. Dos usuarios y la cuota diaria de 800 se agota. La implementación ingenua
 —el navegador pide, el backend reenvía a TwelveData— no sobrevive a la demo.
+
+El intervalo lo elige el usuario entre los tres valores de `REQ-16`, y eso no se negocia por
+cuota: el wireframe pone un `select` que arranca vacío y un botón `Graficar`. No hay intervalo
+por defecto, y nada consume cuota hasta que el usuario elige.
 
 **Decisión.** El frontend nunca dispara una llamada al upstream. Un `QuoteService` en el
 backend resuelve cada pedido contra la tabla `quotes` y solo consulta TwelveData cuando el
@@ -131,8 +276,24 @@ tramo pedido tiene un hueco y el dato está vencido para su intervalo (TTL = dur
 intervalo). El resultado se persiste antes de responder. El refresco de tiempo real es
 polling del frontend **contra la API propia**, que en el caso normal se sirve de la base.
 
+**El polling corre sólo mientras el gráfico se está mirando.** Se corta cuando la pestaña deja de
+estar visible (`document.visibilityState`) y se reanuda al volver. Sin eso, una pestaña olvidada
+sigue renovando el TTL de su símbolo toda la rueda, y el Artículo II pasa a leerse "símbolos que
+alguien abrió alguna vez" en vez de "símbolos que alguien está mirando".
+
 **Consecuencias.** El consumo de la API externa escala con **símbolos distintos observados**,
 no con clientes conectados (NFR-05): diez usuarios mirando TSLA cuestan lo mismo que uno.
+
+El techo por rueda de 8 horas, con 798 créditos disponibles después del catálogo (`ADR-002`):
+
+| Intervalo | Créditos por símbolo | Símbolos en tiempo real a la vez |
+|---|---|---|
+| `1min` | 480 | 1 |
+| `5min` | 96 | 8 |
+| `15min` | 32 | 24 |
+
+Está escrito acá porque es el límite real del proyecto y conviene saberlo antes de la demo, no
+durante: tres gráficos a 1min agotan el día.
 La caché además da resiliencia — si el upstream falla, se sirve lo último conocido con un
 aviso. Costo: la lógica de detección de huecos es la parte no trivial del backend y necesita
 tests propios.
@@ -150,13 +311,18 @@ latencia constante y consumo predecible: el gráfico siempre sale de la base. Pe
 por símbolos que nadie está mirando — dos símbolos distintos a 1min ya son ~960 llamadas en una
 rueda, contra los 800 del día. El pull perezoso paga sólo por lo que alguien abrió.
 
+*Forzar `5min` por defecto, o esconder `1min`.* Multiplicaría por cinco los símbolos que entran
+en la cuota. Se descarta porque `REQ-16` da los tres valores al usuario y el enunciado se entrega
+como lo pide (Artículo VII): la cuota se administra con la caché y con la visibilidad, no
+recortándole opciones a la pantalla que el cliente especificó.
+
 El WebSocket propio se descarta en A2: el plan gratuito no tiene streaming detrás.
 
 ---
 
 ## ADR-004 — Autenticación con JWT y Argon2
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** El enunciado evalúa seguridad y no especifica mecanismo.
 
@@ -226,22 +392,53 @@ mercado en el cliente y saber por qué falló un proveedor que el frontend ni co
 
 ---
 
-## ADR-006 — El proveedor de datos detrás de una interfaz
+## ADR-006 — El proveedor de datos detrás de una clase abstracta
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
+
+**Enmendada:** 2026-09-13 · Leandro Carriego — dos cambios el mismo día en que se firmó:
+`MarketDataProvider` pasa de `Protocol` a clase abstracta, y `search_stocks()` se reemplaza por
+`list_stocks(exchange)`.
 
 **Contexto.** La rúbrica evalúa extensibilidad, y TwelveData es un detalle de
 implementación que el enunciado eligió por ser gratis.
 
-**Decisión.** Un protocolo `MarketDataProvider` con `search_stocks()` y `get_time_series()`.
-`TwelveDataProvider` lo implementa; se inyecta por dependencia de FastAPI.
+**Decisión.** Una clase abstracta `MarketDataProvider` en `app/providers/base.py`, con dos
+métodos y tipos propios —nunca el JSON del proveedor—:
 
-**Consecuencias.** Los tests usan un `FakeProvider` determinístico y no tocan la red (NFR-06).
+- `list_stocks(exchange)` — el catálogo completo de un mercado, que es lo que la reconciliación
+  de `ADR-002` compara contra la tabla.
+- `get_time_series(symbol, interval, start, end)` — la serie que alimenta el gráfico y la caché
+  de `ADR-003`.
+
+`TwelveDataProvider` y `FakeProvider` heredan de ella. Se inyecta por dependencia de FastAPI, y
+lo que el service conoce es la clase abstracta.
+
+**No hay método de búsqueda, y es deliberado.** `search_stocks()` era `/symbol_search`, el
+endpoint que `ADR-002` descartó: el autocomplete consulta Postgres, no al proveedor. Un método
+del contrato que nadie llama es superficie que alguien tiene que implementar en el `FakeProvider`
+y mantener sincronizada (Artículo VII).
+
+**Consecuencias.** Olvidarse de un método falla **al instanciar**, no al type-checkear: el error
+existe aunque nadie corra `mypy`. A cambio, los dos proveedores y cualquier doble de test tienen
+que importar y heredar la abstracción, así que la implementación depende del contrato. Con dos
+implementaciones y una sola familia de tests, es barato.
+
+Los tests usan un `FakeProvider` determinístico y no tocan la red (NFR-06).
 Cambiar de proveedor es una clase nueva y una línea de wiring. Es también la respuesta
 concreta a "extensibilidad" cuando el evaluador pregunte por ella.
 
-**Alternativas descartadas.** Llamar a TwelveData directo desde el `QuoteService` y aislar la
-red en los tests con `respx`. Tiene algo real a favor: menos indirección, y la suite igual corre
+**Alternativas descartadas.**
+
+*`typing.Protocol` en vez de una clase abstracta*, que es lo que decía este ADR al firmarse. A
+favor real: la implementación no importa ni hereda nada, así que la infraestructura no depende del
+contrato, y cualquier objeto con la forma correcta sirve de doble sin heredar. Se descartó porque
+su único enforcement es `mypy`: un método faltante pasa desapercibido para el intérprete. La
+diferencia es chica —`PY-09` es Blocker y corre en pre-commit y en CI— y se eligió la que falla
+sola.
+
+*Llamar a TwelveData directo desde el `QuoteService` y aislar la
+red en los tests con `respx`.* Tiene algo real a favor: menos indirección, y la suite igual corre
 sin red ni API key (NFR-06). Se descartó porque ata cada test de service al JSON del proveedor a
 nivel HTTP —un cambio de formato rompe tests que no hablan de formato— y porque el Artículo IV
 no la deja abierta: nombra a `MarketDataProvider` como lo que conocen los services.
@@ -316,3 +513,91 @@ falle, y una pantalla en blanco sin explicación es un modo de falla, no una dec
 **Alternativas descartadas.** Una UI "linda" con Tailwind y componentes. Es trabajo que el enunciado
 declara que no va a mirar, y cada pixel que se aleja del mockup es una diferencia que el evaluador
 tiene que interpretar.
+
+---
+
+## ADR-009 — Observabilidad: logs, métricas, dashboard y errores
+
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
+
+**Enmendada:** 2026-09-13 · Leandro Carriego — se agrega Loki como agregador de logs, para que la
+capa 1 se pueda buscar y filtrar desde Grafana y no sólo con `docker logs` por SSH.
+
+**Contexto.** El Artículo II es la afirmación central de ingeniería de este proyecto: el consumo
+del proveedor escala con símbolos observados, no con clientes conectados. Hoy esa afirmación no se
+puede verificar desde afuera — se lee en el README y se cree o no. `ERR-07` ya exige que toda
+llamada al proveedor quede registrada con su símbolo, intervalo, rango, resultado y si fue cache
+hit, precisamente porque *"con una cuota de 800 requests por día, no poder responder en qué se
+gastó es no poder operar el sistema"*. Falta el mecanismo que convierta esa exigencia en algo
+consultable.
+
+**Decisión.** Cuatro capas, de la más barata a la más cara:
+
+1. **Logs estructurados** en JSON con `structlog`, y un middleware que le asigna un `request_id`
+   a cada pedido y lo propaga a todas sus líneas. Sin correlación, dos usuarios concurrentes
+   producen logs entreverados que no se pueden leer.
+
+   **Se agregan en Loki**, al que Grafana consulta como un datasource más. Un agente (Alloy) lee
+   los contenedores de este proyecto —y sólo los de este proyecto— y empuja lo que leen. Sin
+   agregador, esos logs viven en el buffer de Docker, se buscan por SSH y se pierden al recrear
+   el contenedor: estaban estructurados para una herramienta que no existía.
+
+   Loki indexa **etiquetas, no el texto de la línea**. Eso es lo que lo hace barato acá y es
+   también el trade-off: filtrar por servicio o por nivel es instantáneo, y un full-text sobre un
+   rango ancho es un scan. Por eso `level` es etiqueta y `request_id` no: una etiqueta por request
+   sería un stream por request, que es como se cae una instalación de Loki.
+2. **Métricas Prometheus** en `/metrics`: las estándar por ruta (rate, errores, duración) más tres
+   propias que son las que importan acá — `provider_requests_total{symbol,interval,outcome}`,
+   `quote_cache_hits_total` / `quote_cache_misses_total`, y `provider_quota_remaining`.
+3. **Prometheus + Grafana** en el VPS, detrás de Traefik, con un dashboard: cuota consumida hoy,
+   tasa de aciertos de caché, latencia p95 y tasa de error. Grafana tiene dos datasources, así que
+   un pico en una métrica y las líneas que lo explican se miran en el mismo panel.
+4. **Sentry** para excepciones, con `include_local_variables=False`, `send_default_pii=False` y un
+   `before_send` que enmascara secretos.
+
+**Consecuencias.** El Artículo II deja de ser una afirmación y pasa a ser un número graficado: se
+puede mostrar que diez usuarios sobre un mismo símbolo cuestan una sola llamada. `NFR-05` gana su
+evidencia.
+
+Se paga con tres cosas. **RAM**: unos 900 MB de límite en un VPS compartido con otros proyectos
+en producción, de los cuales unos 550 MB son los tres contenedores de logs. Se midió antes de
+agregarlos: 3,9 GB disponibles y carga 0,3. **Una dependencia externa**: Sentry recibe trazas de nuestras excepciones, y eso
+convierte al Artículo I en un requisito de configuración y no sólo de código — el SDK captura las
+variables locales de cada frame por defecto, así que sin desactivarlo el DSN de Postgres y la URL
+del proveedor con su `apikey` salen del servidor. Por eso `SEC-06` incluye el evento de Sentry
+entre las salidas que audita. **Superficie**: `/metrics` no lleva autenticación y expone nombres de
+símbolos; queda accesible sólo desde la red interna de Docker, nunca publicado por Traefik. Loki
+tampoco lleva autenticación y sus líneas dicen más que las métricas, así que queda en loopback.
+
+Y una cuarta, que es la que más cuidado pide: **el agente necesita hablar con Docker**. El socket
+de Docker es root en el host, y en un VPS compartido dárselo crudo a un agente es darle los 28
+contenedores de la máquina. Por eso va detrás de un proxy que sólo deja pasar `GET /containers`,
+y por eso el agente tiene un filtro por nombre de proyecto: los logs de los otros proyectos no son
+nuestros para leer. Se prefirió esto al *logging driver* de Loki, que no necesita agente pero se
+instala como plugin del demonio del host y deja `docker logs` vacío — justo lo que hay que tener
+cuando Loki es lo que está caído.
+
+**La excepción al Artículo VII, dicha de frente.** Las capas 1 y 2 no son alcance nuevo: `ERR-03`
+exige logging estructurado y `ERR-07` exige la auditoría de llamadas, así que implementarlas es
+cumplir convenciones que ya existen. **Las capas 3 y 4 sí son alcance que el enunciado no pide.**
+Se construyen igual, y la razón se escribe acá para que no se lea como descuido: la rúbrica evalúa
+mantenibilidad y escalabilidad, y un `NFR` sobre consumo de cuota que nadie puede verificar es un
+`NFR` sin cumplir. Es una excepción deliberada, no un olvido.
+
+**Alternativas descartadas.**
+
+*Sólo logs, sin métricas.* Es lo más barato y cubre `ERR-07` al pie de la letra. Se descarta porque
+responder "cuánta cuota queda hoy" obligaría a parsear logs con `grep` y contar a mano: un contador
+que ya está sumado cuesta 8 bytes y contesta en un scrape.
+
+*OpenTelemetry con Tempo o Jaeger para trazas distribuidas.* Es el estándar de la industria y sería
+la respuesta correcta en un sistema de varios servicios. Acá hay **uno**: la traza mostraría
+`router → service → repository → postgres`, que es exactamente lo que ya dice una línea de log con
+su duración. Se paga complejidad por una respuesta que ya se tiene. Si `quotes` se extrajera algún
+día —que es lo que el Artículo IV deja abierto—, esta decisión se revisa.
+
+*Loki para agregación de logs.* Paga a partir de varios servicios o varias réplicas. Con uno,
+`docker compose logs` alcanza.
+
+*Datadog o New Relic.* Costo desproporcionado para un proyecto de este tamaño, y meten un agente
+propietario en el camino de una aplicación que se entrega para ser leída.

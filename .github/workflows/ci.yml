@@ -1,0 +1,213 @@
+# CI runs what CONVENTIONS.md declares verified in CI rather than in pre-commit: TEST-03 (the
+# suite with no network and no API key), TEST-05 (coverage over the whole suite), UI-02 and
+# UI-03 (the screen tests), integration against a real database, and `alembic check`.
+#
+# Hooks can be skipped with --no-verify; this cannot.
+#
+# Job and step names are what the run displays, so they stay in Spanish (GEN-07).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push cancels the previous run on the same branch: nobody needs the result of a commit
+# that has already been replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+
+    services:
+      # TEST-02's integration tests run against a real database, not against a double.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: origin
+          POSTGRES_PASSWORD: origin
+          POSTGRES_DB: origin_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U origin -d origin_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://origin:origin@localhost:5432/origin_test
+      # TEST-03, and the entire point of this variable: it is declared EMPTY on purpose. Any
+      # test reaching for the provider fails on the missing credential instead of quietly
+      # spending the Article II quota.
+      TWELVEDATA_API_KEY: ""
+      # With no DSN, Sentry never initialises: no events and no network from CI.
+      SENTRY_DSN: ""
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Instalar dependencias desde el lockfile
+        # --frozen fails if the lock does not match pyproject, which is Article IX: a build
+        # that is not reproducible is not verifiable.
+        run: uv sync --frozen
+
+      - name: Formato y lint (GEN-01, PY-07, PY-11, ERR-01)
+        run: |
+          uv run ruff format --check app tests seed.py alembic
+          uv run ruff check app tests seed.py alembic
+
+      - name: Tipos (PY-09)
+        run: uv run mypy app tests seed.py alembic
+
+      - name: Migrar la base de pruebas
+        # Before the suite, not after: the integration tests run against real tables (TEST-02),
+        # and a suite that runs first finds none of them. They were added to a database a
+        # developer had already migrated, so locally the order never showed.
+        run: uv run alembic upgrade head
+
+      - name: Suite completa y cobertura (TEST-01..TEST-06, GEN-02, GEN-08, PY-06, PY-08)
+        run: uv run pytest
+
+      - name: Modelos sincronizados con las tablas (DB-01)
+        # `alembic check` compares the models against the database as it is, which the step
+        # above has already migrated. Without that upgrade the check reports every table as
+        # missing and DB-01 fails for the wrong reason -- or, with no revisions yet, passes for
+        # one.
+        run: uv run alembic check
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar desde el lockfile
+        # `npm ci` rather than `npm install`: it obeys the lock instead of updating it.
+        run: npm ci
+
+      - name: Tipos (TS-01)
+        run: npm run type-check
+
+      - name: Lint (TS-02, TS-04)
+        run: npm run lint
+
+      - name: Formato (TS-04)
+        run: npm run format:check
+
+      - name: Tests de pantalla (UI-02, UI-03)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  higiene:
+    name: Higiene y convenciones
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The pull request's commits are needed in order to check their messages.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Higiene de archivos (GIT-04)
+        # Skips the hooks that the backend and frontend jobs already run with their
+        # dependencies installed: there is no uv and no node_modules here, and duplicating them
+        # would only burn minutes.
+        env:
+          SKIP: ruff-format,ruff-check,mypy,pytest-fast,frontend-format,frontend-lint,frontend-types
+        uses: pre-commit/action@v3.0.1
+
+      - name: Comentarios en inglés (GEN-07)
+        run: python3 scripts/check_comment_language.py
+
+      - name: Mensajes de commit (GIT-03)
+        # The commit-msg hook is skipped by --no-verify; this is not.
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$base" ]; then
+            echo "No es un pull request: no hay rango de commits que revisar."
+            exit 0
+          fi
+          tipos='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+          fallo=0
+          while IFS= read -r asunto; do
+            if printf '%s' "$asunto" | grep -qE "^($tipos)(\([a-z0-9._-]+\))?!?: .+"; then
+              echo "  ok  $asunto"
+            else
+              echo "  ✗   $asunto"
+              fallo=1
+            fi
+          done < <(git log --format=%s "$base..${{ github.event.pull_request.head.sha }}")
+          if [ "$fallo" = 1 ]; then
+            echo "::error::Hay mensajes fuera de Conventional Commits (GIT-03, Blocker)."
+            exit 1
+          fi
+        shell: bash
+
+  imagenes:
+    name: Imágenes de contenedor
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Construir el backend
+        run: docker build -t origin-backend:ci backend
+
+      - name: Construir el frontend
+        run: docker build -t origin-frontend:ci frontend
+
+      - name: La imagen del backend no lleva los tests adentro
+        # .dockerignore excludes them; if someone edits it, the production image ships the
+        # suite and its dependencies. This notices.
+        run: |
+          if docker run --rm --entrypoint sh origin-backend:ci -c 'ls /app/tests' 2>/dev/null; then
+            echo "::error::La imagen de producción contiene /app/tests."
+            exit 1
+          fi
+          echo "La imagen no contiene tests."
+
+      - name: La imagen del backend importa la aplicación con las dependencias que lleva
+        # The image installs with --no-dev, so a runtime import that lives in the dev group
+        # builds fine and crashes on the first start. That happened: httpx was a dev dependency
+        # and app/providers/ imports it, so the container crash-looped in production while the
+        # suite, mypy, ruff and this very job were all green. Building an image is not the same
+        # as being able to run it.
+        run: |
+          docker run --rm --entrypoint python origin-backend:ci -c 'import app.main' \
+            || { echo "::error::La imagen no puede importar la aplicación: falta una dependencia de runtime."; exit 1; }
+          echo "La aplicación importa con lo que la imagen instala."

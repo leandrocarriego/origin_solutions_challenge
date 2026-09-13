@@ -1,0 +1,17 @@
+# Dashboards as code: the JSON in the repository is the source, and the UI cannot overwrite it.
+# allowUiUpdates:false is the half that makes the architecture test meaningful --without it,
+# someone edits a panel in the browser and the repository quietly stops describing reality.
+
+apiVersion: 1
+
+providers:
+  - name: origin
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,2 @@
+Empty on purpose. Grafana logs an error on every start when the directory is missing,
+and a false error in the logs trains people to ignore them.

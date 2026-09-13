@@ -7,7 +7,7 @@ Este documento explica **la forma**, y se abre al tocar la estructura o mover c�
 
 ## Las dos puntas
 
-El repositorio incluye **dos proyectos**: un frontend y una API. 
+El repositorio incluye **dos proyectos**: un frontend y una API.
 
 No es un monorepo con código compartido: son dos aplicaciones independientes, cada una con su `Dockerfile` y su gestor de dependencias, y el único contrato entre ellas es **OpenAPI**.
 
@@ -18,13 +18,30 @@ origin_solutions_challenge/
 ├── scripts/              scripts para el seed de la db (pg_dump de la base sembrada), etc
 ├── docs/                 brief, decisiones, specs, diseño
 ├── agents/               roles y skills del proceso SDD
+├── infra/                configuración de la observabilidad desplegada (ADR-009)
+│   ├── prometheus/       qué se scrapea
+│   └── grafana/          datasource, provisioning y los dashboards como código
 ├── docker-compose.yml
 └── Makefile
 ```
 
 El stack completo, está en `docs/PROJECT_BRIEF.md` → *Stack*.
 
-**`frontend` nunca importa de `backend` y `backend` nunca sirve el frontend.** 
+**`infra/` no es un tercer proyecto.** No tiene código ni dependencias: es la configuración de
+los servicios de observabilidad que se despliegan junto a los otros dos.
+
+El criterio de qué entra es el **contexto de build**, no el tema: en `infra/` va lo que el host
+**monta** en un contenedor de una imagen ajena (el `prometheus.yml`, el provisioning de Grafana);
+junto a su proyecto va lo que se **hornea** en la imagen propia. Por eso `frontend/nginx.conf`
+vive en `frontend/`: el build context de esa imagen es `./frontend`, así que un archivo en
+`infra/` no sería copiable sin subir el contexto a la raíz del repo — y eso mandaría el
+repositorio entero al daemon en cada build. Los dashboards viven
+ahí como JSON versionado y no como algo que alguien clickeó, y un test
+(`backend/tests/architecture/test_dashboard_metrics.py`) verifica que cada métrica que grafican
+exista de verdad en el código — un contador renombrado deja los paneles en blanco sin romper
+nada, que es peor que un error porque parece "no hubo tráfico".
+
+**`frontend` nunca importa de `backend` y `backend` nunca sirve el frontend.**
 
 Los tipos de TypeScript se generan desde el OpenAPI de FastAPI (`make types`), no se escriben a mano en las dos puntas.
 
@@ -50,13 +67,13 @@ backend/app/
     └── quotes/           ← EL NÚCLEO: huecos, TTL, status  → tabla quotes
 ```
 
-Cuatro módulos porque hay cuatro capacidades con vocabulario propio. 
+Cuatro módulos porque hay cuatro capacidades con vocabulario propio.
 
 Un módulo nuevo se justifica cuando aparece una capacidad que el negocio nombra distinto, nunca porque un archivo creció.
 
 ### Anatomía de un módulo
 
-Los cinco archivos de abajo empiezan como **archivo** y crecen a **carpeta del mismo nombre** cuando lo pide el tamaño. 
+Los cinco archivos de abajo empiezan como **archivo** y crecen a **carpeta del mismo nombre** cuando lo pide el tamaño.
 
 El `__init__.py` no crece: es el contrato, y es igual en todos los módulos.
 
@@ -77,7 +94,7 @@ modules/<modulo>/
 
 > **El contrato de un módulo es su paquete: lo que declara `__all__` en su `__init__.py`.**
 
-**Afuera:** a un módulo se entra por su paquete. 
+**Afuera:** a un módulo se entra por su paquete.
 Cualquier ruta más profunda (`app.modules.stocks.service`, `app.modules.stocks.models`) es interior ajeno y para el resto del sistema no existe.
 
 **Adentro:** los archivos del módulo se importan entre sí por ruta completa, **nunca** por
@@ -144,7 +161,7 @@ users ──┐
 | Tabla | Dueño | Clave |
 |---|---|---|
 | `users` | `auth/` | `id` |
-| `stocks` | `stocks/` | `symbol` — el catálogo ingestado una vez (`ADR-002`) |
+| `stocks` | `stocks/` | `symbol` — el catálogo, que la ingesta reconcilia contra la foto del proveedor (`ADR-002`) |
 | `user_stocks` | `favorites/` | compuesta `(user_id, symbol)` |
 | `quotes` | `quotes/` | compuesta `(symbol, interval, ts)`, índice por `(symbol, interval, ts DESC)` |
 
@@ -203,11 +220,12 @@ frontend/src/
 ├── components/           Header · Autocomplete · StockGrid · QuoteChart · Notice
 ├── api/                  cliente HTTP + tipos generados del OpenAPI
 ├── auth/                 contexto de sesión, interceptor de 401
-└── styles/tokens.css     la paleta del diseño
+└── styles/tokens.css     Tailwind: el @theme con la paleta, y nada más
 ```
 
-Tres páginas, tres wireframes: `docs/design/wireframes/` es la especificación de layout y `COPY.md` la de los textos. 
-No hay design system ni librería de componentes (`CONVENTIONS.md` → `UI-*`).
+Tres páginas, tres wireframes: `docs/design/wireframes/` es la especificación de layout y `COPY.md` la de los textos.
+
+**Los estilos son utilidades de Tailwind y el único `.css` es `tokens.css`** (`CONVENTIONS.md` → `UI-07`). Tailwind no es un design system ni una librería de componentes: no trae ni un botón, así que las pantallas siguen saliendo del wireframe y no de los defaults de nadie. Lo que sí trae —y acá se usa— es una escala de espaciado y tipografía consistente, y un `@theme` donde la paleta del diseño se declara una vez. La paleta de fábrica se borra en ese mismo bloque, para que `bg-blue-500` no sea una alternativa silenciosa a los tokens.
 
 ## Agregar una feature
 

@@ -1,4 +1,4 @@
-# Entorno
+# Environment
 .env
 .env.*
 !.env.example
@@ -19,6 +19,6 @@ dist/
 .vite/
 *.tsbuildinfo
 
-# Sistema
+# Operating system
 .DS_Store
 *.log

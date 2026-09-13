@@ -1,0 +1,17 @@
+# Scrape configuration. Deliberately one job: the backend is the only thing here whose numbers
+# answer a question the project actually asks (Article II). Node and container metrics would
+# describe the VPS, which belongs to whoever runs the VPS, not to this challenge.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: origin-solutions-challenge
+
+scrape_configs:
+  - job_name: backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          service: origin-backend

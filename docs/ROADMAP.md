@@ -24,17 +24,22 @@ feature: son transversales, y se cumplen en la fase 0 y en el cierre.
 
 Andamiaje que ninguna feature debería tener que resolver:
 
-- [ ] `git init`, estructura `backend/` y `frontend/` · **REQ-23**
-- [ ] docker-compose: postgres + api + web, con migraciones y seed automáticos · **ADR-007**
-- [ ] `.env.example` y `Settings` tipado · **SEC-03**
-- [ ] Esqueleto FastAPI con `/health` y CORS acotado al origen del frontend
-- [ ] Esqueleto Vite + React 18 + TS strict · **REQ-25**
-- [ ] Las cuatro tablas y su migración inicial · **REQ-18, ADR-001**
-- [ ] `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` · **ADR-006**
-- [ ] Tests de arquitectura que fijan la frontera entre módulos, las capas de cada módulo y el
-      aislamiento por usuario · **Art. IV**
-- [ ] Ingesta del catálogo NYSE + NASDAQ · **ADR-002, A4**
-- [ ] Seed: 2 usuarios con Argon2 + favoritas demo (TSLA, AAPL, NFLX) · **REQ-19**
+- `git init`, estructura `backend/` y `frontend/` · **REQ-23**
+- docker-compose: postgres + api + web, con migraciones automáticas y seed sólo en local · **ADR-007**
+- `.env.example` y `Settings` tipado · **SEC-03**
+- Esqueleto FastAPI con `/api/health` y CORS acotado al origen del frontend
+- Esqueleto Vite + React 19 + TS strict + Tailwind CSS · **REQ-25**
+- Las cuatro tablas y su migración inicial · **REQ-18, ADR-001**
+- `MarketDataProvider`, `TwelveDataProvider` y `FakeProvider` · **ADR-006**
+- Tests de arquitectura que fijan la frontera entre módulos, las capas de cada módulo y el
+  aislamiento por usuario · **Art. IV**
+- Ingesta del catálogo NYSE + NASDAQ · **ADR-002, A4**
+- Seed: 2 usuarios con Argon2 + favoritas demo (TSLA, AAPL, NFLX) · **REQ-19**
+
+**El estado de cada uno vive en `docs/specs/000-scaffolding/tasks.md`, no acá.** Ese archivo es
+además donde se registra la firma del Artículo VI sobre los tests de la fase: el gate no tiene
+excepciones y necesitaba un `tasks.md` donde anotarse. Acá está el alcance; allá, qué está hecho.
+Si los dos llevaran checkboxes, uno de los dos quedaría viejo.
 
 El seed va en la fase 0 y no al final porque el enunciado pide **"insertar una cantidad mínima de
 datos para poder probar la aplicación"**: sin él no se puede desarrollar contra nada.
