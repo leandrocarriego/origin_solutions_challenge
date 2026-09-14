@@ -287,18 +287,6 @@ class TestTheSeriesAndItsTimezone:
         assert seen[0].url.params["start_date"] == "2026-09-11 00:00:00"
         assert seen[0].url.params["end_date"] == "2026-09-12 00:00:00"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Waiting for task 1 of 003-quote-chart: the fixed JSON has to be captured again with "
-            "the series requested in UTC. The one in the repository is the old capture, in "
-            "exchange time (America/New_York), and TEST-03 forbids editing a fixture by hand: a "
-            "retouched fixture describes a provider that does not exist. The expected instants "
-            "below are the candles of that same session written in UTC, which is what the new "
-            "capture has to carry; when it lands they are re-derived from it and this marker "
-            "goes away."
-        ),
-    )
     async def test_the_first_and_the_last_candle_are_the_instants_they_claim(self) -> None:
         """The exact instant, not that there are candles: that is what a shift of hours hides.
 

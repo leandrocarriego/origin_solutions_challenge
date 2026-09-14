@@ -31,9 +31,13 @@
 >   sí sale `FAIL`, así que el rojo llega a CI. Cuando el módulo exista, pasa a ser un import
 >   normal y los 21 se cuentan como el resto.
 >
-> **La tarea 1 sigue sin hacer** (recapturar el JSON fijado en UTC): no hay `TWELVEDATA_API_KEY` en
-> este entorno. El `xfail(strict=True)` de `test_upstream_client.py` marca el lugar y va a dar
-> XPASS el día que se recapture.
+> **La tarea 1 quedó hecha el 2026-09-14, después de la firma.** El JSON fijado se recapturó con
+> `timezone=UTC` y `outputsize=5000` —los parámetros que va a mandar la tarea 5—, pedido desde el
+> host donde vive la credencial para no traerla a una máquina de desarrollo (Artículo I). Con el
+> fixture nuevo, el test de los instantes exactos pasa y su `xfail(strict=True)` se sacó; las dos
+> afirmaciones que siguen en rojo son las de la tarea 5, que todavía no pide la serie en UTC ni
+> fija el `outputsize`. Qué se pidió y cuándo está anotado en
+> `tests/fixtures/twelvedata/README.md`.
 
 <!--
   Lo completa `/approve-tests`, nunca un agente por su cuenta (Artículo VI). Mientras diga "—",
