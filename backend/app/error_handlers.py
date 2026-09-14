@@ -1,45 +1,46 @@
-"""The translation from a domain error to an HTTP answer, registered on the application.
-
-A service communicates a failure by raising, never by returning a status: `PY-06` and `ERR-04`
-keep `HTTPException` out of the modules, so somewhere the raise has to become a response. That
-somewhere is here.
-
-It lives beside `main.py` and not inside it because the composition root is where the application
-is *assembled*, and eighty lines of translation there make the assembly hard to read. What
-`main.py` keeps is the call: one line that says the handlers are registered.
-
-It imports from `app.errors` and from nothing else of ours. That is what makes the extraction
-legal at all: `GEN-03` lets only `main.py` reach into a module, and a file that translated a
-module's own exception would have to.
-
-One handler per error and not a generic `{type: status}` table. The table scales on its own and
-hides the translation behind a lookup; with a handful of entries, explicit wins (GEN-10).
-
-Every body is in English and nobody shows it: what the person reads is the screen's decision, and
-`UI-02` wants that literal to live in `frontend/src` (Article VIII).
-"""
+"""The translation from a domain error to an HTTP answer, registered on the application."""
 
 from typing import cast
 
+import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from starlette.types import ExceptionHandler
 
 from app.errors import (
     AuthenticationError,
+    DomainError,
     QuoteRangeInvalid,
     QuoteRangeTooLong,
     RateLimitedError,
     UnknownSymbolError,
 )
 
+_log = structlog.get_logger()
+
+
+async def rule_nobody_translated(request: Request, exc: DomainError) -> JSONResponse:
+    """Answer 500 for a domain error that was never given a handler of its own.
+
+    Starlette resolves a handler by walking the exception's MRO, so this one catches every
+    `DomainError` subclass that was added without its line below. That is a missing wire and not
+    a business outcome, and it answers as one.
+
+    The body says nothing about the exception: its message was written for a log and not for an
+    API, so a rule nobody translated has no contract to honour. The log line does carry the type,
+    because answering quietly would hide the only thing worth knowing -- which handler is
+    missing.
+    """
+    _log.error("domain_error_not_translated", error=type(exc).__name__)
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "internal error"},
+    )
+
 
 async def credential_refused(request: Request, exc: AuthenticationError) -> JSONResponse:
-    """Turn the service's refusal into the only 401 the API answers a bad credential with.
-
-    What matters here is that it is identical for an unknown user and for a wrong password
-    (RF-06).
-    """
+    """Turn the service's refusal into the only 401 the API answers a bad credential with."""
     return JSONResponse(
         status_code=status.HTTP_401_UNAUTHORIZED,
         content={"detail": "invalid credentials"},
@@ -57,11 +58,7 @@ async def too_many_attempts(request: Request, exc: RateLimitedError) -> JSONResp
 
 
 async def symbol_not_on_offer(request: Request, exc: UnknownSymbolError) -> JSONResponse:
-    """Answer 404 for a symbol that is not in the catalogue, or no longer trades.
-
-    It says the same for both cases on purpose -- the caller could only choose from what was
-    suggested, so telling them apart would answer a question nobody is asking.
-    """
+    """Answer 404 for a symbol that is not in the catalogue, or no longer trades."""
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"detail": "unknown symbol"},
@@ -69,10 +66,7 @@ async def symbol_not_on_offer(request: Request, exc: UnknownSymbolError) -> JSON
 
 
 async def range_is_not_a_window(request: Request, exc: QuoteRangeInvalid) -> JSONResponse:
-    """Answer 422 with the code the screen turns into a literal of `COPY.md` (RF-41).
-
-    The body carries a code and no text: what the person reads is the screen's decision.
-    """
+    """Answer 422 with the code the screen turns into the text it shows."""
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": {"code": "range_invalid"}},
@@ -82,12 +76,7 @@ async def range_is_not_a_window(request: Request, exc: QuoteRangeInvalid) -> JSO
 async def range_is_longer_than_the_interval_serves(
     request: Request, exc: QuoteRangeTooLong
 ) -> JSONResponse:
-    """Answer 422 with the interval and its cap, which the text names (RF-45).
-
-    The two numbers travel because the sentence the person reads names both, and they come from
-    the service because that is where they are decided: a browser with its own copy of the caps
-    would be the same rule written twice.
-    """
+    """Answer 422 with the interval and its cap."""
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={
@@ -101,19 +90,8 @@ async def range_is_longer_than_the_interval_serves(
 
 
 def register_error_handlers(app: FastAPI) -> None:
-    """Wire every domain error to the answer it becomes.
-
-    The pairs are written out rather than derived from the functions' annotations: reading a
-    signature to decide what a handler is for would be clever, and the list it saves is five
-    lines that say exactly what happens.
-
-    The cast is Starlette's signature and not a hole in ours. `add_exception_handler` is typed to
-    take a handler of `Exception`, because the registry it writes into holds every handler
-    together; each function here declares the error it actually translates -- which is what makes
-    `exc.retry_after_seconds` and `exc.interval` type-check inside them -- and that narrower type
-    is not assignable to the broader one. Starlette hands each handler the exception class it was
-    registered for, so the cast asserts something the framework guarantees.
-    """
+    """Wire every domain error to the answer it becomes."""
+    app.add_exception_handler(DomainError, cast("ExceptionHandler", rule_nobody_translated))
     app.add_exception_handler(AuthenticationError, cast("ExceptionHandler", credential_refused))
     app.add_exception_handler(RateLimitedError, cast("ExceptionHandler", too_many_attempts))
     app.add_exception_handler(UnknownSymbolError, cast("ExceptionHandler", symbol_not_on_offer))
