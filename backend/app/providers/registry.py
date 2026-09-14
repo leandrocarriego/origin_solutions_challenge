@@ -1,13 +1,4 @@
-"""Which provider the application builds, resolved by name instead of by import.
-
-GEN-08 keeps the provider's name in one file, and that is what makes ADR-006's "changing
-provider is a new class and a line of wiring" true rather than aspirational. A composition root
-that imported the concrete class to wire it would have written the name in a second file, so the
-name lives in the settings and this resolves it.
-
-The name comes from the environment, which makes it input: it is validated before it reaches an
-import, because a dynamic import of arbitrary input is arbitrary code execution.
-"""
+"""Which provider the application builds, resolved by name instead of by import."""
 
 import re
 from importlib import import_module
@@ -26,8 +17,8 @@ _NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 class UnknownProvider(Exception):
     """The configured name is not a provider.
 
-    It is loud on purpose. Falling back to the fake would mean a production deploy quietly
-    serving invented prices.
+    Deliberately not a `ProviderError`: this is a misconfiguration and not a provider that
+    failed. The separate root is what keeps it loud.
     """
 
 
@@ -76,15 +67,11 @@ def get_market_data_provider(
     settings = get_settings()
     chosen = name or settings.market_data_provider
 
-    return _module(chosen).build(settings.market_data_api_key)
+    return _module(chosen).build(settings.market_data_api_key.get_secret_value())
 
 
 def build_upstream_provider(
     api_key: str, client: httpx.AsyncClient | None = None
 ) -> MarketDataProvider:
-    """Build the configured upstream provider with an explicit credential and client.
-
-    This is what the suite uses to exercise the real parsing against fixed JSON: the client is
-    wired to a transport that never opens a socket (TEST-03).
-    """
+    """Build the configured upstream provider with an explicit credential and client."""
     return _module(get_settings().market_data_provider).build(api_key, client)

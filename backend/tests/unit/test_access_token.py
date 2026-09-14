@@ -24,7 +24,7 @@ import jwt
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from app.security import ACCESS_TOKEN_TTL, CurrentUser, create_access_token, get_current_user
 from app.settings import MIN_JWT_SECRET_LENGTH, Settings, get_settings
@@ -291,7 +291,7 @@ class TestTheSecretIsNotOptional:
         than read from the environment -- and it is why the check in `app/security.py` stays.
         """
         monkeypatch.setattr(
-            "app.security.get_settings", lambda: Settings.model_construct(jwt_secret="")
+            "app.security.get_settings", lambda: Settings.model_construct(jwt_secret=SecretStr(""))
         )
 
         with pytest.raises(RuntimeError):
@@ -304,7 +304,7 @@ class TestTheSecretIsNotOptional:
         _use_secret(monkeypatch, _SECRET)
         token = create_access_token(user_id=_USER_ID, full_name=_FULL_NAME)
         monkeypatch.setattr(
-            "app.security.get_settings", lambda: Settings.model_construct(jwt_secret="")
+            "app.security.get_settings", lambda: Settings.model_construct(jwt_secret=SecretStr(""))
         )
 
         with pytest.raises(RuntimeError):

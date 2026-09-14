@@ -165,7 +165,7 @@ class TestTheChecksCatchARealViolation:
             tmp_path / "app",
             {
                 "providers/twelvedata.py": 'BASE_URL = "https://api.twelvedata.com"\n',
-                "settings.py": 'market_data_api_key: str = ""\n',
+                "settings.py": 'market_data_api_key: SecretStr = SecretStr("")\n',
             },
         )
 
