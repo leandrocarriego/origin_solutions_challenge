@@ -1,9 +1,10 @@
 """Data access for the catalogue. The only layer here that writes SQL (PY-06)."""
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import CursorResult, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,3 +107,65 @@ async def last_seen(session: AsyncSession, exchange: str) -> datetime | None:
     )
 
     return seen
+
+
+async def find_many(session: AsyncSession, symbols: Sequence[str]) -> list[Stock]:
+    """The catalogue rows for those symbols, in whatever order the database returns them.
+
+    One statement for the whole batch: the grid of N favourites is one question and not N.
+    Ordering is left to the caller on purpose -- an `IN` promises nothing about the sequence of
+    its rows, and an `ORDER BY` nobody asked for is a guarantee somebody starts depending on.
+    """
+    rows = await session.scalars(select(Stock).where(Stock.symbol.in_(symbols)))
+
+    return list(rows.all())
+
+
+def _escape_like(text: str) -> str:
+    """Turn a text the person typed into something that means itself inside an `ILIKE`.
+
+    `%` and `_` are operators there -- "anything" and "any one character" -- so leaving them be
+    hands the query to whoever types in the box: `"%a"` would match everything with an `a` in it,
+    and `"a_c"` would match `abc`. Neither is injection (the text is bound, never concatenated);
+    what it is, is a dropdown answering things the person cannot explain, and a wide scan that
+    the two-character minimum does not stop because two characters were supposed to narrow it.
+
+    **The backslash goes first.** Escaping it after `%` would escape the backslashes this
+    function just added, and the pattern would end up looking for slashes nobody typed. That is
+    the classic bug of this function, and the reason the order is written down.
+    """
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def search_listed(session: AsyncSession, text: str, limit: int) -> list[Stock]:
+    r"""Catalogue rows still trading whose symbol or name contains that text (RF-08 to RF-10).
+
+    `text` arrives stripped and never empty -- the service already decided that -- and arrives
+    unescaped, because building the pattern is this layer's job: `%` only means anything because
+    *this* function chose `ILIKE`, and the day the query becomes `similarity()` the escaping does
+    not become unnecessary, it becomes wrong.
+
+    `ILIKE` is case-insensitive on its own, so nothing is upper-cased here (RF-10). `ESCAPE '\'`
+    is declared rather than left to the default: it makes visible that the pattern has syntax,
+    and `pg_trgm` parses the pattern assuming that very character -- another one would leave the
+    index reading something Postgres does not evaluate, and that can only lose rows.
+
+    `limit` is a **containment cap on candidates**, not the number of suggestions: ranking by
+    relevance and cutting at twenty are decisions, and they belong to the service (PY-06).
+    Reading `search_listed(..., limit=20)` anywhere is a bug, not a shortcut.
+    """
+    pattern = f"%{_escape_like(text)}%"
+
+    rows = await session.scalars(
+        select(Stock)
+        .where(
+            Stock.delisted_at.is_(None),
+            or_(
+                Stock.symbol.ilike(pattern, escape="\\"),
+                Stock.name.ilike(pattern, escape="\\"),
+            ),
+        )
+        .limit(limit)
+    )
+
+    return list(rows.all())

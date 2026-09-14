@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -39,3 +39,26 @@ class Stock(Base):
     # Null means listed. A delisted symbol is marked, never deleted: `user_stocks` and `quotes`
     # reference it, and removing the row would take away somebody's favourite or its history.
     delisted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+# The autocomplete searches `ILIKE '%text%'` over both columns, and a leading wildcard rules a
+# B-tree out entirely: trigrams are the only thing that can index that pattern. They are declared
+# here as well as in the migration because a table the model does not describe is a table
+# `alembic check` reports as drifted forever (DB-01, DB-03).
+#
+# Two caveats worth knowing before reading a slow query plan: the index only comes into play from
+# the third character on -- a two-letter pattern has no complete trigram to look up -- and the
+# two-character minimum of RF-13 therefore stays a sequential scan of ~7.200 rows, which is
+# milliseconds and why it is enough.
+Index(
+    "ix_stocks_symbol_trgm",
+    Stock.symbol,
+    postgresql_using="gin",
+    postgresql_ops={"symbol": "gin_trgm_ops"},
+)
+Index(
+    "ix_stocks_name_trgm",
+    Stock.name,
+    postgresql_using="gin",
+    postgresql_ops={"name": "gin_trgm_ops"},
+)

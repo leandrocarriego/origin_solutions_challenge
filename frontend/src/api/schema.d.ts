@@ -57,6 +57,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/favorites': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The favourite stocks of whoever is asking
+     * @description Answer the grid of the token's user, empty list included (RF-01, RF-07).
+     *
+     *     The identity comes from `get_current_user` and from nowhere else: this route takes no id, so
+     *     there is none to substitute (Article III). An empty list is a result and not a 404 -- the
+     *     text the screen writes in place of the rows is its business, not this one's.
+     */
+    get: operations['read_favorites_api_favorites_get'];
+    put?: never;
+    /**
+     * Add a stock to the favourites of whoever is asking
+     * @description Answer 201 when the favourite was created and 200 when it already was there (RF-18).
+     *
+     *     Never a 409: adding the same action twice is not an error, it is an operation that was
+     *     already done -- and TEST-04 asks for exactly that, no duplicate **and** no failure. The
+     *     difference travels in the status because the protocol already has it; a field in the body
+     *     saying the same thing would be a second source of truth.
+     *
+     *     The 200 is written onto the `Response` rather than declared, because a route has one
+     *     `status_code` and this one has two answers. It is the same mechanism `/api/health` uses.
+     *
+     *     The symbol is the object and the identity is the token: `user_id` is not a parameter of this
+     *     route, so there is none to substitute (Article III).
+     */
+    post: operations['add_to_favorites_api_favorites_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/stocks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Catalogue suggestions for what somebody is typing
+     * @description Answer at most twenty suggestions, most relevant first (RF-08 to RF-13).
+     *
+     *     The text travels to the service exactly as it arrived: normalising is a decision, and
+     *     decisions are not made at this layer (PY-06). The minimum length is declared in both places
+     *     on purpose and the two are not symmetric -- this one measures what was received, and answers
+     *     422; the service measures what was asked once stripped, and answers `200 []`.
+     *
+     *     `MIN_QUERY_LENGTH` is imported from the service rather than written again, so RF-13 cannot
+     *     end up as two literals that one day say different numbers. The maximum is API4 in one line.
+     *
+     *     Protected, like every route of this API: the catalogue is not user data, but a search box
+     *     left open is the ingestion's work handed out for free.
+     */
+    get: operations['search_the_catalogue_api_stocks_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/health': {
     parameters: {
       query?: never;
@@ -85,6 +155,21 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
+     * AddFavoriteRequest
+     * @description The symbol somebody asks to follow.
+     *
+     *     `extra="forbid"` is API3:2023 (BOPLA): a body carrying fields nobody declared is a body that
+     *     will eventually carry one somebody forgot to ignore -- a `user_id`, for instance, which is
+     *     exactly what Article III says never arrives from the request.
+     *
+     *     The pattern is the one of a symbol and not a general string: what cannot be a segment of a
+     *     path cannot be a symbol, because this same value travels in the URL of the delete.
+     */
+    AddFavoriteRequest: {
+      /** Symbol */
+      symbol: string;
+    };
+    /**
      * CurrentUserResponse
      * @description Who the presented token says is calling (RF-07).
      *
@@ -98,6 +183,23 @@ export interface components {
       id: number;
       /** Full Name */
       full_name: string;
+    };
+    /**
+     * FavoriteItem
+     * @description One row of `Mis Acciones`, as the grid reads it (RF-03).
+     *
+     *     Three fields, and the reason there are only three is worth stating: the screen draws a
+     *     symbol, a name and a currency, and anything else the tables happen to hold -- when it was
+     *     added, which market it trades in -- would be answered for no reason. That habit is
+     *     API3:2023 (BOPLA).
+     */
+    FavoriteItem: {
+      /** Symbol */
+      symbol: string;
+      /** Name */
+      name: string;
+      /** Currency */
+      currency: string;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -157,6 +259,22 @@ export interface components {
       expires_in: number;
       /** Full Name */
       full_name: string;
+    };
+    /**
+     * StockSuggestion
+     * @description One line of the dropdown of the `Símbolo` field (RF-08, RF-09).
+     *
+     *     Three fields and not the four of `StockInfo`: `is_listed` is always true on this route --
+     *     the search excludes what stopped trading (RF-12) -- and a constant in a contract is a field
+     *     the frontend has to type for no reason.
+     */
+    StockSuggestion: {
+      /** Symbol */
+      symbol: string;
+      /** Name */
+      name: string;
+      /** Currency */
+      currency: string;
     };
     /** ValidationError */
     ValidationError: {
@@ -229,6 +347,99 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['CurrentUserResponse'];
+        };
+      };
+    };
+  };
+  read_favorites_api_favorites_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FavoriteItem'][];
+        };
+      };
+    };
+  };
+  add_to_favorites_api_favorites_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddFavoriteRequest'];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FavoriteItem'];
+        };
+      };
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FavoriteItem'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  search_the_catalogue_api_stocks_get: {
+    parameters: {
+      query: {
+        q: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockSuggestion'][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
         };
       };
     };

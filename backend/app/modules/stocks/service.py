@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -9,7 +10,14 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import SessionFactory
-from app.modules.stocks.repository import last_seen, mark_absent_as_delisted, upsert
+from app.modules.stocks.models import Stock
+from app.modules.stocks.repository import (
+    find_many,
+    last_seen,
+    mark_absent_as_delisted,
+    search_listed,
+    upsert,
+)
 from app.observability import CATALOGUE_LAST_SUCCESS
 from app.providers import MarketDataProvider, ProviderError, StockRecord, get_market_data_provider
 
@@ -191,3 +199,148 @@ async def keep_the_catalogue_fresh(every: timedelta = MAX_CATALOGUE_AGE) -> None
             await log.aexception("catalogue_refresh_crashed", reason=type(error).__name__)
 
         await asyncio.sleep(every.total_seconds())
+
+
+@dataclass(frozen=True, slots=True)
+class StockInfo:
+    """What the catalogue tells another module about a symbol (GEN-02).
+
+    Four fields, and the fourth is the one that needs a reason. The first three are the grid of
+    `Mis Acciones` (RF-03). `is_listed` exists because `favorites` has to do two opposite things
+    with the same lookup: **show** a favourite that stopped trading -- the business rule asks for
+    it expressly -- and **refuse** to add one that is no longer offered. Filtering the delisted
+    ones out here would take rows away from whoever saved them; saying nothing would let the add
+    accept what the autocomplete cannot suggest. A boolean is less surface than a second exported
+    function.
+
+    Frozen, and never a row of `stocks`: a contract that handed back the ORM would hand the
+    session and the table layout over with it, and the boundary would live only in the docs.
+    """
+
+    symbol: str
+    name: str
+    currency: str
+    is_listed: bool
+
+
+async def get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[StockInfo]:
+    """Describe those symbols, in one call, for whoever asks from another module.
+
+    Three properties of the contract, all of them deliberate:
+
+    - **It is a set.** Repeated symbols collapse and unknown ones are simply absent, so the
+      length of the answer does not follow the length of the question. A symbol the catalogue
+      does not have is not a failure here: `add_favorite` is the one that decides what that
+      absence means.
+    - **The order is not promised.** Whoever consumes it reorders -- `favorites` already has its
+      own, `added_at DESC, symbol ASC` -- which is what lets the repository resolve the `IN` as
+      it pleases.
+    - **The symbols arrive in upper case.** This does not normalise: normalising already has an
+      owner, `add_favorite`, and two places that normalise are two places that one day do it
+      differently. The price is written down and fixed by a test -- lower case gets `[]` and no
+      error.
+
+    An empty list never reaches the database: `WHERE symbol IN ()` is a round trip whose result
+    is known before writing it. "Is this query worth making" is a decision, and decisions live
+    here and not in the repository (PY-06).
+    """
+    wanted = list(dict.fromkeys(symbols))
+    if not wanted:
+        return []
+
+    return [
+        StockInfo(
+            symbol=row.symbol,
+            name=row.name,
+            currency=row.currency,
+            is_listed=row.delisted_at is None,
+        )
+        for row in await find_many(session, wanted)
+    ]
+
+
+# RF-13: shorter than this and no suggestion is worth showing, so the database is not asked. The
+# router imports it for its `Query(min_length=...)`, which is what keeps the number in one place.
+MIN_QUERY_LENGTH = 2
+
+# RF-11: what fits in a dropdown. A product decision, applied **after** the ranking.
+SUGGESTION_LIMIT = 20
+
+# A containment cap on the query, and a different number for a different reason. It is chosen so
+# that today it cannot cut: the catalogue is ~7.200 rows, so even a text matching all of it comes
+# back whole and the ranking is exact by construction rather than by luck. A small cap would have
+# looked prudent and reintroduced the bug in its hard-to-see form -- truncating only on the most
+# common texts, by an order that has nothing to do with relevance.
+CANDIDATE_LIMIT = 10_000
+
+
+def _relevance(stock: Stock, folded: str) -> tuple[int, str]:
+    """Which of the four groups a row falls in, and its place inside the group.
+
+    Exact symbol, then symbol that starts with the text, then name that starts with it, then
+    everything else that matched; `symbol ASC` inside each, which is what makes the answer the
+    same on every call.
+
+    **Both sides are folded, once.** The two columns are not in the same case -- the catalogue
+    stores `MSFT` and `Microsoft Corp` -- so upper-casing the text would serve the symbol groups
+    and silently kill the name one: `"Microsoft Corp"` does not start with `MICRO`. `casefold()`
+    and not `lower()` because it is the operation Python defines for comparing without case, and
+    the catalogue carries the issuer names of two markets.
+    """
+    symbol = stock.symbol.casefold()
+
+    if symbol == folded:
+        group = 0
+    elif symbol.startswith(folded):
+        group = 1
+    elif stock.name.casefold().startswith(folded):
+        group = 2
+    else:
+        group = 3
+
+    return group, stock.symbol
+
+
+async def search_stocks(session: AsyncSession, text: str) -> list[StockInfo]:
+    """The suggestions for what somebody typed: at most twenty, most relevant first.
+
+    Three decisions live here and none of them is the repository's:
+
+    - **`strip()`, once, on the way in**, and the stripped text is what travels down. Sending the
+      raw text instead would search `ILIKE '%  micro  %'` while the ranking reasoned about
+      `micro` -- the two halves of one search talking about two different texts.
+    - **Shorter than `MIN_QUERY_LENGTH` after that, and the database is never asked.** `"  "`
+      passes the router's `min_length` and would become `ILIKE '%%'`, which is the whole
+      catalogue: exactly the cost RF-13's minimum exists to avoid. `[]` is a result, not a
+      failure, and not a 422 either -- a service that raised for the transport to translate would
+      be opining about HTTP (PY-06).
+    - **Rank first, cut second.** The repository brings candidates; cutting at twenty before the
+      ranking existed would mean ranking a set the database already chose, and `MSFT` would not
+      be in the answer for `micro`.
+
+    Nothing is upper-cased and nothing is escaped on the way down: `ILIKE` handles case on its
+    own, and escaping is the syntax of an operator this layer does not know about.
+    """
+    needle = text.strip()
+    if len(needle) < MIN_QUERY_LENGTH:
+        return []
+
+    candidates = await search_listed(session, needle, CANDIDATE_LIMIT)
+    if len(candidates) == CANDIDATE_LIMIT:
+        # The cap was reached, so the ranking is no longer trustworthy: the rows that did not
+        # come back were chosen by nothing in particular. A tope that ages in silence is a
+        # dropdown that quietly stops finding things, so it leaves a trace instead.
+        await log.awarning("stock_search_truncated", limit=CANDIDATE_LIMIT)
+
+    folded = needle.casefold()
+    ranked = sorted(candidates, key=lambda stock: _relevance(stock, folded))
+
+    return [
+        StockInfo(
+            symbol=stock.symbol,
+            name=stock.name,
+            currency=stock.currency,
+            is_listed=stock.delisted_at is None,
+        )
+        for stock in ranked[:SUGGESTION_LIMIT]
+    ]

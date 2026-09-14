@@ -19,9 +19,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.db import database_is_up
-from app.errors import AuthenticationError, RateLimitedError
+from app.errors import AuthenticationError, RateLimitedError, UnknownSymbolError
 from app.modules.auth import router as auth_router
+from app.modules.favorites import router as favorites_router
 from app.modules.stocks import keep_the_catalogue_fresh
+from app.modules.stocks import router as stocks_router
 from app.observability import (
     RequestContextMiddleware,
     configure_logging,
@@ -76,6 +78,8 @@ app.add_middleware(
 
 
 app.include_router(auth_router)
+app.include_router(favorites_router)
+app.include_router(stocks_router)
 
 
 # One handler per domain error and not a generic {type: status} table. The table scales on its
@@ -104,6 +108,21 @@ async def too_many_attempts(request: Request, exc: RateLimitedError) -> JSONResp
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         content={"detail": "too many attempts"},
         headers={"Retry-After": str(exc.retry_after_seconds)},
+    )
+
+
+@app.exception_handler(UnknownSymbolError)
+async def symbol_not_on_offer(request: Request, exc: UnknownSymbolError) -> JSONResponse:
+    """Answer 404 for a symbol that is not in the catalogue, or no longer trades.
+
+    The body is in English and nobody shows it: what the person reads is the screen's decision
+    (UI-02, Article VIII). And it says the same for both cases on purpose -- the caller could
+    only choose from what was suggested, so telling them apart would answer a question nobody
+    is asking.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": "unknown symbol"},
     )
 
 

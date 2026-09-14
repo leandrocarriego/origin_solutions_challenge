@@ -12,7 +12,7 @@
  *
  * It grows with the screens. Only the texts of the screens that exist are required, and every
  * feature that builds one adds its rows: H2 adds the header and the expired session, H3 adds
- * `Cerrar sesión`, `002` and `003` add the grid and the chart.
+ * `Cerrar sesión`, H1 of `002` adds the grid and its empty state, and `003` adds the chart.
  */
 
 import { readFileSync } from 'node:fs';
@@ -29,11 +29,18 @@ const SOURCES = import.meta.glob<string>('../src/**/*.{ts,tsx}', {
 /** `docs/design/COPY.md`, relative to the frontend project, which is what vitest runs in. */
 const COPY = '../docs/design/COPY.md';
 
-/** One literal of the copy: which table it came from, which row, and what it says. */
+/**
+ * One row of the copy: which table it came from, which row, and every literal it declares.
+ *
+ * `texts` is a list and not a string because one row of the copy can fix more than one text at a
+ * time: `Columnas de la grilla` is written `` `Símbolo` · `Nombre` · `Moneda` `` in a single cell,
+ * and a reader that kept only the first would leave two of the three column headings of `002`
+ * unverified -- which is exactly the kind of silence `UI-02` exists to prevent.
+ */
 interface CopyRow {
   section: string;
   element: string;
-  text: string;
+  texts: string[];
 }
 
 /**
@@ -43,8 +50,12 @@ interface CopyRow {
  * the user in the header (RF-08), the expiry notice (RF-17) and the one for when the server could
  * not be reached (RF-27); H3 adds `Cerrar sesión` (RF-18), which is the last text this feature
  * owes. A row added here before its screen exists turns this suite red for a screen nobody promised
- * yet, so what is left out is what `002` and `003` were asked for: the grid, the autocomplete and
- * the chart.
+ * yet, so what is left out is what has not been asked for yet: the chart of `003`. H1 of `002` adds
+ * the two rows of the grid it draws -- the three column headings and the notice that stands in for
+ * the rows when there are none -- H2 adds the six of the `Símbolo` field -- its label, its
+ * placeholder, its button, and the three notices the client wrote for a search with no matches and
+ * for the two ways an addition fails -- and H3 adds the two of the removal: the link of the fourth
+ * column and the question it opens.
  *
  * `Cerrar sesión` is required once and appears twice in the copy -- under `Mis Acciones` and under
  * the Detail, both pointing at *Sesión y validación*, which is where the client wrote it down. The
@@ -64,6 +75,26 @@ const REQUIRED: Pick<CopyRow, 'section' | 'element'>[] = [
   { section: 'Sesión y validación', element: 'Sesión vencida' },
   { section: 'Sesión y validación', element: 'No se pudo conectar' },
   { section: 'Sesión y validación', element: 'Cierre de sesión' },
+  // `002`, H1: the grid of wireframe 02 and what it says when there is nothing in it. The row of
+  // the columns carries its three literals in one cell, and all three are required here.
+  { section: 'Mis Acciones', element: 'Columnas de la grilla' },
+  { section: 'Lista de favoritas', element: 'Lista vacía' },
+  // `002`, H2: the `Símbolo` field of the wireframe with its placeholder and its button, the
+  // notice that stands in for the suggestions when nothing matches, and the two notices of the
+  // field -- which are excluyentes, so the copy declares them separately and so does the screen.
+  { section: 'Mis Acciones', element: 'Etiqueta del autocomplete' },
+  { section: 'Mis Acciones', element: 'Placeholder del autocomplete' },
+  { section: 'Mis Acciones', element: 'Botón' },
+  { section: 'Lista de favoritas', element: 'Búsqueda sin resultados' },
+  { section: 'Lista de favoritas', element: 'Acción repetida' },
+  { section: 'Lista de favoritas', element: 'Alta sin selección' },
+  // `002`, H3: the link of the fourth column and the confirmation it opens. The confirmation is a
+  // template -- `¿Quitar {símbolo} de tus acciones?` -- so what is required of `src/` is its fixed
+  // parts and its two options, never the template whole: the symbol is interpolated and that
+  // literal cannot exist in a source file. `fragmentsOf` is what splits it, and the test right
+  // below `a text with a placeholder in the middle of it` is the guard on that splitting.
+  { section: 'Mis Acciones', element: 'Link de baja' },
+  { section: 'Lista de favoritas', element: 'Confirmación de baja' },
 ];
 
 /** Read the copy and pull every `| Element | `text` |` row out of its tables. */
@@ -85,10 +116,10 @@ function rowsOfTheCopy(): CopyRow[] {
     const cells = line.trim().startsWith('|') ? line.split('|').slice(1, -1) : [];
     if (cells.length < 2) continue;
 
-    const literal = /`([^`]+)`/.exec(cells[1] ?? '');
-    if (!literal) continue;
+    const literals = [...(cells[1] ?? '').matchAll(/`([^`]+)`/g)].map((match) => match[1] ?? '');
+    if (literals.length === 0) continue;
 
-    rows.push({ section, element: (cells[0] ?? '').trim(), text: literal[1] ?? '' });
+    rows.push({ section, element: (cells[0] ?? '').trim(), texts: literals });
   }
 
   return rows;
@@ -96,8 +127,8 @@ function rowsOfTheCopy(): CopyRow[] {
 
 const ROWS = rowsOfTheCopy();
 
-/** The text of one row, failing loudly if the copy no longer declares it. */
-function textOf(wanted: Pick<CopyRow, 'section' | 'element'>): string {
+/** Every text of one row, failing loudly if the copy no longer declares that row. */
+function textsOf(wanted: Pick<CopyRow, 'section' | 'element'>): string[] {
   const found = ROWS.find(
     (row) => row.section === wanted.section && row.element === wanted.element,
   );
@@ -108,7 +139,7 @@ function textOf(wanted: Pick<CopyRow, 'section' | 'element'>): string {
     );
   }
 
-  return found.text;
+  return found.texts;
 }
 
 /**
@@ -233,12 +264,34 @@ describe('the copy this project agreed on', () => {
   });
 });
 
+describe('a row of the copy that fixes more than one text', () => {
+  it('is read whole, and not down to its first literal', () => {
+    // The guard on the guard. `Columnas de la grilla` is three headings in one cell, and a reader
+    // that stopped at the first would leave `Nombre` and `Moneda` unchecked while this suite went
+    // green -- a guard that passes by looking at less than it was asked to look at.
+    expect(textsOf({ section: 'Mis Acciones', element: 'Columnas de la grilla' })).toEqual([
+      'Símbolo',
+      'Nombre',
+      'Moneda',
+    ]);
+  });
+});
+
 describe('a text with a placeholder in the middle of it', () => {
   it('is required by its fixed parts, and never by the placeholder', () => {
     // Without this, a bug in the splitting would leave the header's text demanding nothing and
     // the assertion below would pass for a screen that shows no user at all.
     expect(fragmentsOf('Usuario: {nombre completo}')).toEqual(['Usuario:']);
     expect(fragmentsOf('usuario o clave invalida')).toEqual(['usuario o clave invalida']);
+
+    // The confirmation of the removal is the other one, and it has a placeholder in the middle
+    // rather than at the end: both halves are text the screen writes, and both are required.
+    // Asking for the template whole would ask for a string that is never going to be in `src/`;
+    // dropping the row would leave the only question this application asks unverified.
+    expect(fragmentsOf('¿Quitar {símbolo} de tus acciones?')).toEqual([
+      '¿Quitar',
+      'de tus acciones?',
+    ]);
   });
 });
 
@@ -268,15 +321,15 @@ describe('a literal that only lives in a comment', () => {
 
 describe.each(REQUIRED)('the text of "$element" under "$section"', (required) => {
   it('appears in frontend/src, spelled exactly as the copy spells it', () => {
-    const text = textOf(required);
+    for (const text of textsOf(required)) {
+      for (const fragment of fragmentsOf(text)) {
+        const found = sourcesContaining(fragment);
 
-    for (const fragment of fragmentsOf(text)) {
-      const found = sourcesContaining(fragment);
-
-      expect(
-        found,
-        `no file under src/ contains ${JSON.stringify(fragment)}, which ${COPY} requires`,
-      ).not.toHaveLength(0);
+        expect(
+          found,
+          `no file under src/ contains ${JSON.stringify(fragment)}, which ${COPY} requires`,
+        ).not.toHaveLength(0);
+      }
     }
   });
 });

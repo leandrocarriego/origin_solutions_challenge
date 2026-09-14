@@ -21,13 +21,18 @@
  * application (`plan.md`): forget the session, say why, and go to the login. The login opts out of
  * it in `api/auth.ts` -- its 401 is a wrong credential and its 429 is the attempt limit, and
  * neither is a session that ended.
+ *
+ * **Where the token comes from.** Registered in that same effect, and it is the other half of the
+ * same statement: this is the only place that knows whether there is a session, so it is the only
+ * place that can say what an inner screen's call travels with. A screen that threaded the token
+ * through every call would be the session scattered across the application.
  */
 
-import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
 import { fetchMe, login } from '../api/auth';
-import { setUnauthorizedHandler } from '../api/client';
+import { setAuthTokenProvider, setUnauthorizedHandler } from '../api/client';
 import { SessionContext, type Session, type SessionUser } from './session';
 import { clearStoredSession, readStoredSession, writeStoredSession } from './storage';
 
@@ -63,10 +68,23 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
   const [held, setHeld] = useState<HeldSession | null>(
     startup.kind === 'unconfirmed' ? { token: startup.token, user: startup.user } : null,
   );
+  // What the provider registered below reads. The effect that registers it runs once, so the
+  // token cannot be captured: it has to be looked up at the moment the call goes out.
+  const heldRef = useRef(held);
+
   const [confirming, setConfirming] = useState(startup.kind === 'unconfirmed');
   const [expired, setExpired] = useState(startup.kind === 'expired');
 
   useEffect(() => {
+    heldRef.current = held;
+  }, [held]);
+
+  useEffect(() => {
+    // Read through a ref of the latest value rather than captured: this effect runs once, and a
+    // provider closed over the session of the first render would hand out a token from before
+    // logging in -- which is no token at all.
+    setAuthTokenProvider(() => heldRef.current?.token ?? null);
+
     setUnauthorizedHandler(() => {
       clearStoredSession();
       setHeld(null);
@@ -77,6 +95,7 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
 
     return () => {
       setUnauthorizedHandler(null);
+      setAuthTokenProvider(null);
     };
   }, [navigate]);
 

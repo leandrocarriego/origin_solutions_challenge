@@ -14,6 +14,7 @@ import { Navigate, Route, Routes } from 'react-router';
 
 import { RequireSession } from './auth/RequireSession';
 import { SessionProvider } from './auth/SessionProvider';
+import { ActionDetail } from './pages/ActionDetail';
 import { HealthPage } from './pages/HealthPage';
 import { Login } from './pages/Login';
 import { MyActions } from './pages/MyActions';
@@ -28,6 +29,14 @@ export function App(): JSX.Element {
           element={
             <RequireSession>
               <MyActions />
+            </RequireSession>
+          }
+        />
+        <Route
+          path="/stocks/:symbol"
+          element={
+            <RequireSession>
+              <ActionDetail />
             </RequireSession>
           }
         />

@@ -45,13 +45,13 @@ La columna **Test** se completa a medida que se implementa (`AGENTS.md` → Defi
 | ID | Requisito | Test |
 |---|---|---|
 | REQ-04 | La cabecera muestra el nombre del usuario logueado (`Usuario: Juan`) | `frontend/tests/Header.test.tsx` · `frontend/tests/copy.test.ts` |
-| REQ-05 | Un autocomplete sugiere acciones que coinciden con el texto buscado | |
-| REQ-06 | "Agregar Símbolo" añade la acción seleccionada a las favoritas del usuario | |
-| REQ-07 | La grilla se refresca luego de agregar | |
-| REQ-08 | De cada acción se persiste símbolo, nombre y moneda | |
-| REQ-09 | Cada fila tiene un link "Eliminar" que borra la favorita del usuario | |
-| REQ-10 | La grilla se refresca luego de eliminar | |
-| REQ-11 | El símbolo es un link que navega al Detalle de Acción | |
+| REQ-05 | Un autocomplete sugiere acciones que coinciden con el texto buscado | `backend/tests/integration/test_stock_search.py` · `backend/tests/unit/test_stock_search.py` · `frontend/tests/addFavorite.test.tsx` |
+| REQ-06 | "Agregar Símbolo" añade la acción seleccionada a las favoritas del usuario | `backend/tests/integration/test_favorites_add.py` · `backend/tests/unit/test_favorites_service.py` · `frontend/tests/addFavorite.test.tsx` |
+| REQ-07 | La grilla se refresca luego de agregar | `frontend/tests/addFavorite.test.tsx` |
+| REQ-08 | De cada acción se persiste símbolo, nombre y moneda | `backend/tests/integration/test_favorites.py` · `frontend/tests/MyActions.test.tsx` |
+| REQ-09 | Cada fila tiene un link "Eliminar" que borra la favorita del usuario | `backend/tests/integration/test_favorites_remove.py` · `frontend/tests/removeFavorite.test.tsx` |
+| REQ-10 | La grilla se refresca luego de eliminar | `frontend/tests/removeFavorite.test.tsx` |
+| REQ-11 | El símbolo es un link que navega al Detalle de Acción | `frontend/tests/stockDetail.test.tsx` |
 
 ### Detalle de Acción
 
@@ -87,7 +87,7 @@ Cada uno tiene su artículo en la constitución y su convención verificable.
 |---|---|---|---|
 | NFR-01 | Passwords almacenadas con Argon2, nunca en texto plano | `SEC-06` | `backend/tests/integration/test_password_hashing.py` |
 | NFR-02 | La API key de TwelveData no es alcanzable desde el navegador | Art. I · `SEC-02` | |
-| NFR-03 | Un usuario no puede leer ni borrar las favoritas de otro | Art. III · `GEN-09` | |
+| NFR-03 | Un usuario no puede leer ni borrar las favoritas de otro | Art. III · `GEN-09` | `backend/tests/integration/test_user_isolation.py` |
 | NFR-04 | Cuota agotada, símbolo sin datos y mercado cerrado tienen manejo explícito | `ERR-05` | |
 | NFR-05 | El consumo de la API externa no crece con la cantidad de clientes conectados | Art. II · `ADR-003` | |
 | NFR-06 | Capas separadas y verificadas por test; la suite corre sin red | Art. IV · `PY-06`, `TEST-03` | |

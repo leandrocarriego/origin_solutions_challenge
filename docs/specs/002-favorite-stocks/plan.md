@@ -63,6 +63,9 @@ con comodín (un B-tree ahí no sirve para nada). Entra con su migración, y con
 hay que saber de antemano: **el índice recién entra en juego a partir del tercer carácter**, porque
 un patrón de dos letras no tiene ningún trigrama completo que buscar. La búsqueda de dos caracteres
 de `RF-13` sigue siendo un escaneo secuencial de ~7.200 filas — milisegundos, y por eso alcanza.
+Y el patrón lo arma el repositorio **escapando `%`, `_` y la propia barra**, con su `ESCAPE '\'`
+declarado: si no, el usuario escribe el operador y dos caracteres dejan de acotar nada (el detalle
+y el porqué de la barra, en `GET /api/stocks`).
 
 **La lectura cruzada es la que `ARCHITECTURE.md` ya había dibujado, y esta feature la estrena.**
 `favorites` es dueño de `user_stocks`, que guarda `(user_id, symbol, added_at)` y nada más: ni el
@@ -100,10 +103,10 @@ quien pide. Acá nace el test de aislamiento con dos usuarios reales que `GEN-09
 | `RF-05`, `RF-17` | `user_stocks` + `stocks` (persistencia; nada se guarda en el navegador) |
 | `RF-06` | `favorites/repository.py` → `ORDER BY added_at DESC, symbol ASC` |
 | `RF-07` | `StockGrid.tsx` (estado vacío con los encabezados a la vista) |
-| `RF-08`, `RF-09`, `RF-10` | `stocks/repository.py` → `ILIKE` sobre `symbol` y `name` |
-| `RF-11` | `SUGGESTION_LIMIT = 20` en `stocks/service.py` |
+| `RF-08`, `RF-09`, `RF-10` | `stocks/repository.py` → `ILIKE` sobre `symbol` y `name` (trae candidatos, no sugerencias) |
+| `RF-11` | `SUGGESTION_LIMIT = 20` en `stocks/service.py`, aplicado **después** del orden por relevancia |
 | `RF-12` | `WHERE delisted_at IS NULL` en la búsqueda |
-| `RF-13` | `Autocomplete.tsx` (mínimo 2 caracteres) + `Query(min_length=2)` en el router |
+| `RF-13` | `Autocomplete.tsx` (mínimo 2 caracteres) + `Query(min_length=MIN_QUERY_LENGTH)` en el router + la guarda de `search_stocks`, que vuelve a medir después del `strip()` |
 | `RF-14` | `Autocomplete.tsx` (respuesta vacía → el texto del desplegable) |
 | `RF-15`, `RF-16` | `POST /api/favorites` + refetch de la grilla |
 | `RF-18` | `ON CONFLICT DO NOTHING` sobre la PK compuesta |
@@ -137,9 +140,9 @@ reemplaza entera. Lo que renderiza es el símbolo que viene de la URL: ningún t
 
 | Frontera | Qué se pide | Qué se devuelve |
 |---|---|---|
-| router → service (`stocks`) | `search_stocks(session: AsyncSession, text: str) -> list[StockInfo]` — el router pasa el texto tal como llegó; normalizar es una decisión y no se toma en la capa HTTP (`PY-06`) | Hasta `SUGGESTION_LIMIT` (20) `StockInfo`, ya ordenadas por relevancia y sin las que dejaron de cotizar (`RF-11`, `RF-12`) |
+| router → service (`stocks`) | `search_stocks(session: AsyncSession, text: str) -> list[StockInfo]` — el router pasa el texto tal como llegó; normalizar es una decisión y no se toma en la capa HTTP (`PY-06`). **Qué hace el service con ese texto —`strip()`, en qué caja compara y qué pasa si queda corto— está fijado en `GET /api/stocks`** | Hasta `SUGGESTION_LIMIT` (20) `StockInfo`, ya ordenadas por relevancia y sin las que dejaron de cotizar (`RF-11`, `RF-12`). **El service ordena primero y corta después**: el corte en 20 no baja al repositorio. Con menos de `MIN_QUERY_LENGTH` caracteres después del `strip()`, `[]` sin tocar la base |
 | router → service (`favorites`) | `list_favorites(session, user_id: int) -> list[FavoriteStock]` · `add_favorite(session, user_id: int, symbol: str) -> FavoriteAddition` · `remove_favorite(session, user_id: int, symbol: str) -> None`. El `user_id` sale de `CurrentUser.id` y de ningún otro lado (Artículo III) | `FavoriteStock` (`symbol`, `name`, `currency`) y `FavoriteAddition` (`created: bool`, `favorite: FavoriteStock`), dataclasses frozen del módulo. `add_favorite` levanta `UnknownSymbolError` si el símbolo no está en el catálogo o dejó de cotizar |
-| service → repository (`stocks`) | `search_listed(session, text: str, limit: int) -> list[Stock]` · `find_many(session, symbols: Sequence[str]) -> list[Stock]` | Filas de `stocks`. **El modelo no sale del módulo**: el service lo convierte en `StockInfo` |
+| service → repository (`stocks`) | `search_listed(session, text: str, limit: int) -> list[Stock]` — `text` llega **ya normalizado** (`strip()` hecho, caja sin tocar: el `ILIKE` es case-insensitive por sí mismo) y nunca vacío, porque el service ya cortó; llega **sin escapar**, porque **escapar `\`, `%` y `_` y declarar el `ESCAPE '\'` es del repositorio**: armar el patrón es filtrar, y el service no conoce la sintaxis del operador (ver `GET /api/stocks`); `limit` es el **tope de candidatos** (`CANDIDATE_LIMIT`), **no** el tope de sugerencias: el repositorio filtra y trae, y ordenar por relevancia y cortar en `SUGGESTION_LIMIT` son decisiones del service (ver `GET /api/stocks`) · `find_many(session, symbols: Sequence[str]) -> list[Stock]` | Filas de `stocks`, **sin ordenar por relevancia**. **El modelo no sale del módulo**: el service lo convierte en `StockInfo` |
 | service → repository (`favorites`) | `symbols_of(session, user_id: int) -> list[str]` (ordenados) · `add(session, user_id: int, symbol: str) -> bool` · `remove(session, user_id: int, symbol: str) -> None`. Las tres reciben el `user_id` como primer argumento y **no tienen forma de recibir otro** (`GEN-09`) | Datos, nunca decisiones: los símbolos en orden, y si el `INSERT` insertó o chocó con la clave |
 | service → provider | Ninguna. Esta feature no sale al mundo: el catálogo ya está ingestado (`A3`, `ADR-002`) | — |
 | este módulo → `__all__` de otro | `favorites` consume `from app.modules.stocks import get_stocks, StockInfo`, **por el paquete y en batch**. Del kernel usa `app.db` (`SessionDep`, `AsyncSession`), `app.errors` (`UnknownSymbolError`) y `app.security` (`get_current_user`, `CurrentUser`), que no son módulos | `get_stocks(session, symbols) -> list[StockInfo]`: una llamada para toda la grilla |
@@ -155,6 +158,76 @@ crece ni un nombre.
 `authenticate(session, ...)` en `auth`. La sesión es de la request y la abre el router: una función
 que la abriera por su cuenta dejaría el alta fuera de la transacción de quien la llamó. Al cerrar
 la feature, `ARCHITECTURE.md` se corrige con la firma que quedó.
+
+**Con la lista vacía, `get_stocks` corta en el service y devuelve `[]` sin tocar la base.** Es el
+caso del usuario sin favoritas (`RF-07`), y ocurre en el camino normal de `GET /api/favorites`, no
+en un borde raro: el service de `favorites` pide sus símbolos al repositorio, no hay ninguno, y le
+pasa esa lista a `get_stocks` igual. El `find_many` no llega a llamarse. Un `WHERE symbol IN ()` es
+una consulta cuyo resultado ya se conoce antes de escribirla: un viaje a Postgres —con su conexión
+del pool y su round trip— para que devuelva exactamente las cero filas que la lista vacía ya
+garantiza. Además, `IN ()` no es SQL válido y cada dialecto lo emula a su manera, así que el
+comportamiento de ese caso dependería de SQLAlchemy en vez de estar decidido acá.
+
+La guarda va en `service.py` y **no** en `repository.py`, por la misma regla que ordena todo lo
+demás del módulo: "si esta consulta vale la pena" es una decisión, y las decisiones son del service;
+el repositorio trae datos y no razona sobre lo que le piden (`PY-06`). Y `[]` es un resultado, no
+una falla: no se levanta ninguna excepción, igual que la búsqueda sin coincidencias.
+
+**El orden de la lista que devuelve `get_stocks` no es contrato.** Quien la consume reordena: hoy
+lo hace `favorites`, que ya tiene el suyo —`added_at DESC, symbol ASC`— y vuelve a poner las
+descripciones en el orden en que pidió los símbolos. Escribirlo de este lado es lo que deja al
+repositorio resolver el `IN` como le convenga —un `IN` de Postgres no promete devolver las filas en
+el orden de la lista— sin que un día un `ORDER BY` que nadie pidió se convierta en una garantía de
+la que alguien empezó a depender sin saberlo.
+
+**Y los símbolos repetidos colapsan: `get_stocks(session, ["MSFT", "MSFT"])` devuelve una sola
+`StockInfo`, no dos.** Es la semántica de conjunto que la palabra "conjunto" ya insinúa, hecha
+explícita. El largo de la salida no acompaña al de la entrada, ni con los repetidos ni con los
+desconocidos: un símbolo que no está en el catálogo simplemente no aparece, y eso tampoco es una
+falla (ver `add_favorite`, que es quien decide qué significa esa ausencia).
+
+Hoy los repetidos **no pueden ocurrir**: la lista sale de `symbols_of`, y del otro lado hay una PK
+`(user_id, symbol)` que hace imposible la fila repetida. Es una precondición latente, no un caso
+vivo — y por eso justamente conviene escribirla ahora: el día que un segundo consumidor arme la
+lista de otra manera, "¿qué pasa si mando dos veces el mismo?" va a tener respuesta en el plan en
+vez de en el comportamiento accidental de una query.
+
+**`get_stocks` asume que los símbolos ya vienen en mayúsculas: no normaliza.** Se escribe como
+**precondición del contrato público** —está en el `__all__` y lo consume otro módulo—, no como un
+detalle de implementación que alguien pueda cambiar sin avisar. La razón es que la normalización ya
+tiene un dueño y es el service que consume: `add_favorite` hace `symbol.strip().upper()` antes de
+mirar el catálogo, y esa misma regla vale para el alta y para la baja (ver *Contratos* →
+`POST /api/favorites`). Si `get_stocks` normalizara también, la regla viviría en dos lados, y dos
+lugares que normalizan son dos lugares que un día lo hacen distinto.
+
+**El filo de esa decisión, escrito y no descubierto:** un llamador que pase minúsculas no recibe un
+error, recibe `[]` en silencio. Y desde `add_favorite` ese `[]` se traduce en `UnknownSymbolError` y
+en un **404** para un símbolo que sí existe en el catálogo. Es el precio de mantener la
+normalización en un solo lugar, y se paga barato mientras el único llamador sea el service que ya
+normaliza. La defensa no es un `upper()` defensivo adentro de `get_stocks` —eso sería duplicar
+exactamente la regla que se quiso no duplicar— sino un test que fije las dos puntas: que
+`add_favorite("msft")` da de alta `MSFT`, y que `get_stocks` con minúsculas devuelve `[]`, que es
+la precondición escrita en código ejecutable en vez de en prosa.
+
+**Corrección del 2026-09-14, por decisión humana.** Este párrafo cerraba pidiendo como test que
+`add_favorite("  msft ")` diera de alta `MSFT`, y ese ejemplo no podía ser cierto: el body de
+`POST /api/favorites` lleva el patrón `^[A-Za-z0-9.\-]{1,12}$` con `extra="forbid"` (ver
+*Contratos*), que **rechaza los espacios con un 422 antes de que exista ningún service**. Las dos
+frases de este plan se contradecían y ninguna implementación podía satisfacer las dos. Ante la
+contradicción —detectada durante el `/implement` de `H2`— el humano del proyecto (Leandro Carriego)
+decidió que **gana *Contratos***: un símbolo con espacios alrededor es un **422**, porque el símbolo
+es un identificador y no texto libre, y el mismo valor viaja después en el path de la baja.
+
+**Lo que no cambia es el dueño de la normalización, que es el argumento de todo este párrafo:**
+sigue siendo `add_favorite`, y sigue siendo uno solo. Lo que cambió es qué entrada le llega. De
+`symbol.strip().upper()` el que trabaja en la práctica es el `.upper()` —la caja es lo único que el
+schema deja pasar y el catálogo no acepta—; el `.strip()` queda como defensa y, sobre todo, como la
+regla única que también vale para la baja, que es la razón por la que la normalización vive en el
+service y no en el schema. Las dos puntas quedan fijadas en
+`backend/tests/integration/test_favorites_add.py` —`{"symbol": "msft"}` → **201** con `MSFT`, y
+`{"symbol": " msft "}` → **422** sin escribir ninguna fila— y en
+`backend/tests/unit/test_stocks_service.py::TestTheSymbolsArriveInUpperCase`, que es la mitad de
+`get_stocks` con minúsculas devolviendo `[]` y no se toca.
 
 Lo que **no** entra a ningún `__all__`, y merece decirse: `search_stocks` (sólo la consume el
 router de su propio módulo), `list_favorites`, `add_favorite`, `remove_favorite`, `FavoriteStock`,
@@ -269,12 +342,16 @@ Authorization: Bearer <token>
 200 [{"symbol": "MSFT", "name": "Microsoft Corp", "currency": "USD"}, ...]
 ```
 
-- `q: str = Query(min_length=2, max_length=50)`. El mínimo es `RF-13`, y está en las dos puntas a
-  propósito: el frontend no pregunta con menos de dos caracteres, y el router lo rechaza igual con
-  422 si alguien pregunta de todas formas. El máximo es `API4` en una línea.
+- `q: str = Query(min_length=MIN_QUERY_LENGTH, max_length=50)`. El mínimo es `RF-13`, y está en las
+  dos puntas a propósito: el frontend no pregunta con menos de dos caracteres, y el router lo
+  rechaza igual con 422 si alguien pregunta de todas formas. El máximo es `API4` en una línea.
+  **El router mide el texto crudo; el service vuelve a medirlo después del `strip()`** —`"  "` pasa
+  los dos caracteres del router y no es ningún texto—, y ahí la respuesta es `200 []` y no un 422:
+  el porqué, más abajo.
 - Devuelve **a lo sumo 20** (`RF-11`), sin paginación ni cursor: veinte sugerencias son las que
   caben en un desplegable, y el resto no se ofrece. El límite es una constante del service
-  (`SUGGESTION_LIMIT`), no un parámetro del cliente.
+  (`SUGGESTION_LIMIT`), no un parámetro del cliente, y **se aplica después de ordenar por
+  relevancia**, nunca en el `LIMIT` de la consulta.
 - Excluye las que tienen `delisted_at` (`RF-12`).
 - Sin coincidencias → `200 []`. La lista vacía es un resultado; el texto
   `No se encontró ninguna acción con ese texto.` lo pone la pantalla.
@@ -285,6 +362,224 @@ Authorization: Bearer <token>
   resto; y dentro de cada grupo, `symbol ASC`, que lo vuelve determinístico.
 - El schema de salida (`StockSuggestion`) lleva **tres campos**. `is_listed` no viaja: en esta ruta
   siempre es verdadero, y un campo constante en el contrato es ruido que el frontend tipa.
+
+**Corrección: el repositorio trae candidatos, el service ordena, y recién ahí se corta.** Este plan
+fijaba dos cosas que por separado están bien y juntas se contradicen: que el `ILIKE` con su `limit`
+vive en el repositorio, y que el orden por relevancia es del service. Encadenadas en ese orden, el
+repositorio truncaba en 20 **antes** de que la relevancia existiera y el service ordenaba un
+conjunto ya recortado: con `ILIKE '%micro%'`, `MSFT` puede no estar entre las veinte filas que
+devolvió el repositorio, y entonces ningún orden posterior la promueve. Es exactamente el criterio
+de aceptación de `RF-15` —escribir `micro` y encontrar `MSFT — Microsoft Corp`— que este mismo plan
+usa un párrafo más arriba para justificar el orden por relevancia. El defecto no estaba en ninguna
+de las dos frases: estaba en la unión, y por eso no se veía leyendo cualquiera de las dos.
+
+Lo que queda fijado, en un solo sentido:
+
+1. `search_listed` trae **todos los candidatos** que cumplen el `ILIKE` y no están delistados, hasta
+   un tope de contención de `CANDIDATE_LIMIT` filas.
+2. `search_stocks` los ordena por relevancia: símbolo exacto → símbolo que empieza con el texto →
+   nombre que empieza con el texto → el resto, y `symbol ASC` adentro de cada grupo.
+3. **Recién ahí** corta en `SUGGESTION_LIMIT` (20) y convierte a `StockInfo`.
+
+**El `limit` de `search_listed` cambia de significado, y hay que decirlo con todas las letras: es un
+tope de candidatos, no el tope de sugerencias.** Son dos números con dos propósitos distintos que
+viven los dos en el service: `SUGGESTION_LIMIT = 20` es un requisito del producto (`RF-11`, lo que
+entra en el desplegable) y `CANDIDATE_LIMIT` es una cota de la consulta. Nadie debería volver a leer
+`search_listed(..., limit=20)` en este código; si aparece, es este bug otra vez.
+
+**El valor es `CANDIDATE_LIMIT = 10_000`, y está elegido para que hoy no recorte nada.** El catálogo
+son ~7.200 filas (NYSE y NASDAQ, `A4`), así que el peor caso concebible —un patrón de dos caracteres
+que matchee el catálogo entero— entra completo, y sobra margen para que crezca un 40% sin que el
+tope llegue a intervenir. Esa es la propiedad que importa: **mientras el tope sea mayor que el
+catálogo, el truncado no puede ocurrir y la relevancia es exacta por construcción**, no por suerte.
+Un tope chico —100, 200, 500— habría parecido prudente y habría reintroducido el mismo bug en su
+versión difícil de ver: recortaría sólo con los textos más comunes, eligiendo las filas con un orden
+que no tiene nada que ver con la relevancia, y el síntoma sería "a veces no aparece la que busco",
+que es lo que nadie reproduce. El tope existe igual, porque una consulta sin techo es una consulta
+cuyo costo lo fija quien la llama; pero es una red de contención, no un criterio de selección.
+
+**Y el día que el catálogo pase las 10.000 filas, ese tope deja de ser inocuo.** Por eso el service
+registra un **`warning` cuando el repositorio devuelve exactamente `CANDIDATE_LIMIT` filas**: hubo
+truncado, la relevancia dejó de ser confiable, y esa es la única forma de que un tope que envejeció
+deje rastro en vez de degradarse en silencio. La salida entonces no es subir el número una vez más,
+sino mover la selección de candidatos a un criterio que **correlacione con la relevancia** —un orden
+por `similarity()` de `pg_trgm`, que el índice GIN ya soporta—, y eso es una decisión de otra
+feature, no un parche.
+
+No truncar en SQL era la otra salida y se descarta por poco: hoy es equivalente, porque el catálogo
+entero entra abajo del tope, y deja el endpoint sin ninguna cota escrita — la clase de omisión que
+recién se nota cuando el catálogo ya creció.
+
+Nada de esto mueve el `ILIKE` ni el filtro de delistadas fuera del repositorio, ni sube el orden a
+SQL (`PY-06`): filtrar es traer datos y lo hace el repositorio; ordenar y cortar son decisiones, y
+las decisiones son del service — la misma regla por la que la guarda de la lista vacía de
+`get_stocks` vive en el service y no en el `find_many`.
+
+**Qué hace `search_stocks` con el texto que recibe.** Hasta acá el plan decía dónde **no** se
+normaliza —"el router pasa el texto tal como llegó"— y nunca la otra mitad, que es qué decide el
+service. Son tres cosas y ninguna es implícita:
+
+1. **`text.strip()`, una sola vez, al entrar.** Es la única normalización: no se colapsan los
+   espacios internos, no se quita puntuación, no se recorta a un largo máximo (de eso ya se ocupa
+   el `max_length` del router) y **no se cambia la caja del texto que viaja a la base**.
+2. **El texto ya normalizado es el que viaja a `search_listed`**, no el crudo. Si viajara el crudo,
+   el filtro buscaría `ILIKE '%  micro  %'` —que no matchea nada, porque el catálogo no guarda los
+   espacios que tipeó el usuario— mientras la clasificación por relevancia razonaría sobre `micro`:
+   las dos mitades de la misma búsqueda hablando de dos textos distintos, y el síntoma sería un
+   desplegable vacío para un texto que sí tiene coincidencias. El repositorio recibe **el texto que
+   se busca**, ya resuelto como texto; lo que todavía no recibe es un patrón, porque el patrón lo
+   arma él — el escapado de `%` y `_` vive ahí, y está unos párrafos más abajo.
+3. **En mayúsculas no viaja nada.** El `ILIKE` ya es case-insensitive por sí mismo, así que un
+   `.upper()` sobre el patrón no cambiaría ni una fila y sería una segunda regla de normalización
+   que alguien podría cambiar sin que ningún test se ponga rojo.
+
+**La clasificación por relevancia compara plegando las dos puntas (`casefold()`), y hace falta
+decirlo porque los dos campos no están en la misma caja.** Acá está el filo que no se ve leyendo el
+orden de `RF-15`: "símbolo exacto" y "símbolo que empieza con el texto" salen bien poniendo el texto
+en mayúsculas, porque el catálogo guarda `MSFT`; con ese mismo `upper()`, "nombre que empieza con el
+texto" **no sale nunca**, porque el catálogo guarda `Microsoft Corp` y `"Microsoft Corp"` no empieza
+con `MICRO`. Resolver cada campo en su caja serían dos reglas de comparación, y la segunda se
+escribe mal el día que alguien copie la primera. Es una sola:
+
+```python
+needle = text.strip()
+folded = needle.casefold()
+
+exact    = stock.symbol.casefold() == folded
+by_symbol = stock.symbol.casefold().startswith(folded)
+by_name   = stock.name.casefold().startswith(folded)
+```
+
+`casefold()` y no `lower()` porque es la operación que Python define para comparar sin caja, y el
+catálogo tiene nombres de emisoras de dos mercados: es gratis y no depende de que los nombres sean
+ASCII. Y el plegado es **sólo de la clasificación**: lo que se le manda a Postgres sigue siendo
+`needle` tal cual, porque el `ILIKE` ya no distingue. El orden de `symbol ASC` adentro de cada grupo
+tampoco se pliega —los símbolos del catálogo son todos mayúsculas, así que no hay nada que plegar—.
+
+**Y el texto que queda vacío después del `strip()` no llega a la base: corta en el service y
+devuelve `[]`.** La regla es apenas más ancha que "vacío", porque el vacío es su versión extrema:
+**menos de `MIN_QUERY_LENGTH` (2) caracteres después del `strip()` → `[]`, sin consultar nada.**
+
+Es el mismo movimiento que **la lista vacía de `get_stocks`, que corta en el service y devuelve `[]`
+sin tocar la base**, y por la misma razón: una consulta cuyo resultado ya se conoce antes de
+escribirla no se hace, y "si esta consulta vale la pena" es una decisión, así que vive en el service
+y no en el repositorio (`PY-06`). Lo que se evita es concreto: `q = "  "` —dos espacios— pasa el
+`Query(min_length=2)` del router, y sin la guarda termina en `ILIKE '%%'`, que matchea el catálogo
+entero — ~7.200 filas traídas de la base y ordenadas por relevancia contra un texto que no existe,
+para devolver las veinte primeras alfabéticamente. `q = "a "` es la misma historia con un carácter:
+`ILIKE '%a%'` es casi todo el catálogo, y es exactamente el costo que el mínimo de `RF-13` existe
+para no pagar.
+
+**No es un 422 y no es una excepción, y eso es deliberado.** Un service que levantara algo para que
+el router lo tradujera a 422 estaría opinando sobre el transporte, que es lo que `PY-06` prohíbe
+—la misma regla por la que el alta devuelve `created: bool` y no un status—. Y la respuesta ya está
+fijada un poco más arriba: **sin coincidencias → `200 []`**. La pantalla no gana ninguna rama nueva,
+porque la del desplegable vacío ya existe (`No se encontró ninguna acción con ese texto.`, `RF-14`).
+`[]` es un resultado, no una falla.
+
+**El filo, escrito y no descubierto:** el router y el service miden cosas distintas, así que la
+validación del largo **no es simétrica**, y hay que saberlo antes de verlo. `q = "a"` —un carácter—
+responde **422**, porque lo rechaza el `Query(min_length=...)` antes de que exista un service;
+`q = "  "` y `q = "a "` responden **`200 []`**, porque pasan el router y los corta el service. Son
+dos respuestas para lo que un cliente podría llamar el mismo error, y se aceptan: el 422 es el
+contrato del transporte sobre lo que se recibió, el `[]` es el resultado del dominio sobre lo que se
+preguntó, y unificarlas obligaría o a normalizar en la capa HTTP o a hablar HTTP desde el service.
+El test de `RF-13` fija **las dos**, porque una asimetría que no está en un test es una asimetría
+que alguien "arregla" la primera vez que la ve.
+
+**El `2` se escribe una sola vez.** `MIN_QUERY_LENGTH = 2` es una constante de `stocks/service.py`,
+al lado de `SUGGESTION_LIMIT` y `CANDIDATE_LIMIT`, y el router la importa por ruta completa
+—`from app.modules.stocks.service import MIN_QUERY_LENGTH`, que es la dirección permitida
+(`router` → `service`)— para declarar su `Query(min_length=MIN_QUERY_LENGTH, max_length=50)`. Así
+`RF-13` no vive en dos literales que un día dicen números distintos. La constante **no** entra a
+ningún `__all__`: es interna del módulo, igual que `search_stocks` (`PY-10`).
+
+**Los comodines del `LIKE` los escapa el repositorio, y el service nunca los ve.** `%` y `_` no
+son caracteres cualquiera adentro de un `ILIKE`: `%` es "cualquier cosa" y `_` es "cualquier
+carácter". Sin escapar, el patrón `'%' || text || '%'` le deja al usuario escribir el operador:
+`q = "%a"` termina en `ILIKE '%%a%'`, que matchea **todo lo que contenga una `a`**, y `q = "a_c"`
+matchea `abc`. No es inyección —el texto viaja bindeado, nunca concatenado al SQL— y no toca la
+cuota del Artículo II, porque el autocomplete no sale al proveedor. Es otra cosa, y son dos: un
+desplegable que devuelve resultados que el usuario no puede explicar, y **un escaneo ancho
+disparado por un texto corto que la guarda de `MIN_QUERY_LENGTH` no detiene** — `"%a"` tiene dos
+caracteres y pasa. Eso último es lo que lo vuelve una corrección y no una prolijidad: la guarda de
+dos caracteres existe porque se asume que dos caracteres **acotan** la búsqueda, y un comodín rompe
+ese supuesto sin que la guarda se entere.
+
+Lo que queda fijado:
+
+1. **`search_listed` escapa `\`, `%` y `_` antes de armar el patrón**, y declara el escape:
+   `ilike(f"%{escaped}%", escape="\\")`, que en SQL es `ILIKE :pattern ESCAPE '\'`.
+2. **El orden del escapado es `\` primero, después `%` y `_`.** Al revés, el `\` que se agrega para
+   escapar un `%` se vuelve a escapar y el patrón termina buscando barras que nadie escribió. Es el
+   error clásico de esta función y por eso se escribe acá.
+3. **El service no escapa nada.** `search_stocks` sigue trabajando con el texto del usuario tal
+   cual: el `strip()`, la guarda del largo y la clasificación por relevancia miran `needle`, no un
+   patrón.
+
+**Por qué el repositorio y no el service, que es donde viven las otras decisiones del texto.** No es
+conveniencia y no contradice el precedente: contradice la lectura fácil de ese precedente. El
+`strip()` vive en el service porque `" micro "` no es lo que la persona quiso buscar **con
+cualquier motor de búsqueda**: es una decisión sobre *qué* se busca. Escapar un `%` no es una
+decisión sobre qué se busca — es sintaxis de un operador en particular. `%` sólo significa algo
+porque el repositorio eligió `ILIKE`; el día que esa consulta pase a `similarity()` de `pg_trgm` o a
+un `tsquery` —que es la salida que este mismo plan deja escrita para cuando el catálogo crezca—, el
+escapado no se vuelve innecesario: se vuelve **incorrecto**, y estaría en el archivo que no se tocó.
+La regla de `PY-06` sale igual que siempre: filtrar es traer datos y lo hace el repositorio, y armar
+el patrón **es** filtrar. El service decide qué texto se busca; el repositorio decide cómo se lo
+pregunta a Postgres.
+
+**Y el filo que lo cierra: si el escapado subiera al service, la clasificación por relevancia se
+rompe.** El service compara `needle` contra el catálogo (`casefold()`, `startswith`), y un service
+que escapara tendría en la mano `s\_p`: `"S_P Global"` ya no empezaría con el texto, porque el
+catálogo no guarda barras invertidas. Sería exactamente la falla que este plan ya describió una vez
+—las dos mitades de la misma búsqueda hablando de dos textos distintos— sólo que al revés: el
+filtro correcto y el orden ciego. Dos textos en el service es el bug; un texto en el service y un
+patrón en el repositorio es la frontera.
+
+**El carácter de escape es `\` y no uno cualquiera, y eso es el índice.** `pg_trgm` extrae los
+trigramas de un patrón de `LIKE` parseándolo él mismo, y parsea asumiendo la barra invertida.
+Declarar `ESCAPE '!'` —que en SQL es igual de válido— dejaría al índice leyendo un patrón distinto
+del que Postgres evalúa, y esa divergencia sólo puede **perder** filas: el recheck contra el heap
+filtra lo que el índice trajo de más, nunca recupera lo que no trajo. Un `ESCAPE` no declarado
+tampoco es la respuesta: la barra ya es el default de Postgres, pero escribirlo hace visible que el
+patrón tiene sintaxis, y lo deja inmune a que el default cambie o a que el motor deje de ser este.
+Fuera de eso, el índice no se toca: un texto normal —`micro`, `msft`— no contiene ninguno de los
+tres caracteres, así que el patrón y sus trigramas son byte por byte los de antes. El escapado no
+cuesta nada en el caso que ocurre siempre.
+
+**A `q` no se le pone un patrón en el router, y la asimetría con el símbolo es deliberada.** El
+símbolo lleva `^[A-Za-z0-9.\-]{1,12}$` (`POST /api/favorites`) porque es un **identificador**: hay
+un conjunto cerrado de lo que puede ser, y lo que cae afuera no existe en ningún catálogo. `q` es
+**texto libre** que escribe una persona mirando un campo, y un patrón ahí es una lista blanca sobre
+algo que no tiene forma: habría que enumerar el apóstrofo de `Macy's`, el `&` de `AT&T`, el punto,
+la coma, la barra, el espacio y cualquier acento, y el día que falte uno el autocomplete responde
+422 a un nombre que está en el catálogo. Rechazar con 422 lo que una persona puede escribir sin
+ninguna mala intención es un costo real, y acá no compra nada que el escapado no dé mejor. Además
+sería una **tercera forma de rechazar**, encima de las dos que este plan ya aceptó y escribió
+(`q = "a"` → 422 desde el router, `q = "  "` → `200 []` desde el service): con el escapado no hay
+ninguna forma nueva. `q = "%a"` cae en una rama que ya existe — busca el texto literal `%a`, no lo
+encuentra, y devuelve **`200 []`**, `No se encontró ninguna acción con ese texto.` (`RF-14`). Un
+comodín escrito a mano deja de ser un operador y pasa a ser lo que el usuario ve: dos caracteres que
+no están en ningún nombre.
+
+**Y la guarda del largo sigue midiendo el texto crudo, no el escapado.** `"%a"` son dos caracteres y
+pasa, como pasaba antes; lo que cambió es que ahora eso es verdad: dos caracteres literales acotan
+la búsqueda tanto como `ab`. Medir el escapado convertiría `"%a"` en un texto de tres —midiendo
+sintaxis en vez de intención— y haría que el mínimo de `RF-13` dependa de qué caracteres tipeó la
+persona. La guarda cuenta lo que el usuario escribió; el repositorio se ocupa de que eso sea texto.
+
+**El símbolo del alta no entra acá.** `add_favorite` busca por igualdad sobre un símbolo que ya pasó
+`^[A-Za-z0-9.\-]{1,12}$`: ni hay `LIKE` ni pueden llegar los caracteres. La función de escapado es
+del repositorio de `stocks` y vive ahí, privada del archivo (`_escape_like`, guión bajo adelante,
+`PY-10`): no es una utilidad transversal, porque sólo hay una consulta en todo el backend que arma
+un patrón.
+
+**Y el texto corto no deja log.** El truncado de `CANDIDATE_LIMIT` sí registra un `warning`
+(`structlog`, `ERR-03`) porque significa que la relevancia dejó de ser confiable; un texto que no
+alcanza el mínimo no significa nada parecido: es un resultado normal de una ruta que cualquier
+autenticado puede llamar con el texto que se le ocurra, y loguearlo sería darle al cliente la
+lapicera del archivo de logs.
 
 ### `GET /api/favorites` — protegida
 
@@ -492,6 +787,28 @@ Postgres oficial trae, dos índices declarados en el modelo, y una migración. L
 que el autocomplete no sea el cuello de botella del día que el catálogo crezca — que es
 exactamente el caso que un evaluador pregunta.
 
+**Cortar en 20 en el repositorio (un `LIMIT 20` en el `ILIKE`).** Es lo que este plan decía antes y
+es un defecto, no una variante: el service ordenaría por relevancia un conjunto que ya perdió las
+filas relevantes, y `RF-15` se caería de forma intermitente. La versión "prudente" de la misma idea
+—un tope de candidatos chico, 100 o 500— es peor, porque falla sólo con los textos más comunes y el
+síntoma no se reproduce. El corte vive en el service, después del orden.
+
+**Restringir `q` con un patrón en el router, como se hace con el símbolo.** Cerraría el agujero de
+los comodines de una línea y sin tocar el repositorio. Se descarta porque `q` es texto libre y el
+símbolo es un identificador: una lista blanca sobre texto libre es una lista negra por omisión, y el
+día que falte el apóstrofo de `Macy's` o el `&` de `AT&T` el autocomplete responde 422 a un nombre
+que sí está en el catálogo. Además agrega una tercera forma de rechazar a las dos que este plan ya
+aceptó (422 del router, `200 []` del service), y para un caso que no es un error: quien escribe `%`
+merece `No se encontró ninguna acción con ese texto.`, no un rechazo del transporte.
+
+**Escapar los comodines en el service, junto al `strip()`.** Es donde ya viven las decisiones sobre
+el texto, así que parece el lugar. Se descarta por dos razones y la segunda es fatal: el escapado es
+sintaxis de `ILIKE` y no una decisión sobre qué se busca —se vuelve incorrecto el día que la
+consulta pase a `similarity()`, en el archivo que nadie tocó—, y sobre todo el service compararía la
+relevancia contra `s\_p` en vez de `S_P`, de modo que "el nombre empieza con el texto" no saldría
+nunca para ningún texto escapado. Filtro correcto y orden ciego, que es el bug del `upper()` dado
+vuelta.
+
 **Un 409 para el alta repetida.** Es lo que pide el instinto REST, y `TEST-04` lo prohíbe: agregar
 dos veces el mismo símbolo "no duplica **ni falla**". Además obligaría al frontend a tratar un
 error para un caso que no lo es.
@@ -542,6 +859,7 @@ una primera página.
 | **`alembic check` que nunca queda limpio** porque el `opclass` del índice GIN no se refleja igual que como se declaró | Medio: `DB-01` es Blocker y el CI corre `alembic check` | Se verifica al escribir la migración, no al final. Si no coincide, se ajusta la declaración; excluirlo de autogenerate es el último recurso y va con su motivo escrito |
 | **`CREATE EXTENSION` sin privilegios** en un Postgres gestionado | Bajo hoy (compose y CI usan el dueño del cluster), alto el día que se despliegue a uno gestionado | `IF NOT EXISTS`, para que la migración no falle si el operador ya la creó; y queda dicho en el README de despliegue |
 | El índice **no se usa** con dos caracteres, que es el mínimo de `RF-13` | Bajo: son ~7.200 filas y el escaneo es de milisegundos | Se asume y se escribe. Si alguna vez molesta, la palanca es subir el mínimo a 3, y eso vuelve a la spec porque `RF-13` lo fija |
+| **El escapado de `%` y `_` se "simplifica"**: alguien lo sube al service porque ahí están las otras reglas del texto, lo baja a un `replace()` sin el `ESCAPE` declarado, o cambia el carácter de escape | Medio: subirlo al service rompe la clasificación por relevancia de cualquier texto escapado (`S_P` deja de clasificar por nombre) y cambiar el carácter deja al índice de trigramas leyendo un patrón distinto del que Postgres evalúa — pérdida silenciosa de filas, no error | Los tres casos tienen su test en la tarea 8: `q = "%a"` no devuelve el catálogo entero, `q = "a_c"` no matchea `abc`, y el texto que llega al repositorio es el del usuario y no uno escapado. El porqué de cada uno está escrito en `GET /api/stocks`, con el orden del escapado (`\` primero) y el motivo de la barra |
 | La cuarta columna de la grilla "se arregla" con un encabezado | Bajo, pero es `UI-01` Blocker | El wireframe la dibuja sin encabezado; el test de estructura lo fija |
 | Alguien "corrige" un texto de `COPY.md` al escribir el componente | Medio | `frontend/tests/copy.test.ts` suma las filas de esta pantalla y rompe el build |
 
@@ -552,8 +870,12 @@ una primera página.
 `CREATE EXTENSION IF NOT EXISTS pg_trgm`, los dos índices GIN, los mismos dos `Index(...)` al pie de
 `stocks/models.py`, y `alembic check` limpio **antes** de seguir. Después el resto del backend, de
 adentro hacia afuera. Primero `stocks`:
-`repository.py` (la búsqueda y el batch), `service.py` (`SUGGESTION_LIMIT`, el orden por
-relevancia, `StockInfo`), `io.py`, `router.py`, y último el `__all__`. Después `favorites`, igual:
+`repository.py` (la búsqueda, que trae candidatos sin ordenar, y el batch; ahí va **`_escape_like`,
+privado del archivo**, y el `ilike(..., escape="\\")` — `\` primero, después `%` y `_`), `service.py`
+(`MIN_QUERY_LENGTH`, `CANDIDATE_LIMIT` y `SUGGESTION_LIMIT`, el `strip()` de entrada con su guarda,
+el orden por relevancia con `casefold()` y el corte **después** de ordenar, `StockInfo`), `io.py`,
+`router.py` —que importa `MIN_QUERY_LENGTH` del service para su `Query(...)`, y por eso el service
+va antes—, y último el `__all__`. Después `favorites`, igual:
 `repository` → `service` → `io` → `router` → `__all__`. Recién ahí `main.py`: los dos
 `include_router` y el handler de `UnknownSymbolError`. El frontend va último, cuando `make types`
 ya puede generar el schema de las cinco rutas.
@@ -610,8 +932,35 @@ medias, el frontend tipa contra una API que ya cambió.
 4. **La búsqueda**: por símbolo (`RF-08`), por nombre (`RF-09`), sin distinguir mayúsculas en las
    dos direcciones (`RF-10`), tope de 20 con un texto muy común (`RF-11`), una delistada que **no**
    aparece ni escribiendo su símbolo completo (`RF-12`), un texto de un carácter rechazado con 422
-   (`RF-13`), y sin coincidencias `200 []`. Y el de relevancia: `micro` trae `MSFT` entre las
-   veinte.
+   (`RF-13`), y sin coincidencias `200 []`. Y el de relevancia, que **sólo prueba algo si el
+   catálogo del test tiene más de veinte coincidencias de `micro`** y `MSFT` no está entre las
+   primeras por símbolo: es el test que distingue "el service ordena" de "el repositorio ya había
+   cortado", y con un catálogo chico pasa igual estando roto.
+
+   **Y el texto, que es la otra mitad de esa tarea** (tarea 8): `q = "  "` —dos espacios, que pasan
+   el `min_length` del router— responde **`200 []`** y **no consulta la base**, igual que `q = "a "`;
+   `q = "a"` sigue siendo **422**, que es la asimetría escrita en `GET /api/stocks` y que el test
+   fija a propósito para que nadie la "arregle". El `strip()` también tiene su cara positiva:
+   `q = " micro "` devuelve lo mismo que `q = "micro"`. Que no se consulte la base es parte del
+   test, no un detalle: se verifica en el unitario del service con un repositorio espiado, porque
+   un test de integración vería la lista vacía igual aunque el `ILIKE '%%'` se hubiera ejecutado.
+
+   **Y los comodines del `LIKE`, en esa misma tarea 8.** Son tests de integración contra un
+   catálogo real, porque lo que se verifica es el SQL: `q = "%a"` **no** devuelve las acciones que
+   contienen una `a` —devuelve `200 []`, porque el catálogo no tiene ningún símbolo ni nombre con
+   `%` adentro—, y `q = "a_c"` **no** matchea `abc`. Los dos fallan hoy sin el escapado y los dos
+   pasan con él, que es lo que los hace tests y no decoración. Van con dos más: uno que fija que el
+   escapado **no vive en el service** —el unitario con repositorio espiado verifica que a
+   `search_listed` le llegue `"%a"` tal cual, sin barra, porque un escapado que suba de capa rompe
+   la clasificación por relevancia—, y uno que fija que **el texto normal no cambió**: `q = "micro"`
+   devuelve exactamente lo mismo que antes, que es el caso que ocurre siempre. Si el catálogo del
+   test se siembra con un nombre que contenga un `_`, el test que corresponde es que buscarlo por su
+   texto literal **lo encuentra**: escapar es que el `_` se busque, no que se ignore.
+
+   El unitario del orden por relevancia suma la comparación sin caja **en los dos campos**: `msft`
+   en minúsculas clasifica como símbolo exacto, y `micro` en minúsculas clasifica `Microsoft Corp`
+   como "el nombre empieza con el texto" —que es el caso que se cae si alguien compara el nombre
+   contra el texto en mayúsculas—. Es el test que distingue una regla de comparación de dos.
 5. **El alta de lo que no se ofrece**: un símbolo que no está en el catálogo y uno delistado, los
    dos 404, y ninguno de los dos deja fila.
 6. **La favorita delistada sigue en la grilla**, con su nombre y su moneda: es la contracara del
@@ -694,7 +1043,22 @@ escribieron en su feature, y los tests de acá las dan por hechas **sin volver a
 - **El router del alta**: `status_code=201` declarado y el 200 puesto sobre el `Response` cuando ya
   estaba, con `responses={200: ...}` para que el OpenAPI documente las dos. Y que el que decide sea
   el `created` del service: un service que hable de códigos HTTP es `PY-06` roto.
-- **Los nombres** (`PY-10`): `SUGGESTION_LIMIT` en mayúsculas por ser constante de módulo, guión
+- **`stocks/service.py`**: el orden por relevancia y el corte en `SUGGESTION_LIMIT` están **después**
+  de traer los candidatos, y ningún `limit=20` viaja a `search_listed` — si el repositorio corta en
+  20, `RF-15` está roto aunque los tests de la búsqueda simple pasen. Y el texto: **un solo
+  `strip()` al entrar**, la guarda de `MIN_QUERY_LENGTH` **antes** de llamar al repositorio, la
+  clasificación con `casefold()` en las dos puntas de las tres comparaciones, y ningún `upper()`
+  sobre lo que viaja al `ILIKE`. Un `casefold()` que aparezca de un solo lado de una comparación es
+  el bug del nombre que nunca clasifica. **Y que el service no escape nada**: el escapado que
+  aparezca ahí es el mismo bug con otra cara.
+- **`stocks/repository.py`**: la búsqueda escapa `\`, `%` y `_` **en ese orden** y declara
+  `escape="\\"`. Tres formas de estar mal: sin escapar (el usuario escribe el operador), escapando
+  `%` antes que `\` (el patrón busca barras que nadie tipeó), o con un carácter de escape que no sea
+  la barra (el índice de trigramas lee un patrón distinto del que Postgres evalúa y pierde filas en
+  silencio). El grep es `grep -n "ilike" app/modules/stocks/repository.py`: si no tiene `escape=`,
+  está mal.
+- **Los nombres** (`PY-10`): `SUGGESTION_LIMIT` y `CANDIDATE_LIMIT` en mayúsculas por ser
+  constantes de módulo, guión
   bajo adelante para lo privado del archivo, `PascalCase` para `StockInfo`, `FavoriteStock` y
   `FavoriteAddition`.
 - **Frontend**: ningún color literal (`UI-03`), ningún `style={{ }}` ni `.css` nuevo (`UI-07`),
