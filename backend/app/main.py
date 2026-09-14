@@ -11,20 +11,13 @@ from app.health import router as health_router
 from app.modules.auth import router as auth_router
 from app.modules.favorites import router as favorites_router
 from app.modules.quotes import router as quotes_router
-from app.modules.stocks import keep_the_catalogue_fresh
 from app.modules.stocks import router as stocks_router
 from app.observability import RequestContextMiddleware, configure_logging, configure_sentry
 from app.observability import router as metrics_router
 from app.settings import get_settings
-from app.tasks import BackgroundTask, running
+from app.tasks import run_background_tasks
 
 settings = get_settings()
-
-# Everything that outlives a request, in one place. Starting and stopping them is `app/tasks.py`'s
-# job; *naming* them is this file's, and not by preference: `GEN-03` makes this the only file
-# below the modules allowed to know one exists, so a list of tasks anywhere else would put the
-# catalogue inside the kernel. A second task is a second entry here.
-BACKGROUND_TASKS: tuple[BackgroundTask, ...] = (keep_the_catalogue_fresh,)
 
 # Before the app exists: a failure while wiring it up should already be structured and reported.
 configure_logging()
@@ -35,9 +28,8 @@ configure_sentry()
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Start what has to outlive a request, and stop it when the process goes away.
 
-    What runs is `BACKGROUND_TASKS` above and this does not name any of them: the catalogue
-    refresher is one entry of that tuple today (ADR-002), and a second task changes the tuple and
-    not this function.
+    What runs is `app/tasks.py`'s business: this file starts it and stops it, and a background
+    task added there changes nothing here.
 
     The return type is `AsyncGenerator` and not `AsyncIterator`: this function yields, so it is a
     generator, and annotating `@asynccontextmanager` with the iterator is deprecated.
@@ -48,7 +40,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     here was the compensation for a check that happened at the first login; the check now happens
     before the application object exists.
     """
-    async with running(*BACKGROUND_TASKS):
+    async with run_background_tasks():
         yield
 
 

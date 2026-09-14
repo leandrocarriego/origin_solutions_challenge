@@ -36,7 +36,7 @@ Estas once convenciones **no dependen de que alguien las lea**: hay un test que 
 |---|---|---|
 | `GEN-02` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando archivo y línea: del import que entra a otro módulo por debajo de su paquete, del que reentra al propio paquete en vez de usar la ruta completa, y del `__init__.py` que tiene algo más que docstring, imports y un `__all__` literal. |
 | `PY-06` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando archivo y línea del import que cruza las capas adentro del módulo. |
-| `GEN-03` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla por cada archivo del kernel o de `providers/` que importa un módulo. `main.py` está excluido por nombre, y un test verifica que ese nombre siga siendo uno solo. |
+| `GEN-03` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla por cada archivo del kernel o de `providers/` que importa un módulo. El composition root —`main.py` y `tasks.py`— está excluido por nombre, y `TestTheExceptionIsDeclared` falla si esa lista cambia. |
 | `GEN-05` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando los dos módulos que se importan mutuamente. |
 | `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` | La suite falla por dos motivos: un cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor —sin distinguir mayúsculas— fuera de `app/providers/twelvedata.py` y `app/settings.py`. |
 | `GEN-09` | `backend/tests/integration/test_user_isolation.py` | La suite falla si un usuario alcanza datos de otro. La mitad estática ya corre: `TestNoRouteAcceptsAUserId` en `test_route_authorization.py` falla por cada ruta que acepta la identidad del usuario por path, query o body. |
@@ -162,19 +162,21 @@ Los archivos sueltos en `app/` son lo único que cualquier módulo puede importa
 
 Un import de `modules/` acá ata todos los módulos entre sí por abajo y deja de ser posible extraer uno solo. Y en `providers/` invierte la dependencia: la infraestructura pasaría a depender del dominio, que es exactamente al revés de lo que hace extraíble a `quotes`.
 
-La excepción es `main.py`, que es el composition root: monta los routers, así que importa de todos los módulos por definición. Por eso el chequeo lo excluye por nombre.
+La excepción es el **composition root**, que son dos archivos: `main.py` monta los routers y `tasks.py` nombra las corrutinas que corren de fondo. Los dos importan de los módulos por definición, así que el chequeo los excluye por nombre.
+
+Son dos y no más: cada nombre en esa lista es un archivo habilitado a depender del dominio desde abajo de los módulos, y la lista está fijada por `TestTheExceptionIsDeclared`. Un tercero no es imposible — nada podría impedirlo — pero es una línea que alguien edita a propósito, en un test, con el motivo en el commit.
 
 `errors.py` además no importa `fastapi`: si lo hiciera, las excepciones de dominio arrastrarían media aplicación y dejarían de poder levantarse desde cualquier módulo.
 
 ```
-cd backend && grep -nE "^from app\.modules|^import app\.modules" app/*.py | grep -v "^app/main.py:"
+cd backend && grep -nE "^from app\.modules|^import app\.modules" app/*.py | grep -vE "^app/(main|tasks)\.py:"
 cd backend && grep -rnE "^from app\.modules|^import app\.modules" app/providers
 cd backend && grep -n "fastapi" app/errors.py
 ```
 
 ### `GEN-04` - Major: El router de un módulo nuevo se monta explícitamente en `app/main.py`.
 
-`main.py` es el *composition root*: es el único lugar que conoce todos los módulos y monta el router de cada uno. La traducción de las excepciones de dominio a códigos HTTP vive en `app/error_handlers.py`, que `main.py` engancha con `register_error_handlers(app)`.
+`main.py` es el *composition root* del HTTP: monta el router de cada módulo. Lo que corre de fondo se declara igual de explícito, en `app/tasks.py`. La traducción de las excepciones de dominio a códigos HTTP vive en `app/error_handlers.py`, que `main.py` engancha con `register_error_handlers(app)`.
 Un módulo que existe y cuyo router no está montado es código muerto que aparenta ser una feature.
 
 ### `GEN-05` - Blocker: No hay ciclos entre módulos.
@@ -273,7 +275,7 @@ Los que este proyecto ya usa:
 |---|---|---|
 | **Strategy** (`Protocol`) | `MarketDataProvider` | Habilita el `FakeProvider` que hace correr la suite sin red (`TEST-03`) y deja el proveedor reemplazable (`NFR-07`) |
 | **Repository** | `repository.py` de cada módulo | Aísla SQLAlchemy del service, que así se testea sin base |
-| **Composition Root** | `app/main.py` | Un solo lugar donde se arma el grafo de dependencias |
+| **Composition Root** | `app/main.py` · `app/tasks.py` | Un solo lugar donde se arma el grafo de dependencias: el HTTP y lo que corre de fondo |
 | **Test Double** | `FakeProvider` | Determinístico y sin gastar cuota (Artículo II) |
 
 Y los que **no**, porque acá no pagan: Factory (no hay familias de objetos que elegir en runtime), Observer o event bus (`ADR-009` lo descarta: un solo servicio), Unit of Work (la sesión de SQLAlchemy ya lo es), CQRS y Mediator (no hay complejidad de lectura/escritura que separar).

@@ -1,10 +1,13 @@
 """Coroutines that outlive a request: started with the application, stopped with it.
 
-Kernel file, and it knows nothing about what it runs. That is not decoration: `GEN-03` lets only
-`main.py` import a module, so a registry that named `keep_the_catalogue_fresh` here would put the
-catalogue inside the kernel. It takes what to run as an argument, and the composition root is
-what decides -- which also means a second background task is one more argument and not one more
-copy of the cancel-and-wait dance below.
+This is the second half of the composition root. `main.py` mounts the routers; this names what
+runs in the background, and the two are the only files below the modules allowed to import one
+(`GEN-03`, and the list of names is pinned by `TestTheExceptionIsDeclared`). A second background
+task is a second entry in `run_background_tasks` and nothing else -- not another copy of the
+cancel-and-wait dance below.
+
+The split into two functions is the point. `running` is the mechanism and names nothing;
+`run_background_tasks` is the list, and it is the only thing here that knows a module exists.
 
 That dance is the whole reason this file exists. `cancel()` only *asks*: it schedules a
 `CancelledError` at the task's next await. Without waiting afterwards, the process can exit while
@@ -19,6 +22,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import structlog
+
+from app.modules.stocks import keep_the_catalogue_fresh
 
 # What can be run in the background: something to call that returns a coroutine. The factory and
 # not the coroutine itself, so nothing is created until there is an event loop to create it on.
@@ -76,4 +81,16 @@ def _report(task: asyncio.Task[None]) -> None:
     )
 
 
-__all__ = ["BackgroundTask", "running"]
+@asynccontextmanager
+async def run_background_tasks() -> AsyncGenerator[None]:
+    """Everything that outlives a request, for as long as the application does.
+
+    The catalogue refresher is the only one today: `ADR-002` decided the catalogue keeps itself
+    current instead of waiting for somebody to remember, and this is where "keeps itself" is
+    wired.
+    """
+    async with running(keep_the_catalogue_fresh):
+        yield
+
+
+__all__ = ["BackgroundTask", "run_background_tasks", "running"]

@@ -23,7 +23,7 @@ import pytest
 
 from tests.architecture.source_tree import (
     APP_ROOT,
-    COMPOSITION_ROOT,
+    COMPOSITION_ROOTS,
     SourceFile,
     layer_of,
     module_names,
@@ -185,8 +185,9 @@ def modules_imported_from_below(files: list[SourceFile], app_root: Path) -> list
     An import of `modules/` down here ties every module together underneath, and in
     `providers/` it inverts the dependency outright: infrastructure would depend on the domain.
 
-    `main.py` is excluded by name, and that is the whole exception: it is the composition root,
-    it mounts every router, so it imports from all of them by definition.
+    The composition root is excluded by name, and that is the whole exception: it mounts every
+    router and names what runs in the background, so it imports from all of them by definition.
+    It is two files -- `main.py` and `tasks.py` -- and the list is pinned by a test of its own.
     """
     root = root_package(app_root)
     found: list[str] = []
@@ -194,7 +195,7 @@ def modules_imported_from_below(files: list[SourceFile], app_root: Path) -> list
     for source in files:
         if owning_module(source, app_root) is not None or source.package.endswith(".modules"):
             continue
-        if source.package == root and source.path.name == COMPOSITION_ROOT:
+        if source.package == root and source.path.name in COMPOSITION_ROOTS:
             continue
 
         found.extend(
@@ -399,8 +400,22 @@ class TestWhatIsBelowTheModules:
     def test_the_kernel_and_the_providers_import_no_module(
         self, app_tree: list[SourceFile]
     ) -> None:
-        """Everything under the modules stays ignorant of them, and `main.py` is the exception."""
+        """Everything under the modules stays ignorant of them, bar the composition root."""
         assert modules_imported_from_below(app_tree, APP_ROOT) == []
+
+
+class TestTheExceptionIsDeclared:
+    """The list of files allowed to reach a module from below is pinned, not merely documented.
+
+    Every name in it is a file that may depend on the domain, and the rule survives exactly as
+    long as the list stays short. Pinning it does not stop anybody from adding a third -- nothing
+    could -- but it makes adding one a line somebody edits on purpose, in a test, with the reason
+    in the commit, instead of a name that appears and is never noticed again.
+    """
+
+    def test_the_composition_root_is_two_files(self) -> None:
+        """`main.py` mounts the routers; `tasks.py` names what runs in the background."""
+        assert COMPOSITION_ROOTS == ("main.py", "tasks.py")
 
 
 class TestTheLayersInsideAModule:
@@ -528,7 +543,7 @@ class TestTheChecksCatchARealViolation:
         assert any("providers/twelvedata.py:1" in line for line in found)
 
     def test_the_composition_root_is_not_reported(self, tmp_path: Path) -> None:
-        """`main.py` mounts every router: excluding it by name is the point of the exception."""
+        """The composition root mounts every router: excluding it is the point of the exception."""
         root = write_tree(
             tmp_path / "app",
             {

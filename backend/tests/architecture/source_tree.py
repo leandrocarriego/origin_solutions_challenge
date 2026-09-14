@@ -17,9 +17,14 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 APP_ROOT = BACKEND_ROOT / "app"
 
-# The composition root mounts every module's router, so it imports from all of them by
-# definition. GEN-03 excludes it by name, and this is the name.
-COMPOSITION_ROOT = "main.py"
+# The composition root imports from every module by definition: it mounts each one's router and
+# names the coroutines that run in the background. GEN-03 excludes it by name, and these are the
+# names -- two files rather than one, because the wiring outgrew a single screen.
+#
+# It is a tuple and not a convenience: every name added here is a file allowed to depend on the
+# domain from below the modules, and `TestTheExceptionIsDeclared` fails when the list changes, so
+# a third name is a decision somebody makes rather than one that happens.
+COMPOSITION_ROOTS = ("main.py", "tasks.py")
 
 # The four clients CONVENTIONS.md names in GEN-08, and it has to stay those four: dropping one
 # narrows a Blocker convention without a single test turning red.
