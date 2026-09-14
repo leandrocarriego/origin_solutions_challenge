@@ -13,6 +13,10 @@ Two things are deliberately NOT flagged:
   * Spanish that is output rather than a comment: `make help` descriptions, pre-commit hook
     names, CI step names, the deploy script's echo lines. None of those start a comment, and
     GEN-07 requires them to stay in Spanish.
+  * Spanish quoted inside an English comment with backticks. A comment that names the literal it
+    verifies -- `Esa acción ya está en tu lista.` -- is written in English *about* a Spanish
+    string, and UI-02 is what asks for that string to be reproduced verbatim. Rewriting the
+    quote to get past this check would take the one thing that makes the comment useful.
 """
 
 import io
@@ -33,6 +37,11 @@ MARKERS = frozenset(
 
 ACCENTS = re.compile(r"[áéíóúñ¿¡]", re.IGNORECASE)
 WORD = re.compile(r"[a-záéíóúñ]+", re.IGNORECASE)
+
+# What a comment quotes is not what a comment is written in: `Esa acción ya está en tu lista.`
+# inside an English sentence is the copy being named, not prose in Spanish. Unterminated
+# backticks are left alone -- with an odd number of them there is no quote to speak of.
+QUOTED = re.compile(r"`[^`]*`")
 
 # Documentation and spec artefacts are Spanish on purpose (Article VIII), and so is everything
 # the agent process reads.
@@ -129,8 +138,9 @@ def main() -> int:
                 comments.append((number, found))
 
         for number, comment in comments:
-            words = {w.lower() for w in WORD.findall(comment)}
-            if words & MARKERS or ACCENTS.search(comment):
+            prose = QUOTED.sub(" ", comment)
+            words = {w.lower() for w in WORD.findall(prose)}
+            if words & MARKERS or ACCENTS.search(prose):
                 findings.append(f"  {path}:{number}  {comment.strip()[:90]}")
 
     if findings:

@@ -40,6 +40,7 @@ const SESION_EXPIRADA = 'Tu sesión expiró. Volvé a ingresar.';
 const NO_HAY_CONEXION = 'No pudimos conectarnos con el servidor. Intentá de nuevo en unos minutos.';
 const MIS_ACCIONES = 'Mis Acciones';
 
+const FAVORITES_URL = '/api/favorites';
 const LOGIN_URL = '/api/auth/login';
 const A_PASSWORD = 'una-clave-de-demo';
 
@@ -71,6 +72,13 @@ function stubTheApi(status: number, body: unknown = {}): void {
     vi.fn().mockImplementation((input: RequestInfo | URL) => {
       if (urlOf(input).includes(LOGIN_URL)) {
         return Promise.resolve(new Response(JSON.stringify(body), { status }));
+      }
+      // The screen a good credential opens asks for the grid the moment it mounts, and this
+      // suite is about the login and not about the list. Leaving it to the 401 below would race
+      // the assertion against the session interceptor -- `002` made that 401 mean "the session
+      // ended", deliberately -- and a race is a suite that passes most of the time.
+      if (urlOf(input).includes(FAVORITES_URL)) {
+        return Promise.resolve(new Response('[]', { status: 200 }));
       }
 
       return Promise.resolve(

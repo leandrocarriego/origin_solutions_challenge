@@ -55,6 +55,7 @@ const MIS_ACCIONES = 'Mis Acciones';
 const SESION_EXPIRADA = 'Tu sesión expiró. Volvé a ingresar.';
 
 const LOGIN_URL = '/api/auth/login';
+const FAVORITES_URL = '/api/favorites';
 const ME_URL = '/api/auth/me';
 const A_PASSWORD = 'una-clave-de-demo';
 
@@ -105,6 +106,14 @@ function stubTheApi(me: () => Promise<Response>): void {
         return Promise.resolve(new Response(JSON.stringify(A_SESSION), { status: 200 }));
       }
       if (urlOf(input).includes(ME_URL)) return me();
+      // The inner screen asks for the grid the moment it mounts, and this suite is about the
+      // session and not about the list. Answering it is what keeps a 401 the double invented
+      // from ending the session these tests are looking at: `002` made that 401 mean exactly
+      // that, deliberately, so the double has to know the route rather than the interceptor
+      // having to stop caring.
+      if (urlOf(input).includes(FAVORITES_URL)) {
+        return Promise.resolve(new Response('[]', { status: 200 }));
+      }
 
       return Promise.resolve(
         new Response(JSON.stringify({ detail: 'not authenticated' }), { status: 401 }),

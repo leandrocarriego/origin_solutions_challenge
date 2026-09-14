@@ -27,6 +27,10 @@ export async function login(username: string, password: string): Promise<Session
   return await request<Session>('/auth/login', {
     method: 'POST',
     body: credential,
+    // It carries no credential of its own: this is the call that exists for when there is no
+    // session yet, and declaring it is what keeps that from depending on the provider being
+    // unregistered at that moment.
+    token: null,
     announcesLostSession: false,
   });
 }

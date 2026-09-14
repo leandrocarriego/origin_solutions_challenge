@@ -33,3 +33,20 @@ class RateLimitedError(DomainError):
         """Carry the wait, which is all the 429 handler needs to write `Retry-After`."""
         super().__init__("too many attempts")
         self.retry_after_seconds = retry_after_seconds
+
+
+class UnknownSymbolError(DomainError):
+    """The symbol is not one that can be added today: absent from the catalogue, or delisted.
+
+    One exception for the two, and that is deliberate. A caller can only choose from what the
+    autocomplete suggested, so both mean the same thing to the only screen that asks -- "that
+    cannot be added" -- and two exceptions would be two answers for a decision nobody makes.
+
+    It lives here rather than inside `favorites` for the same reason `AuthenticationError` does:
+    `main.py` has to import it to register the handler, and an exception exported through a
+    module's `__all__` would be public contract for a consumer that is not a module.
+    """
+
+    def __init__(self) -> None:
+        """Carry the one message the 404 handler answers with."""
+        super().__init__("unknown symbol")
