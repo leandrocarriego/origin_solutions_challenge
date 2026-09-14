@@ -125,9 +125,12 @@ Rol: `agents/roles/code_reviewer.md`. Sin argumento, se revisa la rama actual co
   moneda; `user_stocks` vive en `favorites/` y `stocks` en `stocks/`, así que se resuelve con
   `get_stocks(symbols: list[str]) -> list[StockInfo]`, que `stocks` exporta en su `__all__`: una
   sola consulta para toda la grilla. Una llamada por símbolo adentro de un `for` es N+1 y es
-  hallazgo aunque respete la frontera. Ese es el inventario **completo** de lecturas cruzadas del
-  backend —una función y un tipo—: `auth`, `favorites` y `quotes` exportan sólo su `router`. Un
-  `__all__` que crece en el diff se justifica o se saca.
+  hallazgo aunque respete la frontera. La otra es el gráfico del Detalle, que se sirve sólo por las
+  acciones que el usuario tiene en su lista: `is_favorite(session, user_id, symbol) -> bool`, que
+  `favorites` exporta y `quotes` consume — un símbolo por request, así que no hay N+1 posible. Ese
+  es el inventario **completo** de lecturas cruzadas del backend: `auth` y `quotes` exportan sólo su
+  `router`, `favorites` su `router` y `is_favorite`. Un `__all__` que crece en el diff se justifica
+  o se saca.
 
 ---
 

@@ -127,8 +127,15 @@ El `__init__.py` de un módulo tiene **sólo** tres cosas: docstring, imports y 
 
 `get_current_user` es primitiva de seguridad que consumen los routers de todos los módulos, así que vive en `app/security.py` junto con Argon2 y JWT (`GEN-03`).
 
-La lectura cruzada real del proyecto es la grilla de *Mis Acciones*: `user_stocks` vive en `favorites/` y necesita símbolo, nombre y moneda, que viven en `stocks/`.
-Se resuelve con `get_stocks(symbols: list[str]) -> list[StockInfo]`, que `stocks` declara en su `__all__`, **en batch**: una sola consulta para toda la grilla. Nunca N+1, nunca importando el repository ajeno. Ese es el inventario **completo** de lecturas cruzadas del backend.
+Las lecturas cruzadas reales del proyecto son **dos**.
+
+La grilla de *Mis Acciones*: `user_stocks` vive en `favorites/` y necesita símbolo, nombre y moneda, que viven en `stocks/`.
+Se resuelve con `get_stocks(symbols: list[str]) -> list[StockInfo]`, que `stocks` declara en su `__all__`, **en batch**: una sola consulta para toda la grilla. Nunca N+1, nunca importando el repository ajeno.
+
+Y el gráfico del Detalle: `quotes/` sirve la serie sólo por las acciones que el usuario tiene en su lista, y quién es dueño de una favorita lo sabe `favorites/`.
+Se resuelve con `is_favorite(session, user_id: int, symbol: str) -> bool`, que `favorites` declara en su `__all__`: un booleano, una consulta, un símbolo por request.
+
+Ese es el inventario **completo** de lecturas cruzadas del backend.
 
 Y hay una puerta trasera que el chequeo de imports **no puede ver**: un `relationship()` de SQLAlchemy que cruce módulos.
 `favorite.stock.name` no genera ningún import y sin embargo acopla `favorites` al modelo de `stocks`.

@@ -173,10 +173,12 @@ mocker.patch(
 ```
 
 Se parchea el nombre en el módulo que lo consume, no donde está definido: así el test queda atado al
-contrato y no al interior ajeno. Este parche es además el único de su clase en toda la suite: el
-inventario completo de lecturas cruzadas del backend es `get_stocks` y `StockInfo`, de `stocks`, que
-consume `favorites` para la grilla. Los paquetes de `auth`, `favorites` y `quotes` exportan sólo su
-`router`, así que no hay nada más de otro módulo que mockear.
+contrato y no al interior ajeno. Parches de esta clase hay **dos** en toda la suite, que son las dos
+lecturas cruzadas del backend: `get_stocks` y `StockInfo`, de `stocks`, que consume `favorites` para
+la grilla, e `is_favorite`, de `favorites`, que consume `quotes` para servir el gráfico sólo por las
+acciones de quien pregunta —se parchea en `app.modules.quotes.service.is_favorite`—. Los paquetes de
+`auth` y `quotes` exportan sólo su `router`; el de `favorites`, su `router` y `is_favorite`, así que
+no hay nada más de otro módulo que mockear.
 
 Y el mock devuelve **la grilla entera de una vez**: si para que el test pase hubo que devolver un
 símbolo por llamada, el código tiene un N+1 y este es el lugar donde se ve. El assert que lo fija

@@ -169,9 +169,11 @@ Las claves compuestas son reales, no un `UniqueConstraint` sobre un `id` que nad
 
 Las migraciones de Alembic son del proyecto, no de cada módulo: viven en `backend/alembic/versions/` y una sola cadena las ordena.
 
-## La lectura cruzada
+## Las lecturas cruzadas
 
-Es el único caso del sistema donde un módulo necesita algo de otro, y por eso define la frontera:
+Son los **dos** únicos casos del sistema donde un módulo necesita algo de otro, y por eso definen la frontera.
+
+La primera es la grilla de *Mis Acciones* (`002-favorite-stocks`):
 
 ```
 favorites/service.py
@@ -184,6 +186,34 @@ stocks/__init__.py  →  __all__ = ["StockInfo", "get_stocks", "router"]
 ```
 
 **En batch, una sola consulta para toda la grilla.** Nunca un `get_stock()` por fila: eso es N+1.
+
+La segunda es el gráfico (`003-quote-chart`):
+
+```
+quotes/service.py
+    │  el Detalle es sólo para las acciones que el usuario tiene en su lista
+    │  quotes es suyo; user_stocks no
+    ▼
+favorites/__init__.py  →  __all__ = ["is_favorite", "router"]
+    from app.modules.favorites import is_favorite
+    is_favorite(session, user_id: int, symbol: str) -> bool
+```
+
+**Un booleano, una consulta, un símbolo por request.** Acá no hay lista que recorrer, así que no hay N+1 posible: lo que hay que sostener es que el `user_id` salga del token y de ningún otro lado (Artículo III). Es además lo que acota la cuota del Artículo II a los símbolos que alguien eligió mirar.
+
+Las dos tienen la misma forma y ninguna es una excepción: se entra por el paquete, se pide lo que el `__all__` declara, y el que pregunta no toca la tabla del otro.
+
+Y hay un módulo del que **nadie lee**, que es igual de informativo:
+
+```
+auth/__init__.py  →  __all__ = ["router"]
+```
+
+`auth` no exporta nada más que su router, y ningún módulo lo importa. Lo que los demás necesitan de
+la sesión —`get_current_user` y `CurrentUser`— no es lógica de `auth` sino una primitiva de
+seguridad, y por eso vive en `app/security.py`: si viviera adentro del módulo, los cuatro routers
+tendrían que importar un módulo de dominio para poder autorizar, y la dependencia apuntaría justo
+al revés de lo que dice esta página. Es la razón de que el ❌ de más arriba sea un ❌.
 
 ## Por dónde pasa una cotización
 

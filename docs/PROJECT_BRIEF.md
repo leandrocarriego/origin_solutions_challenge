@@ -146,6 +146,11 @@ El enunciado dice "los datos de la acción"; el wireframe muestra `TSLA - Tesla 
 *Resolución:* gana el wireframe — símbolo, nombre y moneda, que son además los tres campos que
 REQ-08 obliga a persistir.
 
+`A1`…`A7` son las ambigüedades **del enunciado**: las que valen para todo el proyecto. Las que cada
+feature resolvió con `/clarify` viven en la sección *Lo que se aparta de los wireframes* de su
+`spec.md` —`001-authentication`, `002-favorite-stocks` y `003-quote-chart`—, cada una con su
+alternativa descartada, y sus textos en `docs/design/COPY.md`.
+
 ---
 
 ## 4. Fuera de alcance

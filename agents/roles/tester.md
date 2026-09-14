@@ -23,10 +23,13 @@ vuelve a `plan`: no se inventa la firma ni se espera a que la decida el Develope
 - Mantener la suite verde y la cobertura por encima del umbral del proyecto.
 - Cubrir los casos que el implementador no consideró: vacío, límite, favorita duplicada, mercado
   cerrado, permiso denegado, reintento, concurrencia.
-- Cubrir la única lectura cruzada entre módulos: la grilla de N favoritas se resuelve con **una**
-  llamada a `get_stocks(symbols)` —`from app.modules.stocks import get_stocks, StockInfo`, la
-  puerta del paquete—, no con N. El N+1 deja el test funcional en verde igual; se detecta contando
-  queries, y por eso el test tiene que contarlas.
+- Cubrir las **dos** lecturas cruzadas entre módulos. La grilla de N favoritas se resuelve con
+  **una** llamada a `get_stocks(symbols)` —`from app.modules.stocks import get_stocks, StockInfo`,
+  la puerta del paquete—, no con N. El N+1 deja el test funcional en verde igual; se detecta
+  contando queries, y por eso el test tiene que contarlas. Y el gráfico del Detalle se sirve sólo
+  por las acciones de quien pregunta: `is_favorite(session, user_id, symbol)`, que `quotes` consume
+  de `favorites` —un símbolo por request, así que acá lo que hay que probar no es el N+1 sino que
+  el símbolo ajeno responda 404 y **no** llame al proveedor.
 - Mantener los tres tests de arquitectura, que son los que hacen cumplir las reglas
   estructurales — la documentación no rompe un build, un test sí:
   - `backend/tests/architecture/test_module_boundaries.py` — lee los imports con `ast`, de forma
