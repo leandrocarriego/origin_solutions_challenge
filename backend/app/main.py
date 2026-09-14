@@ -1,8 +1,5 @@
 """Composition root: mounts each module's router, CORS and error translation."""
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -24,27 +21,13 @@ configure_logging()
 configure_sentry()
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-    """Start what has to outlive a request, and stop it when the process goes away.
-
-    What runs is `app/tasks.py`'s business: this file starts it and stops it, and a background
-    task added there changes nothing here.
-
-    The return type is `AsyncGenerator` and not `AsyncIterator`: this function yields, so it is a
-    generator, and annotating `@asynccontextmanager` with the iterator is deprecated.
-
-    Nothing is checked about the signing secret here any more, and that is the improvement rather
-    than an omission: `JWT_SECRET` is a required field of `Settings` with a minimum length, so a
-    process without a usable one never gets as far as this function. The warning that used to live
-    here was the compensation for a check that happened at the first login; the check now happens
-    before the application object exists.
-    """
-    async with run_background_tasks():
-        yield
-
-
-app = FastAPI(title="ORIGIN Acciones", version=settings.version, lifespan=lifespan)
+# `run_background_tasks` is the lifespan: everything that has to outlive a request starts when
+# the application does and stops with it (`app/tasks.py`).
+app = FastAPI(
+    title="ORIGIN Acciones",
+    version=settings.version,
+    lifespan=run_background_tasks,
+)
 
 # Middlewares
 

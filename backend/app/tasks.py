@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import structlog
+from fastapi import FastAPI
 
 from app.modules.stocks import keep_the_catalogue_fresh
 
@@ -82,12 +83,25 @@ def _report(task: asyncio.Task[None]) -> None:
 
 
 @asynccontextmanager
-async def run_background_tasks() -> AsyncGenerator[None]:
+async def run_background_tasks(_: FastAPI) -> AsyncGenerator[None]:
     """Everything that outlives a request, for as long as the application does.
+
+    This **is** the application's lifespan, handed to `FastAPI(lifespan=...)`, which is why it
+    takes an application it never reads: Starlette calls it as `lifespan_context(app)`. A wrapper
+    in the composition root that existed only to hide that parameter would be an adapter between
+    two things that already fit.
+
+    It has to be the lifespan and not something called earlier: `asyncio.create_task` needs a
+    running event loop, and at import time there is none. And the lifespan is also the only place
+    that *stops* them -- everything after the `yield` is the shutdown, which is what keeps a task
+    from being left holding a database session while the process exits.
 
     The catalogue refresher is the only one today: `ADR-002` decided the catalogue keeps itself
     current instead of waiting for somebody to remember, and this is where "keeps itself" is
     wired.
+
+    The return type is `AsyncGenerator` and not `AsyncIterator`: this function yields, so it is a
+    generator, and annotating `@asynccontextmanager` with the iterator is deprecated.
     """
     async with running(keep_the_catalogue_fresh):
         yield
