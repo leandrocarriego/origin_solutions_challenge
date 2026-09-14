@@ -128,7 +128,7 @@ services:
           memory: 256M
 
   # Grafana IS reachable from the internet, at https://<domain>/grafana, behind its own login.
-  # It is served under a path rather than a subdomain because mendrisoftware.com has no wildcard
+  # It is served under a path rather than a subdomain because leandrocarriego.com has no wildcard
   # DNS: a `grafana.` host would need a Cloudflare record this deploy cannot create.
   #
   # Version: the current stable one. A public Grafana several releases behind is a published

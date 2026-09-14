@@ -20,7 +20,7 @@ un `docker compose` que levanta el proyecto entero con un comando.
 **Lo que todavía no existe:** autenticación, el catálogo de símbolos, las cotizaciones y las
 favoritas. Son las fases 1 a 3 de `docs/ROADMAP.md`.
 
-En producción: **https://origin-solutions-challenge.mendrisoftware.com**
+En producción: **https://origin-solutions-challenge.leandrocarriego.com**
 
 ## Puesta en marcha
 

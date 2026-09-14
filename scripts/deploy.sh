@@ -25,7 +25,7 @@ LOCAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # progress lives: deploying it means production can hold code that is on nobody's branch, that
 # no CI run ever saw and that no reviewer read.
 DEPLOY_REF="${DEPLOY_REF:-origin/main}"
-DOMAIN="${DOMAIN:-origin-solutions-challenge.mendrisoftware.com}"
+DOMAIN="${DOMAIN:-origin-solutions-challenge.leandrocarriego.com}"
 
 # --- 1. Resolve what is going out, before touching anything -----------------------------------
 echo "==> Trayendo ${DEPLOY_REF}"
