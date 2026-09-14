@@ -477,7 +477,7 @@ import está mal escrito — el paso de validación de abajo distingue las dos c
 - [ ] Se usan fixtures y factories en lugar de datos hardcodeados
 - [ ] Los tests son independientes y no comparten estado
 - [ ] Cobertura > 80% sobre el código nuevo
-- [ ] La suite corre sin red y sin API key (`TWELVEDATA_API_KEY=` vacía)
+- [ ] La suite corre sin red y sin API key (`MARKET_DATA_API_KEY=` vacía)
 - [ ] **Frontend** (si la feature toca una pantalla): `cd frontend && npm test` corre, y los tests
       nuevos fallan por ausencia de implementación; `npx tsc --noEmit` pasa
 - [ ] **Frontend**: se consulta por rol, etiqueta o texto — ni una clase de Tailwind, ni un

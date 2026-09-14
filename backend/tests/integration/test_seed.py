@@ -95,7 +95,7 @@ class TestItRefusesWhereItDoesNotBelong:
     ) -> None:
         """Two mistakes rather than one: SEC_ON_START is absent there and this refuses anyway."""
         get_settings.cache_clear()
-        monkeypatch.setenv("SENTRY_ENVIRONMENT", "production")
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         with pytest.raises(SeedRefused):
             await seed(session)
@@ -107,7 +107,7 @@ class TestItRefusesWhereItDoesNotBelong:
     ) -> None:
         """Refusing after inserting the users would be the worst of both."""
         get_settings.cache_clear()
-        monkeypatch.setenv("SENTRY_ENVIRONMENT", "production")
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         with pytest.raises(SeedRefused):
             await seed(session)

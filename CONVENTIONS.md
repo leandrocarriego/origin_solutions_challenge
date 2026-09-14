@@ -38,7 +38,7 @@ Estas once convenciones **no dependen de que alguien las lea**: hay un test que 
 | `PY-06` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando archivo y línea del import que cruza las capas adentro del módulo. |
 | `GEN-03` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla por cada archivo del kernel o de `providers/` que importa un módulo. El composition root —`main.py` y `tasks.py`— está excluido por nombre, y `TestTheExceptionIsDeclared` falla si esa lista cambia. |
 | `GEN-05` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando los dos módulos que se importan mutuamente. |
-| `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` | La suite falla por dos motivos: un cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor —sin distinguir mayúsculas— fuera de `app/providers/twelvedata.py` y `app/settings.py`. |
+| `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` | La suite falla por dos motivos: un cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor —sin distinguir mayúsculas— fuera de `app/providers/twelvedata.py`, que es su único hogar. |
 | `GEN-09` | `backend/tests/integration/test_user_isolation.py` | La suite falla si un usuario alcanza datos de otro. La mitad estática ya corre: `TestNoRouteAcceptsAUserId` en `test_route_authorization.py` falla por cada ruta que acepta la identidad del usuario por path, query o body. |
 | `PY-08` | `backend/tests/architecture/test_route_authorization.py` (`TestRoutesDeclareAuthorization` + `TestRoutesEnforceAuthorization`) | La suite falla por cada endpoint que responde sin decidir quién lo llama, y por cada entrada de `PUBLIC_ROUTES` sin motivo escrito o que ya no corresponde a ninguna ruta montada. |
 | `TEST-03` | La suite corre en CI con `TWELVEDATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
@@ -234,11 +234,13 @@ El protocolo vive en `app/providers/base.py` —hoy `MarketDataProvider`— y la
 
 **Ningún archivo fuera de `app/providers/` importa un cliente HTTP.** No es una regla sobre TwelveData: un service que hace `import httpx` y arma una URL ya salió al mundo por la ventana, y ese es el modo de falla real — el nombre del proveedor puede no aparecer nunca.
 
-El nombre `twelvedata`, su URL y su API key aparecen en **un** archivo: `app/providers/twelvedata.py`, que la lee de `app/settings.py`.
+El nombre `twelvedata` y su URL aparecen en **un solo** archivo: `app/providers/twelvedata.py`. Ni siquiera `app/settings.py` lo nombra: la credencial se llama `market_data_api_key` —se pide por *para qué es*, no por *quién la emitió*— y `market_data_provider` **no tiene default**, así que ningún entorno elige proveedor por olvido.
+
+Un proveedor nuevo es entonces un archivo en `app/providers/` con un `build()` y un valor de `MARKET_DATA_PROVIDER`: el registro lo resuelve por nombre (`import_module`), validado antes de importar. Nada más se toca.
 
 ```
 cd backend && grep -rnE "^\s*(import|from)\s+(httpx|requests|aiohttp|urllib\.request)\b" app | grep -v "^app/providers/"
-cd backend && grep -rni "twelvedata" app --include=*.py | grep -vE "^app/(providers/twelvedata\.py|settings\.py)"
+cd backend && grep -rni "twelvedata" app --include=*.py | grep -v "^app/providers/twelvedata.py"
 ```
 
 El segundo va con `-i` a propósito: sin él, `TwelveDataClient` y `TWELVEDATA_API_KEY` pasan limpio.

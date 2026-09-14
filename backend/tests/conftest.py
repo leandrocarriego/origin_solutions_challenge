@@ -3,10 +3,14 @@
 TEST-03: the suite runs with no network and no API key. Anything that would reach outside is
 replaced here -- never reached, and never a reason to skip a test.
 
-`JWT_SECRET` is set before anything of `app` is imported, and that ordering is the whole point:
-the variable is a required field of `Settings` (`SEC-05`), `Settings` is read while `app.main` is
-imported, so without this every module that reaches `app` would fail at collection. `setdefault`
-and not an assignment, so a suite run against a real environment keeps the secret it was given.
+Two variables are set before anything of `app` is imported, and that ordering is the whole point:
+both are required fields of `Settings`, `Settings` is read while `app.main` is imported, so
+without them every module that reaches `app` would fail at collection. `setdefault` and not an
+assignment, so a run against a real environment keeps what it was given.
+
+`MARKET_DATA_PROVIDER` is the upstream one because that is what the suite exercises: the real
+parsing, against fixed JSON, through a transport that never opens a socket (`TEST-03`). Nothing
+here reaches the network, and no test builds a provider from the environment without saying so.
 
 The value is not a secret and does not pretend to be one: it says so, and it is long enough to
 clear the floor and good for nothing else. It lives in the tests and never in `app/`, which is
@@ -17,6 +21,7 @@ with*.
 import os
 
 os.environ.setdefault("JWT_SECRET", "test-signing-secret-not-a-real-one")
+os.environ.setdefault("MARKET_DATA_PROVIDER", "twelvedata")
 
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
@@ -76,7 +81,7 @@ def sentinel_api_key(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     anything else, which is what makes the assertion meaningful.
     """
     get_settings.cache_clear()
-    monkeypatch.setenv("TWELVEDATA_API_KEY", SENTINEL_API_KEY)
+    monkeypatch.setenv("MARKET_DATA_API_KEY", SENTINEL_API_KEY)
     yield SENTINEL_API_KEY
     get_settings.cache_clear()
 

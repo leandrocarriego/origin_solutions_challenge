@@ -92,7 +92,7 @@ En `QuoteService`, y no en otro lado:
 
 ### 5) Configurar
 - Agregar a `Settings` (`backend/app/settings.py`, pydantic-settings) y a `.env.example`: URL base,
-  API key, timeouts, límite de reintentos. `TWELVEDATA_API_KEY` se lee ahí y sólo ahí: el provider
+  API key, timeouts, límite de reintentos. `MARKET_DATA_API_KEY` se lee ahí y sólo ahí —la credencial se pide por para qué es, no por quién la emitió (`GEN-08`)—: el provider
   recibe la config, no la va a buscar al entorno.
 - Nunca loguear la key. Si se loguea la URL, se enmascara el parámetro `apikey`.
 
@@ -138,7 +138,7 @@ En `QuoteService`, y no en otro lado:
 - No hay credenciales en el código ni en los logs; todo sale de `Settings`.
 - La suite pasa sin red y sin API key:
   ```bash
-  cd backend && TWELVEDATA_API_KEY= uv run pytest
+  cd backend && MARKET_DATA_API_KEY= uv run pytest
   ```
 
 ## Errores comunes (evitar)

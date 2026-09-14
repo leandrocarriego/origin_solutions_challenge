@@ -68,7 +68,7 @@ backend/app/
 │   └── sentry.py         qué se reporta y qué se tacha antes de salir
 ├── providers/            infraestructura de servicios externos
 │   ├── base.py           MarketDataProvider (ABC) · StockRecord · QuotePoint · ProviderError
-│   ├── twelvedata.py     ← el único archivo del repo que nombra TwelveData
+│   ├── twelvedata.py     ← el único archivo que nombra TwelveData, settings.py incluido
 │   ├── fake.py           FakeProvider, determinístico: corre toda la suite sin red
 │   └── registry.py       get_market_data_provider(): cuál de los dos, según settings
 └── modules/

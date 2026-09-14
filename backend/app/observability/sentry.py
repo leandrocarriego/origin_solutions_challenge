@@ -89,7 +89,7 @@ def configure_sentry() -> None:
 
     sentry_sdk.init(
         dsn=settings.sentry_dsn,
-        environment=settings.sentry_environment,
+        environment=settings.environment,
         release=settings.version,
         integrations=[FastApiIntegration(), AsyncioIntegration()],
         # The three defaults that would ship credentials to a third party. Frame locals hold

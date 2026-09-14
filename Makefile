@@ -45,7 +45,7 @@ hooks:  ## Instala los hooks de pre-commit (pre-commit y commit-msg)
 # and since the secret is a required field of Settings (SEC-05), importing it demands one. What
 # comes out of here is a document of types; nothing is signed or verified with this value.
 types:  ## Genera los tipos de la API del frontend desde el OpenAPI del backend (TS-03)
-	cd $(BACKEND) && JWT_SECRET=openapi-export-only-not-a-real-secret uv run python -c \
+	cd $(BACKEND) && JWT_SECRET=openapi-export-only-not-a-real-secret MARKET_DATA_PROVIDER=fake uv run python -c \
 		'import json; from app.main import app; print(json.dumps(app.openapi()))' \
 		| (cd ../$(FRONTEND) && npx openapi-typescript --output src/api/schema.d.ts)
 	cd $(FRONTEND) && npx prettier --write src/api/schema.d.ts

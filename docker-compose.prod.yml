@@ -40,10 +40,10 @@ services:
       CORS_ORIGINS: '["https://${DOMAIN}"]'
       VERSION: ${VERSION:-latest}
       SENTRY_DSN: ${SENTRY_DSN:-}
-      SENTRY_ENVIRONMENT: production
+      ENVIRONMENT: production
       # Empty is allowed while phase 0 only serves health. The quotes module reads it and
       # will fail loudly the moment it needs the provider, which is the right place to notice.
-      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      MARKET_DATA_API_KEY: ${TWELVEDATA_API_KEY:-}
       # The one that cannot be forgotten here, and the reason it carries ":?" and not just the
       # bare name: the secret is validated at use and not at import, so a deploy without it
       # starts, answers health in green, and breaks at the first login -- the worst of the three

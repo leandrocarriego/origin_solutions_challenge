@@ -71,7 +71,7 @@ DEMO_CATALOGUE = (
 
 def refuses_to_run() -> str | None:
     """The reason the seed must not run here, or None when it may."""
-    if get_settings().sentry_environment == "production":
+    if get_settings().environment == "production":
         return "the environment is production, and these passwords are in the repository"
 
     return None

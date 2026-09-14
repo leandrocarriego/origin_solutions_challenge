@@ -17,7 +17,7 @@ sobre si el código está bien.
 Corolario: **la suite completa corre sin red y sin API key.**
 
 ```
-cd backend && TWELVEDATA_API_KEY= uv run pytest
+cd backend && MARKET_DATA_API_KEY= uv run pytest
 ```
 
 ## Cómo se fija una respuesta

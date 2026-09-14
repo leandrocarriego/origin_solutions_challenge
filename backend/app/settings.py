@@ -1,8 +1,4 @@
-"""
-Typed configuration: everything the process reads from its environment.
-
-The provider credential is read here and nowhere else (Article I).
-"""
+"""Typed configuration: everything the process reads from its environment."""
 
 import re
 from functools import lru_cache
@@ -11,8 +7,6 @@ from typing import Final
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Signing HS256 with a short key is offline brute force on any captured token (SEC-05). It lives
-# here, where the value is validated, and `app/security.py` imports it: one number, two readers.
 MIN_JWT_SECRET_LENGTH: Final = 32
 
 
@@ -21,25 +15,23 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Identity of the running build. The deploy stamps it; locally it stays "dev".
     version: str = "dev"
 
     database_url: str = "postgresql+asyncpg://origin:origin@localhost:5432/origin"
-
-    # Article I: this never leaves the backend, and never reaches a VITE_* variable.
-    twelvedata_api_key: str = ""
-
-    # ADR-004: what session tokens are signed with. Required and with a floor, so a process
-    # without a usable one does not boot instead of breaking at the first login (SEC-05).
+    market_data_api_key: str = ""
     jwt_secret: str = Field(min_length=MIN_JWT_SECRET_LENGTH)
 
-    # Which module under app/providers/ serves market data. It lives here because GEN-08 keeps the
-    # provider's name to one file plus this one. Set it to "fake" and nothing reaches the network.
-    market_data_provider: str = "twelvedata"
+    # Which module under app/providers/ serves market data, resolved by name at wiring time. No
+    # default, so no environment picks a provider -- and spends its quota -- by forgetting to say
+    # which one. Set it to "fake" and nothing reaches the network.
+    market_data_provider: str = Field(min_length=1)
 
     # Empty disables Sentry, which is what local and CI want: no events, no network.
     sentry_dsn: str = ""
-    sentry_environment: str = "local"
+
+    # Which deployment this is. Sentry tags its events with it, and `seed.py` refuses to run when
+    # it says production -- a decision that is the environment's, not an observability vendor's.
+    environment: str = "local"
 
     # Narrowed to the frontend origin, never "*" (SEC-08).
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
@@ -58,11 +50,6 @@ class Settings(BaseSettings):
 
         return origins
 
-    @property
-    def market_data_api_key(self) -> str:
-        """The credential of whichever provider is configured, asked for by what it is for."""
-        return self.twelvedata_api_key
-
     def secret_values(self) -> tuple[str, ...]:
         """Every literal secret this process holds, for whoever has to blank them out."""
         # It lives next to the fields and not next to the scrubber, so adding a credential and
@@ -73,7 +60,7 @@ class Settings(BaseSettings):
         return tuple(
             value
             for value in (
-                self.twelvedata_api_key,
+                self.market_data_api_key,
                 self.jwt_secret,
                 password.group(1) if password else "",
             )
