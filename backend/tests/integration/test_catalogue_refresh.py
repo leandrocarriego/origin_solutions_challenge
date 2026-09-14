@@ -1,7 +1,7 @@
-"""Nobody has to remember to refresh the catalogue (ADR-002).
+"""Nobody has to remember to refresh the catalogue.
 
 The reconciliation exists and works, and that is not enough: a catalogue refreshed by whoever
-remembers is the thing ADR-002 was rewritten to stop being. So it runs on its own -- when the
+remembers is the thing the refresher was rewritten to stop being. So it runs on its own -- when the
 process starts if the last success is older than a day, and once a day after that.
 
 Two credits per full refresh out of 800 is 0.25% of the quota, which is what makes "refresh
@@ -20,6 +20,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.stocks.models import Stock
+from app.modules.stocks.repository import StockRepository
 from app.modules.stocks.service import (
     CATALOGUE_EXCHANGES,
     is_catalogue_stale,
@@ -43,20 +44,28 @@ class TestWhenTheCatalogueIsStale:
         self, session: AsyncSession
     ) -> None:
         """An empty table is not fresh, it is unknown, and the difference matters on first boot."""
-        assert await is_catalogue_stale(session, older_than=A_DAY)
+        assert await is_catalogue_stale(StockRepository(session), older_than=A_DAY)
 
     async def test_a_catalogue_ingested_just_now_is_not_stale(self, session: AsyncSession) -> None:
         """This is the guard that stops a restart loop from spending the day's quota."""
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
+        )
 
-        assert not await is_catalogue_stale(session, older_than=A_DAY, exchange="NASDAQ")
+        assert not await is_catalogue_stale(
+            StockRepository(session), older_than=A_DAY, exchange="NASDAQ"
+        )
 
     async def test_a_catalogue_older_than_the_window_is_stale(self, session: AsyncSession) -> None:
-        """A day is the window ADR-002 chose, and it is an argument so it can be changed."""
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
+        """A day is the window chosen, and it is an argument so it can be changed."""
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
+        )
         await age_the_catalogue(session, by=timedelta(hours=25))
 
-        assert await is_catalogue_stale(session, older_than=A_DAY, exchange="NASDAQ")
+        assert await is_catalogue_stale(
+            StockRepository(session), older_than=A_DAY, exchange="NASDAQ"
+        )
 
 
 class TestTheRefresherSpendsNothingItDoesNotNeed:
@@ -72,13 +81,13 @@ class TestTheRefresherSpendsNothingItDoesNotNeed:
         """
         for exchange in CATALOGUE_EXCHANGES:
             await reconcile_catalogue(
-                session,
+                StockRepository(session),
                 StubProvider({exchange: [listed(f"X{exchange}", exchange=exchange)]}),
                 exchange,
             )
         provider = StubProvider({"NASDAQ": [listed("TSLA")], "NYSE": []})
 
-        await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
 
         assert provider.calls == []
 
@@ -92,7 +101,7 @@ class TestTheRefresherSpendsNothingItDoesNotNeed:
         that succeeded is not asked again.
         """
         await refresh_catalogue_if_stale(
-            session,
+            StockRepository(session),
             StubProvider({"NYSE": [listed("A", exchange="NYSE")]}, failing={"NASDAQ"}),
             older_than=A_DAY,
         )
@@ -100,7 +109,7 @@ class TestTheRefresherSpendsNothingItDoesNotNeed:
             {"NASDAQ": [listed("TSLA")], "NYSE": [listed("A", exchange="NYSE")]}
         )
 
-        await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
 
         assert provider.calls == ["NASDAQ"]
 
@@ -112,7 +121,7 @@ class TestTheRefresherSpendsNothingItDoesNotNeed:
             {"NASDAQ": [listed("TSLA")], "NYSE": [listed("A", exchange="NYSE")]}
         )
 
-        await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
 
         assert sorted(provider.calls) == sorted(CATALOGUE_EXCHANGES)
 
@@ -130,7 +139,7 @@ class TestOneMarketFailingDoesNotStopTheOther:
         """Skipping NASDAQ because NYSE timed out would be losing data for no reason."""
         provider = StubProvider({"NASDAQ": [listed("TSLA")]}, failing={"NYSE"})
 
-        await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
 
         assert await session.get(Stock, "TSLA") is not None
 
@@ -138,7 +147,9 @@ class TestOneMarketFailingDoesNotStopTheOther:
         """A refresh that half worked has to say so, or it reads as a refresh that worked."""
         provider = StubProvider({"NASDAQ": [listed("TSLA")]}, failing={"NYSE"})
 
-        outcome = await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        outcome = await refresh_catalogue_if_stale(
+            StockRepository(session), provider, older_than=A_DAY
+        )
 
         assert outcome.failed == ("NYSE",)
 
@@ -146,7 +157,9 @@ class TestOneMarketFailingDoesNotStopTheOther:
         """It runs in the background: an exception there takes the task down for good."""
         provider = StubProvider({}, failing={"NYSE", "NASDAQ"})
 
-        outcome = await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        outcome = await refresh_catalogue_if_stale(
+            StockRepository(session), provider, older_than=A_DAY
+        )
 
         assert sorted(outcome.failed) == sorted(CATALOGUE_EXCHANGES)
 
@@ -157,10 +170,10 @@ class TestTheFreshnessIsPublished:
     async def test_the_gauge_carries_the_instant_of_the_last_success(
         self, session: AsyncSession
     ) -> None:
-        """Grafana charts its age, so a refresher that quietly died is visible (ADR-009)."""
+        """Grafana charts its age, so a refresher that quietly died is visible."""
         provider = StubProvider({"NASDAQ": [listed("TSLA")], "NYSE": [listed("A")]})
 
-        await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
 
         published = REGISTRY.get_sample_value("catalogue_last_success_timestamp_seconds")
         assert published is not None
@@ -173,12 +186,14 @@ class TestTheFreshnessIsPublished:
         provider = StubProvider(
             {"NASDAQ": [listed("TSLA")], "NYSE": [listed("A", exchange="NYSE")]}
         )
-        await refresh_catalogue_if_stale(session, provider, older_than=A_DAY)
+        await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
         before = REGISTRY.get_sample_value("catalogue_last_success_timestamp_seconds")
 
         await age_the_catalogue(session, by=timedelta(hours=25))
         await refresh_catalogue_if_stale(
-            session, StubProvider({}, failing=set(CATALOGUE_EXCHANGES)), older_than=A_DAY
+            StockRepository(session),
+            StubProvider({}, failing=set(CATALOGUE_EXCHANGES)),
+            older_than=A_DAY,
         )
 
         assert REGISTRY.get_sample_value("catalogue_last_success_timestamp_seconds") == before

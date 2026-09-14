@@ -1,4 +1,4 @@
-"""The migration of the autocomplete, run against a real database (DB-01, DB-03).
+"""The migration of the autocomplete, run against a real database.
 
 `529bd7f366dd` creates `pg_trgm` and the two GIN indexes the search reads through, and it is the
 one kind of code that no other test can reach: the suite runs against a database somebody already
@@ -16,7 +16,7 @@ Three claims, and the second is the one that is easy to get wrong:
   there, which is exactly what `CREATE EXTENSION IF NOT EXISTS` exists for -- and what a managed
   Postgres, where the operator creates the extension by hand, looks like on every deploy.
 
-And `alembic check`, which is DB-01 itself: the models and the tables describe the same schema.
+And `alembic check`: the models and the tables describe the same schema.
 CI runs it as a step; having it here as well is what makes a drifted model fail in the suite the
 developer runs, and not only after the push.
 
@@ -161,7 +161,7 @@ class TestRunningItTwice:
 
 
 class TestTheModelsMatchTheTables:
-    """DB-01: `alembic check`, run from the suite and not only from CI."""
+    """`alembic check`, run from the suite and not only from CI."""
 
     def test_alembic_check_finds_no_drift(self, at_head: Config) -> None:
         """The two `Index(...)` at the foot of `stocks/models.py` describe what was migrated.

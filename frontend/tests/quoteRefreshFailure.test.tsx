@@ -32,7 +32,7 @@
  * Testing Library's waiting still works while the clock is ours.
  *
  * `fetch` is replaced in every test and restored afterwards: a frontend test that goes to the
- * network is not a frontend test (`add_tests`, `TEST-03`).
+ * network is not a frontend test.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -43,7 +43,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { writeStoredSession } from '../src/auth/storage';
 
-/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md (UI-02). */
+/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md. */
 const INTERVALO = 'Intervalo';
 const GRAFICAR = 'Graficar';
 const COTIZACION = 'Cotización';
@@ -290,7 +290,7 @@ async function plotWith(interval: string): Promise<void> {
   await person.click(screen.getByRole('button', { name: GRAFICAR }));
 }
 
-/** Move the screen to `Histórico`, whose two date fields are already filled in (RF-10). */
+/** Move the screen to `Histórico`, whose two date fields are already filled in. */
 async function chooseHistoric(): Promise<void> {
   const person = userEvent.setup();
 
@@ -340,7 +340,7 @@ describe('the automatic refresh of Tiempo Real when it stops landing', () => {
 
   it('says the quotes are the last ones available when a refresh does not arrive', async () => {
     // The decision of 2026-09-14: the refresh no longer swallows its error. Until the interval
-    // went by there was nothing to say -- the series arrived `ok` and said nothing (RF-32) -- and
+    // went by there was nothing to say -- the series arrived `ok` and said nothing -- and
     // from the moment one did not arrive, what is on screen is old and the notice says so, in the
     // sentence `Avisos de estado` already has for that fact.
     await plotAndTakeTheClock('1min');
@@ -388,7 +388,7 @@ describe('the automatic refresh of Tiempo Real when it stops landing', () => {
 
   it('takes the notice away as soon as a refresh arrives again', async () => {
     // The notice describes the present and not a scar: one interval later the answer came back,
-    // so the chart is current again and there is nothing left to explain (RF-32). A notice that
+    // so the chart is current again and there is nothing left to explain. A notice that
     // stayed would be read as a screen that is still broken, and the next real one would not be
     // believed.
     await plotAndTakeTheClock('1min');
@@ -446,7 +446,7 @@ describe('the automatic refresh of Tiempo Real when it stops landing', () => {
 
 describe('a chart of Histórico left on screen while our API is failing', () => {
   it('never shows the notice of a refresh, because it arms no refresh at all', async () => {
-    // RF-23: a period that already ended does not change, so `Histórico` arms no timer -- and a
+    // a period that already ended does not change, so `Histórico` arms no timer -- and a
     // notice about a refresh that was never due is a screen calling itself old for no reason. The
     // endpoint is left failing for ten intervals, which is the state that would produce the notice
     // if a timer had been armed: no request is the assertion, and no notice is what it buys.

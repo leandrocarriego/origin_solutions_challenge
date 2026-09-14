@@ -11,7 +11,7 @@
  * asking, the interval selector, `Graficar`, the chart it draws and the one invalid query of this
  * story. The refresh of H2 lives in `quoteRefresh.test.tsx`, the date fields and the range
  * failures of H3 in `quoteHistoric.test.tsx`, the notices of H4 in `quoteNotice.test.tsx`, and
- * that this address with no session lands on the login (RF-02) in `session.test.tsx`, where
+ * that this address with no session lands on the login in `session.test.tsx`, where
  * `tasks.md` puts it.
  *
  * Today every test here is red because `/stocks/:symbol` has nothing behind it: `002` has not been
@@ -23,8 +23,8 @@
  * a test can see is the *text* it writes -- the title, the two axis titles -- and the identity of
  * the node it drew into. So "there is a chart" here means "the vertical axis title `Cotización` is
  * on screen", and "it was not remounted" means the SVG that carries it is the same node as before
- * (RF-19). The point-level requirements -- each point at its own market hour (RF-15, RF-36) and
- * the tooltip with the two hours (RF-38) -- are *not* asserted here: they live inside the SVG
+ *. The point-level requirements -- each point at its own market hour and
+ * the tooltip with the two hours -- are *not* asserted here: they live inside the SVG
  * layout, which jsdom does not compute, and `plan.md` names `src/quotes/market.ts` and its two
  * formatters without fixing their signatures, so a unit test of them would have to invent one.
  * They are reported as an escalation rather than written as a test that could only go green by
@@ -32,7 +32,7 @@
  * `/plan`).
  *
  * `fetch` is replaced in every test and restored afterwards: a frontend test that goes to the
- * network is not a frontend test (`add_tests`, `TEST-03`).
+ * network is not a frontend test.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -43,7 +43,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { writeStoredSession } from '../src/auth/storage';
 
-// Verbatim from the `Detalle de Acción` table of docs/design/COPY.md (UI-02). The two parenthesised
+// Verbatim from the `Detalle de Acción` table of docs/design/COPY.md. The two parenthesised
 // notes carry the misspellings of the brief on purpose -- `opcion` and `segun`, with no accent --
 // and a test that "fixed" them would be asking for the opposite of what the client signed.
 const TIEMPO_REAL = 'Tiempo Real';
@@ -81,14 +81,14 @@ interface Favorite {
   currency: string;
 }
 
-/** The favourites of the demo user. `MSFT` is deliberately not one of them (RF-35). */
+/** The favourites of the demo user. `MSFT` is deliberately not one of them. */
 const THE_LIST: Favorite[] = [
   { symbol: 'TSLA', name: 'Tesla Inc', currency: 'USD' },
   { symbol: 'AAPL', name: 'Apple Inc', currency: 'USD' },
 ];
 
 const TSLA = THE_LIST[0] as Favorite;
-/** RF-01, assembled the way `COPY.md` writes it: `{símbolo} - {nombre} - {moneda}`. */
+/** The heading, assembled the way `COPY.md` writes it: `{símbolo} - {nombre} - {moneda}`. */
 const TSLA_HEADER = `${TSLA.symbol} - ${TSLA.name} - ${TSLA.currency}`;
 
 /** One candle as `GET /api/quotes/{symbol}` answers it: an instant in UTC and a price as string. */
@@ -203,7 +203,7 @@ function openAt(address: string): { unmount: () => void } {
  * that owns it -- instead of being typed into the login on the way to every test here. What is
  * being tested is wireframe 03 and not the door: `Login.test.tsx` and `session.test.tsx` own the
  * door, and walking through it fifty times would add a minute to the suite to re-prove what they
- * already prove. That an address opened with no session lands on the login is RF-02, and it lives
+ * already prove. That an address opened with no session lands on the login is another test, and it lives
  * in `session.test.tsx`.
  */
 function openTheDetail(symbol: string): { unmount: () => void } {
@@ -288,7 +288,7 @@ afterEach(() => {
 
 describe('the header of the detail', () => {
   it('shows the symbol, the name and the currency of the action that was opened', async () => {
-    // RF-01, and the three values are the ones `GET /api/favorites` answered: the header is not
+    // The three values are the ones `GET /api/favorites` answered: the header is not
     // assembled from the address, which carries only the symbol.
     await theDetailOf(TSLA.symbol);
 
@@ -304,7 +304,7 @@ describe('the header of the detail', () => {
   });
 
   it('offers the way back to the list as a link, and it goes there', async () => {
-    // RF-34. A link and not a `<span>` with an `onClick`: the way back has to be reachable by its
+    // A link and not a `<span>` with an `onClick`: the way back has to be reachable by its
     // role, which is how it is reachable with a keyboard.
     await theDetailOf(TSLA.symbol);
 
@@ -315,7 +315,7 @@ describe('the header of the detail', () => {
   });
 
   it('says which clock the hours on this screen are told in', async () => {
-    // RF-37, verbatim. An axis that starts at 09:30 has to say which clock it is talking about.
+    // Verbatim. An axis that starts at 09:30 has to say which clock it is talking about.
     await theDetailOf(TSLA.symbol);
 
     expect(screen.getByText(HORARIOS)).toBeInTheDocument();
@@ -324,7 +324,7 @@ describe('the header of the detail', () => {
 
 describe('the detail of an action that is not in the list of whoever asked', () => {
   it('leaves the person on Mis Acciones, with no chart to press', async () => {
-    // RF-35. `MSFT` is not among the favourites the API answered, so the address does not open a
+    // `MSFT` is not among the favourites the API answered, so the address does not open a
     // screen: it sends the visitor back to the list. The list is asked for first -- whose the
     // symbol is is not something the address can answer -- and that call is what tells a decision
     // apart from an address that simply leads nowhere.
@@ -340,7 +340,7 @@ describe('the detail of an action that is not in the list of whoever asked', () 
 
 describe('the two ways of asking, as the wireframe draws them', () => {
   it('offers Tiempo Real and Histórico, and only one of them at a time', async () => {
-    // RF-03. Two radios of the same group: marking one unmarks the other, which a pair of
+    // Two radios of the same group: marking one unmarks the other, which a pair of
     // checkboxes would not do.
     await theDetailOf(TSLA.symbol);
 
@@ -355,7 +355,7 @@ describe('the two ways of asking, as the wireframe draws them', () => {
   });
 
   it('opens with Tiempo Real already marked', async () => {
-    // RF-04, which is what makes the first plot of the screen the one the brief describes.
+    // Which is what makes the first plot of the screen the one the brief describes.
     await theDetailOf(TSLA.symbol);
 
     expect(screen.getByRole('radio', { name: new RegExp(TIEMPO_REAL) })).toBeChecked();
@@ -363,8 +363,8 @@ describe('the two ways of asking, as the wireframe draws them', () => {
   });
 
   it('writes the note of the brief next to Tiempo Real, misspellings and all', async () => {
-    // RF-05, verbatim from COPY.md: `opcion` and `segun` have no accent in the brief, and this is
-    // what stops somebody from "fixing" them on the way to the screen (UI-02, Article VII).
+    // Verbatim from COPY.md: `opcion` and `segun` have no accent in the brief, and this is
+    // what stops somebody from "fixing" them on the way to the screen.
     await theDetailOf(TSLA.symbol);
 
     expect(screen.getByText(ACLARACION_TIEMPO_REAL)).toBeInTheDocument();
@@ -373,7 +373,7 @@ describe('the two ways of asking, as the wireframe draws them', () => {
 
 describe('the interval selector', () => {
   it('offers the three intervals of the brief, and nothing else', async () => {
-    // RF-06. The empty option the selector opens on is not one of the three: what is asserted is
+    // The empty option the selector opens on is not one of the three: what is asserted is
     // that the choices with a value are exactly the ones the brief names.
     await theDetailOf(TSLA.symbol);
 
@@ -385,15 +385,15 @@ describe('the interval selector', () => {
   });
 
   it('opens with nothing chosen', async () => {
-    // RF-07, and it is the wireframe read literally: the selector is drawn empty. It is also what
-    // keeps opening the screen from costing a call to the provider (Article II).
+    // It is the wireframe read literally: the selector is drawn empty. It is also what
+    // keeps opening the screen from costing a call to the provider.
     await theDetailOf(TSLA.symbol);
 
     expect(theIntervalSelect().value).toBe('');
   });
 
   it('carries the note of the brief next to it', async () => {
-    // RF-08, verbatim: `( opciones 1min / 5min / 15min)`, with the spacing the wireframe has.
+    // Verbatim: `( opciones 1min / 5min / 15min)`, with the spacing the wireframe has.
     await theDetailOf(TSLA.symbol);
 
     expect(screen.getByText(ACLARACION_INTERVALO)).toBeInTheDocument();
@@ -402,14 +402,13 @@ describe('the interval selector', () => {
 
 describe('the detail before anybody presses Graficar', () => {
   it('offers the button', async () => {
-    // RF-11.
     await theDetailOf(TSLA.symbol);
 
     expect(screen.getByRole('button', { name: GRAFICAR })).toBeInTheDocument();
   });
 
   it('shows no chart, not even an empty one', async () => {
-    // RF-12. An empty plotting area is still a chart on screen, and the wireframe draws the space
+    // An empty plotting area is still a chart on screen, and the wireframe draws the space
     // below the controls with nothing in it until the button is pressed.
     await theDetailOf(TSLA.symbol);
 
@@ -418,8 +417,8 @@ describe('the detail before anybody presses Graficar', () => {
   });
 
   it('asks our API for nothing', async () => {
-    // RF-12 again, on the side that costs money: opening the screen does not spend a request, and
-    // therefore cannot spend a credit of the provider's quota (Article II).
+    // Again, on the side that costs money: opening the screen does not spend a request, and
+    // therefore cannot spend a credit of the provider's quota.
     await theDetailOf(TSLA.symbol);
 
     expect(timesAskedForASeries()).toBe(0);
@@ -428,7 +427,7 @@ describe('the detail before anybody presses Graficar', () => {
 
 describe('Graficar in Tiempo Real', () => {
   it('draws the chart the brief describes: the symbol on top and the two axes named', async () => {
-    // RF-14. The three texts are the ones `COPY.md` fixes for the chart, and they are what a
+    // The three texts are the ones `COPY.md` fixes for the chart, and they are what a
     // person reads on it: the title, the vertical axis and the horizontal one.
     await theDetailOf(TSLA.symbol);
 
@@ -456,7 +455,7 @@ describe('Graficar in Tiempo Real', () => {
   });
 
   it('asks our API and never the provider', async () => {
-    // RF-26 and Article I from the browser's side: every call this screen makes is origin-relative
+    // From the browser's side: every call this screen makes is origin-relative
     // and goes to `/api`. A screen that knew the provider's address would show up here.
     await theDetailOf(TSLA.symbol);
 
@@ -469,7 +468,7 @@ describe('Graficar in Tiempo Real', () => {
   });
 
   it('replaces the chart when it is pressed again, instead of stacking a second one', async () => {
-    // RF-17. Two charts one under the other is the failure this describes, and counting the axis
+    // Two charts one under the other is the failure this describes, and counting the axis
     // title is what tells it apart from one chart redrawn.
     await theDetailOf(TSLA.symbol);
 
@@ -483,7 +482,7 @@ describe('Graficar in Tiempo Real', () => {
   });
 
   it('brings none of what Highcharts turns on and the spec leaves out', async () => {
-    // UI-01. Zoom, range selection, the export menu and the credit at the foot come switched on
+    // Zoom, range selection, the export menu and the credit at the foot come switched on
     // and are out of scope: a screen that offers them does something nobody asked for.
     await theDetailOf(TSLA.symbol);
 
@@ -497,8 +496,8 @@ describe('Graficar in Tiempo Real', () => {
 
 describe('Graficar with no interval chosen', () => {
   it('says which choice is missing, right under the selector', async () => {
-    // RF-39, verbatim. Under the selector and not above the chart: there is no data yet, and the
-    // notices above the chart are the ones that qualify data (UI-05).
+    // Verbatim. Under the selector and not above the chart: there is no data yet, and the
+    // notices above the chart are the ones that qualify data.
     await theDetailOf(TSLA.symbol);
 
     const person = userEvent.setup();
@@ -510,7 +509,7 @@ describe('Graficar with no interval chosen', () => {
   });
 
   it('asks our API for nothing, so the provider is never reached', async () => {
-    // RF-47. A query that cannot be made does not travel: it is stopped on the screen, before
+    // A query that cannot be made does not travel: it is stopped on the screen, before
     // there is a request to answer.
     await theDetailOf(TSLA.symbol);
 
@@ -522,7 +521,6 @@ describe('Graficar with no interval chosen', () => {
   });
 
   it('draws no chart', async () => {
-    // RF-46.
     await theDetailOf(TSLA.symbol);
 
     const person = userEvent.setup();
@@ -533,7 +531,7 @@ describe('Graficar with no interval chosen', () => {
   });
 
   it('leaves the chart that was already there exactly as it was', async () => {
-    // RF-48, and it is the same invariant the three range failures of H3 have: an invalid query
+    // It is the same invariant the three range failures of H3 have: an invalid query
     // does not touch what is on screen. The node is compared by identity, because a chart redrawn
     // from scratch "looks right" and is not what the requirement says.
     await theDetailOf(TSLA.symbol);

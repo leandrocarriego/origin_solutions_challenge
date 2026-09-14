@@ -66,7 +66,7 @@
   `io.py` → `schemas/io.py` + `schemas/<otros>.py`—: si esta feature dispara ese
   crecimiento, se declara acá, porque mueve archivos que otros agentes van a buscar.
 
-  `TWELVEDATA_API_KEY` se lee en `app/settings.py` y en ningún otro lado (Artículo I), y
+  `MARKET_DATA_API_KEY` se lee en `app/settings.py` y en ningún otro lado (Artículo I), y
   el único archivo del repositorio que nombra TwelveData es
   `app/providers/twelvedata.py` (GEN-08).
 

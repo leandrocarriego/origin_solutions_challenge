@@ -1,23 +1,5 @@
 #!/usr/bin/env python3
-"""GEN-07: comments in code and configuration files are written in English.
-
-The first version of this check was a grep anchored at the start of the line, and it missed
-every trailing comment -- `foo = 1  # comentario` walked straight past it. That is why this is
-Python: finding where a comment starts means knowing where a string ends.
-
-Two things are deliberately NOT flagged:
-
-  * Words spelled the same in both languages -- no, es, son, si, la, un, sin, solo, version.
-    A first draft that included them reported 32 findings, all false, and a check that cries
-    wolf is a check people learn to skip.
-  * Spanish that is output rather than a comment: `make help` descriptions, pre-commit hook
-    names, CI step names, the deploy script's echo lines. None of those start a comment, and
-    GEN-07 requires them to stay in Spanish.
-  * Spanish quoted inside an English comment with backticks. A comment that names the literal it
-    verifies -- `Esa acción ya está en tu lista.` -- is written in English *about* a Spanish
-    string, and UI-02 is what asks for that string to be reproduced verbatim. Rewriting the
-    quote to get past this check would take the one thing that makes the comment useful.
-"""
+"""GEN-07: comments in code and configuration files are written in English."""
 
 import io
 import re

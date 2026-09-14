@@ -1,19 +1,19 @@
-"""GET /api/favorites: the grid of My Actions (RF-01, RF-03, RF-05, RF-06, RF-07).
+"""GET /api/favorites: the grid of My Actions.
 
 The endpoint the screen of the wireframe is painted from. Four claims here are the ones a
 well-meaning implementation gets wrong, and each has its own class:
 
 - **The list is the one of the token's user**, and the name and the currency come from the
-  catalogue and not from `user_stocks`, which does not store them (RF-03). That a *second*
+  catalogue and not from `user_stocks`, which does not store them. That a *second*
   user's rows never appear is the same statement seen from the outside, and it lives in
-  `test_user_isolation.py` because it is Article III and deserves its own file.
-- **The order is `added_at DESC, symbol ASC`** (RF-06). The tie-break is not decoration: the
+  `test_user_isolation.py` because it is the isolation rule and deserves its own file.
+- **The order is `added_at DESC, symbol ASC`**. The tie-break is not decoration: the
   seed inserts the three favourites in one statement, so `now()` is the same for all of them,
   and without a second criterion the grid would reshuffle between two reloads. The test asks
   twice and compares, because an order that is merely usually right is the worst kind.
-- **No favourites is `200 []`** and never a 404 (RF-07): an empty list is a result. The text
+- **No favourites is `200 []`** and never a 404: an empty list is a result. The text
   `Todavía no agregaste ninguna acción.` belongs to the screen, so nothing here asserts it.
-- **It is persisted, not remembered.** RF-05 is verified against Postgres with two distinct
+- **It is persisted, not remembered.** Verified against Postgres with two distinct
   sessions of the same user -- the second one obtained by signing in again through the API, the
   way somebody who closed the tab gets one. A re-request on the same client would prove nothing.
 
@@ -109,7 +109,7 @@ def _symbols(payload: list[dict[str, str]]) -> list[str]:
 
 
 class TestTheGridOfWhoeverIsAsking:
-    """RF-01 and RF-03: the favourites of the token's user, described by the catalogue."""
+    """The favourites of the token's user, described by the catalogue."""
 
     async def test_it_answers_200(
         self, client: AsyncClient, the_grid_of_the_wireframe: User
@@ -124,7 +124,7 @@ class TestTheGridOfWhoeverIsAsking:
     async def test_it_answers_the_favourites_of_that_user(
         self, client: AsyncClient, the_grid_of_the_wireframe: User
     ) -> None:
-        """RF-01: the three symbols of the wireframe, and nothing else."""
+        """The three symbols of the wireframe, and nothing else."""
         response = await client.get(
             _FAVORITES, headers=_bearer(_token_of(the_grid_of_the_wireframe))
         )
@@ -134,7 +134,7 @@ class TestTheGridOfWhoeverIsAsking:
     async def test_every_row_carries_the_symbol_the_name_and_the_currency(
         self, client: AsyncClient, the_grid_of_the_wireframe: User
     ) -> None:
-        """RF-03: the three columns of the grid, read from `stocks` and not from `user_stocks`.
+        """The three columns of the grid, read from `stocks` and not from `user_stocks`.
 
         The favourites table stores neither the name nor the currency, so a row that carries
         them proves the cross-module read happened. The three are asserted together, each with
@@ -163,14 +163,14 @@ class TestTheGridOfWhoeverIsAsking:
         assert all(set(row) == {"symbol", "name", "currency"} for row in response.json())
 
     async def test_an_anonymous_call_is_refused(self, client: AsyncClient) -> None:
-        """PY-08: the route is protected, and it is not in `PUBLIC_ROUTES`."""
+        """The route is protected, and it is not in `PUBLIC_ROUTES`."""
         response = await client.get(_FAVORITES)
 
         assert response.status_code == 401
 
 
 class TestTheOrderOfTheGrid:
-    """RF-06: most recently added first, and the same order every time it is asked."""
+    """Most recently added first, and the same order every time it is asked."""
 
     async def test_the_most_recent_comes_first_even_when_its_symbol_sorts_last(
         self, client: AsyncClient, session: AsyncSession, the_grid_of_the_wireframe: User
@@ -224,7 +224,7 @@ class TestTheOrderOfTheGrid:
 
 
 class TestAUserWithNoFavourites:
-    """RF-07: an empty list is a result, not a failure."""
+    """An empty list is a result, not a failure."""
 
     async def test_it_answers_an_empty_list(self, client: AsyncClient, juan: User) -> None:
         """200 and `[]`; the screen is the one that writes the empty-state text."""
@@ -235,7 +235,7 @@ class TestAUserWithNoFavourites:
 
 
 class TestTheListSurvivesTheSession:
-    """RF-05: the grid lives in Postgres, so a second sign-in finds it there."""
+    """The grid lives in Postgres, so a second sign-in finds it there."""
 
     async def test_a_second_session_of_the_same_user_sees_the_same_grid(
         self, session: AsyncSession, the_grid_of_the_wireframe: User
@@ -292,7 +292,7 @@ class TestAFavouriteThatStoppedTrading:
     async def test_it_keeps_its_name_and_its_currency(
         self, client: AsyncClient, session: AsyncSession, juan: User
     ) -> None:
-        """RF-03 holds for it too: the row is complete, not a bare symbol."""
+        """Holds for it too: the row is complete, not a bare symbol."""
         await StockFactory.create(
             session,
             symbol="ZZZZ",

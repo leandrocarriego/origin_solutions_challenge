@@ -1,6 +1,6 @@
 """What the ingestion keeps, and what it drops before anything reaches the table.
 
-This is not housekeeping: `ADR-001` chose `symbol` as the natural primary key of `stocks`, and
+This is not housekeeping: `symbol` is the natural primary key of `stocks`, and
 that key is only true because of this filter. It was measured, not assumed -- over the 7.572 rows
 of NYSE plus NASDAQ on 2026-09-13 there is exactly one duplicated symbol and it is a warrant, and
 exactly one symbol that cannot survive a URL segment.
@@ -8,7 +8,7 @@ exactly one symbol that cannot survive a URL segment.
 Two rules, and the reason for each:
 
   - warrants are derivatives, not stocks, and they are the only thing that duplicates a symbol;
-  - the symbol travels in the URL (REQ-11), so a slash in it is not a symbol, it is a route.
+  - the symbol travels in the URL, so a slash in it is not a symbol, it is a route.
 """
 
 import pytest
@@ -31,7 +31,7 @@ def entry(symbol: str, instrument_type: str = "Common Stock") -> StockRecord:
 
 
 class TestTheSymbolHasToSurviveAUrl:
-    """REQ-11 puts the symbol in the path, so what cannot be a path segment is not a symbol."""
+    """puts the symbol in the path, so what cannot be a path segment is not a symbol."""
 
     @pytest.mark.parametrize("symbol", ["TSLA", "AAPL", "NFLX", "A"])
     def test_the_symbols_of_the_wireframe_are_kept(self, symbol: str) -> None:
@@ -56,7 +56,7 @@ class TestTheSymbolHasToSurviveAUrl:
 class TestOnlyWarrantsAreDroppedByType:
     """Only the derivative goes.
 
-    ADR-001 rejected a Common-Stock-only filter: it threw away 607 rows that collide with
+    A Common-Stock-only filter was rejected: it threw away 607 rows that collide with
     nothing.
     """
 

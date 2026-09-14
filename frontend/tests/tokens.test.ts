@@ -1,5 +1,5 @@
 /**
- * UI-03 and UI-07: no colour is written by hand, and no style is written inline.
+ * no colour is written by hand, and no style is written inline.
  *
  * The palette lives in the `@theme` block of `src/styles/tokens.css` and reaches a component as a
  * utility (`bg-surface`, `text-error`, `border-border`). A hex in a component is a second place

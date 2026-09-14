@@ -1,4 +1,4 @@
-"""The attempt limit, over HTTP (RF-21 to RF-26).
+"""The attempt limit, over HTTP.
 
 The limit is counted on two keys at once -- the address the request came from and the username
 that was typed -- and telling the two apart is most of the work of this file. Ten failures from
@@ -8,9 +8,9 @@ username from ten different addresses fill only the username's. A test that used
 
 Three things here are the ones that decide whether the control is real:
 
-- **While the limit holds, nothing is verified** (RF-24): not the wrong password, not the right
+- **While the limit holds, nothing is verified**: not the wrong password, not the right
   one. The point of the limit is to stop spending Argon2, which is the resource an attack burns.
-- **A successful login clears both counts** (RF-25, RF-26), because whoever proved they know the
+- **A successful login clears both counts**, because whoever proved they know the
   password is not the guesser being counted.
 - **The caller does not get to choose its own address.** `X-Forwarded-For` is written by whoever
   sends the request, so a limit keyed on it is a limit anybody opts out of with a header. The
@@ -119,7 +119,7 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Clock]:
 
 @pytest.fixture
 def password_check(monkeypatch: pytest.MonkeyPatch) -> _PasswordCheck:
-    """Count what reaching Argon2 costs, which is what RF-24 is protecting."""
+    """Count what reaching Argon2 costs, which is what the limit is protecting."""
     counted = _PasswordCheck()
     monkeypatch.setattr("app.modules.auth.service.verify_password", counted)
 
@@ -146,7 +146,7 @@ async def _attempt(
 
 
 class TestTheLimitOnOneAddress:
-    """RF-21: ten failures from one place, and the next one is not answered."""
+    """Ten failures from one place, and the next one is not answered."""
 
     async def test_the_eleventh_attempt_is_refused(self, juan: User) -> None:
         """Each failure uses a different username, so the count that fills is the address's."""
@@ -178,7 +178,7 @@ class TestTheLimitOnOneAddress:
 
 
 class TestTheLimitOnOneUserName:
-    """RF-22: the same username guessed from everywhere is still the same target."""
+    """The same username guessed from everywhere is still the same target."""
 
     async def test_the_eleventh_attempt_for_that_user_is_refused(self, juan: User) -> None:
         """Each failure arrives from a different address, so only the username's count fills."""
@@ -200,7 +200,7 @@ class TestTheLimitOnOneUserName:
 
 
 class TestWhileTheLimitHoldsNothingIsChecked:
-    """RF-24: the answer is the same whatever was typed, and Argon2 is never reached."""
+    """The answer is the same whatever was typed, and Argon2 is never reached."""
 
     async def test_the_right_password_does_not_get_in_either(self, juan: User) -> None:
         """Somebody with the correct clave has to be told to wait, not let through."""
@@ -234,10 +234,10 @@ class TestWhileTheLimitHoldsNothingIsChecked:
 
 
 class TestASuccessClearsWhatWasCounted:
-    """RF-25 and RF-26: getting in resets both keys, and the count starts over."""
+    """Getting in resets both keys, and the count starts over."""
 
     async def test_nine_failures_for_a_user_then_a_success_and_nine_more(self, juan: User) -> None:
-        """RF-25, isolated on the username: every attempt comes from a different address."""
+        """Isolated on the username: every attempt comes from a different address."""
         for attempt in range(LOGIN_MAX_ATTEMPTS - 1):
             await _attempt("juan", "otra-clave", address=f"198.51.100.{attempt}")
 
@@ -253,7 +253,7 @@ class TestASuccessClearsWhatWasCounted:
     async def test_nine_failures_from_an_address_then_a_success_and_nine_more(
         self, juan: User
     ) -> None:
-        """RF-26, isolated on the address: the usernames all differ, only the address repeats."""
+        """Isolated on the address: the usernames all differ, only the address repeats."""
         for attempt in range(LOGIN_MAX_ATTEMPTS - 1):
             await _attempt(f"nadie{attempt}", "otra-clave")
 
@@ -273,7 +273,7 @@ class TestTheWaitLiftsItself:
     async def test_once_the_window_has_passed_the_right_password_gets_in(
         self, juan: User, clock: _Clock
     ) -> None:
-        """RF-21's other half, and the reason this is a wait and not a blocked account."""
+        """Other half, and the reason this is a wait and not a blocked account."""
         for attempt in range(LOGIN_MAX_ATTEMPTS):
             await _attempt(f"nadie{attempt}", "otra-clave")
         assert (await _attempt("juan", PASSWORD)).status_code == 429

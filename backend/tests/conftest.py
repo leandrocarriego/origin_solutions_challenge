@@ -1,8 +1,9 @@
-"""Shared fixtures.
+"""Shared fixtures."""
 
-TEST-03: the suite runs with no network and no API key. Anything that would reach outside is
-replaced here — never reached, and never a reason to skip a test.
-"""
+import os
+
+os.environ.setdefault("JWT_SECRET", "test-signing-secret-not-a-real-one")
+os.environ.setdefault("MARKET_DATA_PROVIDER", "twelvedata")
 
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
@@ -10,7 +11,11 @@ from typing import Any
 import pytest
 import sentry_sdk
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app import observability
 from app.settings import get_settings
@@ -28,7 +33,7 @@ def database_is_reachable(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     async def _probe_succeeds() -> bool:
         return True
 
-    monkeypatch.setattr("app.main.database_is_up", _probe_succeeds)
+    monkeypatch.setattr("app.health.database_is_up", _probe_succeeds)
     yield
 
 
@@ -43,7 +48,7 @@ def database_is_unreachable(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     async def _probe_fails() -> bool:
         return False
 
-    monkeypatch.setattr("app.main.database_is_up", _probe_fails)
+    monkeypatch.setattr("app.health.database_is_up", _probe_fails)
     yield
 
 
@@ -58,7 +63,7 @@ def sentinel_api_key(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     anything else, which is what makes the assertion meaningful.
     """
     get_settings.cache_clear()
-    monkeypatch.setenv("TWELVEDATA_API_KEY", SENTINEL_API_KEY)
+    monkeypatch.setenv("MARKET_DATA_API_KEY", SENTINEL_API_KEY)
     yield SENTINEL_API_KEY
     get_settings.cache_clear()
 
@@ -108,7 +113,7 @@ def sentry_configured(monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
 async def session() -> AsyncIterator[AsyncSession]:
     """A session against the real database, inside a transaction that is always rolled back.
 
-    Integration tests run against Postgres and not against a double (TEST-02), so they need the
+    Integration tests run against Postgres and not against a double, so they need the
     schema that `alembic upgrade head` creates. What they must not need is cleanup, and they
     must not need an empty database either: a developer who ran `make up` has the seed's rows in
     there, and a test that only passes on a pristine database fails later for a reason that

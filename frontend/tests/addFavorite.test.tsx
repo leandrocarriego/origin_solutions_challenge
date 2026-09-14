@@ -1,10 +1,10 @@
 /**
  * H2 of `002`: finding an action in the `Símbolo` field and putting it in the grid.
  *
- * It covers the autocomplete (RF-13, RF-14 and the race the plan writes down), the button that
- * stays disabled while nothing is chosen (RF-31), the row that shows up without a reload (RF-15,
- * RF-16), the two notices that never appear together (RF-19, RF-20, RF-21) and the action that
- * survives an F5 with its name and its currency and not only with its symbol (RF-17).
+ * It covers the autocomplete and the race the plan writes down, the button that stays disabled
+ * while nothing is chosen, the row that shows up without a reload, the two notices that never
+ * appear together and the action that
+ * survives an F5 with its name and its currency and not only with its symbol.
  *
  * Everything is looked at **through the screen**, the way `MyActions.test.tsx` already does it:
  * the person logs in, types in the field and reads what is drawn. `plan.md` puts the field in
@@ -14,7 +14,7 @@
  *
  * **The dropdown is read by role.** A suggestion is looked up with `getByRole('option')` and
  * chosen by clicking it, which is what a person does and what a screen reader announces. The plan
- * fixes that the field is an `input` with a dropdown of its own and not a `<select>` (UI-01), and
+ * fixes that the field is an `input` with a dropdown of its own and not a `<select>`, and
  * leaves the markup open; the accessible reading of "a list of suggestions you pick one from" is
  * a listbox with options, and asserting it here is what keeps the dropdown usable rather than a
  * pile of unlabelled `<div>`s. It is also the only way to tell a suggestion apart from the grid
@@ -52,11 +52,11 @@ const USUARIO = 'Usuario';
 const CLAVE = 'Clave';
 const MIS_ACCIONES = 'Mis Acciones';
 
-// Verbatim from the `Mis Acciones` table of docs/design/COPY.md (UI-02).
+// Verbatim from the `Mis Acciones` table of docs/design/COPY.md.
 const SIMBOLO = 'Símbolo';
 const AUTOCOMPLETE = '(Autocomplete)';
 const AGREGAR_SIMBOLO = 'Agregar Símbolo';
-// Verbatim from the *Lista de favoritas* table of docs/design/COPY.md (UI-02), accents included.
+// Verbatim from the *Lista de favoritas* table of docs/design/COPY.md, accents included.
 const SIN_RESULTADOS = 'No se encontró ninguna acción con ese texto.';
 const YA_ESTA = 'Esa acción ya está en tu lista.';
 const SIN_SELECCION = 'Elegí una acción de las sugerencias.';
@@ -150,7 +150,7 @@ function listingsAsked(): number {
     ).length;
 }
 
-/** The catalogue filtered the way the backend filters it: symbol or name, either case (RF-08..10). */
+/** The catalogue filtered the way the backend filters it: symbol or name, either case. */
 function catalogueMatching(q: string): Stock[] {
   const needle = q.trim().toLowerCase();
 
@@ -174,7 +174,7 @@ function addToTheList(init: RequestInit | undefined): Promise<Response> {
   if (!inCatalogue) return Promise.resolve(jsonResponse({ detail: 'unknown symbol' }, 404));
 
   const alreadyThere = storedFavorites.some((stock) => stock.symbol === inCatalogue.symbol);
-  // The most recently added one comes first, which is the order the backend decides (RF-06).
+  // The most recently added one comes first, which is the order the backend decides.
   if (!alreadyThere) storedFavorites = [inCatalogue, ...storedFavorites];
 
   return Promise.resolve(jsonResponse(inCatalogue, alreadyThere ? 200 : 201));
@@ -279,7 +279,7 @@ afterEach(() => {
 
 describe('the Símbolo field of the wireframe', () => {
   it('is a field with the placeholder of the copy, and not a select', async () => {
-    // UI-01 and UI-02 together: the wireframe draws a text field with `(Autocomplete)` in it, and
+    // The wireframe and the copy together: it draws a text field with `(Autocomplete)` in it, and
     // a `<select>` cannot be typed into, which is the whole point of an autocomplete.
     await logInThroughTheScreen();
 
@@ -289,7 +289,7 @@ describe('the Símbolo field of the wireframe', () => {
 
 describe('the autocomplete with a single character typed', () => {
   it('asks our API nothing at all', async () => {
-    // RF-13. One letter matches almost any action, and the twenty suggestions that would come
+    // One letter matches almost any action, and the twenty suggestions that would come
     // back do not help anybody choose -- so the question is not asked.
     await logInThroughTheScreen();
 
@@ -314,7 +314,7 @@ describe('the autocomplete with a single character typed', () => {
 
 describe('the autocomplete with two characters typed', () => {
   it('suggests the actions that match what was typed', async () => {
-    // RF-13 read the other way round: the second character is where the suggestions start.
+    // Read the other way round: the second character is where the suggestions start.
     await logInThroughTheScreen();
 
     await userEvent.setup().type(theSymbolField(), 'mi');
@@ -324,7 +324,7 @@ describe('the autocomplete with two characters typed', () => {
   });
 
   it('says so, word for word, when nothing matches', async () => {
-    // RF-14, verbatim from COPY.md: the notice goes where the suggestions would be, and it is what
+    // Verbatim from COPY.md: the notice goes where the suggestions would be, and it is what
     // tells "there is nothing" apart from "it is still looking".
     await logInThroughTheScreen();
 
@@ -380,7 +380,7 @@ describe('two searches in flight, the older one answering last', () => {
 
 describe('Agregar Símbolo while nothing is chosen', () => {
   it('is disabled with the field empty', async () => {
-    // RF-31, and it is the first defence: the button does not offer an addition that cannot work.
+    // It is the first defence: the button does not offer an addition that cannot work.
     await logInThroughTheScreen();
 
     expect(theAddButton()).toBeDisabled();
@@ -417,7 +417,7 @@ describe('Agregar Símbolo while nothing is chosen', () => {
 
 describe('choosing a suggestion and adding it', () => {
   it('leaves that action in the grid without a reload', async () => {
-    // RF-15 and RF-16, which is the acceptance criterion of the story: `micro` finds Microsoft,
+    // Which is the acceptance criterion of the story: `micro` finds Microsoft,
     // and the row is there afterwards without anybody pressing F5.
     await logInThroughTheScreen();
 
@@ -433,7 +433,7 @@ describe('choosing a suggestion and adding it', () => {
   });
 
   it('shows its name and its currency in that row, and not only the symbol', async () => {
-    // RF-17 on screen: what the grid promises is three data, and a row that shows the symbol alone
+    // On screen: what the grid promises is three data, and a row that shows the symbol alone
     // is a row of the list of symbols that this feature explicitly did not build.
     await logInThroughTheScreen();
 
@@ -453,7 +453,7 @@ describe('choosing a suggestion and adding it', () => {
 
   it('asks our API for the list again instead of patching the one it had', async () => {
     // `plan.md`: after adding, the grid is asked for again. The order of the rows is a decision of
-    // the backend (RF-06), and two places that order are one place that gets it wrong.
+    // the backend, and two places that order are one place that gets it wrong.
     await logInThroughTheScreen();
     const before = listingsAsked();
 
@@ -520,7 +520,7 @@ describe('the dropdown once a suggestion was chosen', () => {
 
 describe('adding an action that is already on the list', () => {
   it('says so, word for word', async () => {
-    // RF-19, verbatim from COPY.md. Without the notice, adding something already there produces no
+    // Verbatim from COPY.md. Without the notice, adding something already there produces no
     // visible change at all and reads as a button that does not work.
     storedFavorites = [APPLE];
 
@@ -535,7 +535,7 @@ describe('adding an action that is already on the list', () => {
   });
 
   it('leaves one row and not two', async () => {
-    // RF-18 seen from the screen: the same action never appears twice in one list.
+    // Seen from the screen: the same action never appears twice in one list.
     storedFavorites = [APPLE];
 
     await logInThroughTheScreen();
@@ -556,7 +556,7 @@ describe('adding an action that is already on the list', () => {
 
 describe('firing the addition with no suggestion chosen', () => {
   it('says what is missing, word for word', async () => {
-    // RF-21, verbatim from COPY.md. The disabled button is the first defence and this is the
+    // Verbatim from COPY.md. The disabled button is the first defence and this is the
     // second, for when the addition is fired some other way -- the Enter key in the field.
     await logInThroughTheScreen();
 
@@ -569,7 +569,7 @@ describe('firing the addition with no suggestion chosen', () => {
   });
 
   it('adds nothing at all', async () => {
-    // RF-20. The notice explains; what matters is that the list is exactly as it was, with no new
+    // The notice explains; what matters is that the list is exactly as it was, with no new
     // row and no empty one.
     storedFavorites = [APPLE];
 
@@ -636,7 +636,7 @@ describe('the two notices of the Símbolo field', () => {
 
 describe('an action added and then the page reloaded', () => {
   it('is still there, with its name and its currency', async () => {
-    // RF-17, and it is a real F5: the page is thrown away with `unmount()` and the application is
+    // It is a real F5: the page is thrown away with `unmount()` and the application is
     // opened again at the same address, with nothing left but what the browser kept in
     // `sessionStorage`. Mounting a second copy while the first is alive would prove the remount and
     // not the persistence -- `plan.md` → *Riesgos*, first row, forbids it.

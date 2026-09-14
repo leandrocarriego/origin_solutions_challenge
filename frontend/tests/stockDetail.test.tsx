@@ -2,11 +2,11 @@
  * H4 of `002`: getting from the grid to the detail of the right action.
  *
  * Three things, and nothing else: the symbol of each row behaves like a link and not like loose
- * text (RF-29), activating `AAPL` lands on `/stocks/AAPL` and not on the detail of another row of
- * the list (RF-30), and `/stocks/:symbol` opened with no session ends on the login, like `/`.
+ * text, activating `AAPL` lands on `/stocks/AAPL` and not on the detail of another row of
+ * the list, and `/stocks/:symbol` opened with no session ends on the login, like `/`.
  *
  * **What the detail screen shows is not tested here, on purpose.** `plan.md` makes it a shell that
- * exists so RF-30 has somewhere to arrive (`003` writes the real one), and it adds no text at all
+ * exists so the link has somewhere to arrive (`003` writes the real one), and it adds no text at all
  * to `COPY.md`. So what this file fixes is the arrival, which is what H4 promises.
  *
  * **The arrival is read as an address**, with a probe rendered next to the application inside the
@@ -16,9 +16,9 @@
  *
  * **The link is activated, not inspected.** A test that read the `href` would pass on a link that
  * never navigates because something swallowed the click; and it is by clicking that a `<span
- * onClick>` fails the reading by role, which is the half of RF-29 that says "and not loose text".
+ * onClick>` fails the reading by role, which is the half that says "and not loose text".
  *
- * **The list has three rows and the one under test is the second.** RF-30 says "that same action",
+ * **The list has three rows and the one under test is the second.** What is asked is "that same action",
  * and the bug it guards against is a link that always leads to the first row, or to the symbol of
  * the row next to it. With one row in the grid neither of the two can be told from a pass.
  *
@@ -177,7 +177,7 @@ function rowOf(grid: HTMLElement, symbol: string): HTMLElement {
   return row;
 }
 
-/** The symbol of a row, read as the link it has to be (RF-29). */
+/** The symbol of a row, read as the link it has to be. */
 async function theSymbolLinkOf(symbol: string): Promise<HTMLElement> {
   const grid = await screen.findByRole('table');
 
@@ -202,7 +202,7 @@ afterEach(() => {
 
 describe('the symbol of a row in the grid', () => {
   it('is a link a person can activate, and not loose text', async () => {
-    // RF-29. Read by role, which is what a screen reader announces and what a keyboard can reach:
+    // Read by role, which is what a screen reader announces and what a keyboard can reach:
     // a `<span onClick>` renders the same three letters and fails here, which is the point.
     await logInThroughTheScreen();
 
@@ -214,7 +214,7 @@ describe('the symbol of a row in the grid', () => {
 
 describe('activating the symbol of a row', () => {
   it('lands on the detail of that same action', async () => {
-    // RF-30, with the second of three rows chosen on purpose: the bug is a link that always goes
+    // With the second of three rows chosen on purpose: the bug is a link that always goes
     // to the first row, or that carries the symbol of the row beside it, and both of them pass
     // when the grid has one row.
     await logInThroughTheScreen();
@@ -227,7 +227,7 @@ describe('activating the symbol of a row', () => {
   });
 
   it('does not land on the detail of another action of the list', async () => {
-    // The other half of RF-30, spelled out: arriving somewhere is not arriving at the right place.
+    // The other half, spelled out: arriving somewhere is not arriving at the right place.
     await logInThroughTheScreen();
 
     await userEvent.setup().click(await theSymbolLinkOf(THE_ONE_CHOSEN.symbol));

@@ -1,6 +1,6 @@
-"""What serving a chart decides, before HTTP and before SQL (RF-24, RF-25, RF-26, RF-35, RF-36).
+"""What serving a chart decides, before HTTP and before SQL.
 
-This is the core of the feature and the file the Article II claim rests on: the quota is finite,
+This is the core of the feature and the file the the quota claim rests on: the quota is finite,
 and what keeps it finite is that a second reader of the same symbol costs nothing. None of that
 is visible from a response body -- a chart drawn from ten provider calls looks exactly like a
 chart drawn from one -- so what is measured here is **how many times the provider was called and
@@ -14,9 +14,9 @@ Three collaborators are replaced, and they are three different kinds of thing:
   answer something the first write did not produce.
 - `is_favorite` belongs to `favorites` and arrives through its package, so it is patched **where
   it is consumed** -- `app.modules.quotes.service.is_favorite` -- and never where it is defined:
-  that is what ties the test to the contract instead of to somebody else's interior (GEN-02).
+  that is what ties the test to the contract instead of to somebody else's interior.
 - the provider is replaced by the abstract contract, never by an HTTP client. The service does
-  not know TwelveData exists and neither does this file (GEN-08, TEST-03).
+  not know TwelveData exists and neither does this file.
 
 The clock is not injected, because `plan.md` fixes no seam for it: every assertion about "today"
 is therefore written relative to the real `now`, with a tolerance where one is needed.
@@ -39,7 +39,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import UnknownSymbolError
 from app.modules.quotes.models import Quote, QuoteInterval
-from app.modules.quotes.service import QuoteSeries, get_series
+from app.modules.quotes.schemas import QuoteSeries
+from app.modules.quotes.service import FavoriteCheck, get_series
 from app.providers import (
     MarketDataProvider,
     ProviderError,
@@ -86,7 +87,7 @@ def _candle(ts: datetime, close: str = "365.47", interval: str = "1min") -> Quot
 
 
 def _point(ts: datetime, close: str = "365.47") -> QuotePoint:
-    """One candle as the provider hands it over, in the types of the contract (ADR-006)."""
+    """One candle as the provider hands it over, in the types of the contract."""
     price = Decimal(close)
 
     return QuotePoint(
@@ -99,10 +100,10 @@ def _point(ts: datetime, close: str = "365.47") -> QuotePoint:
     )
 
 
-class _Repository:
+class _Store:
     """Stand-in for `quotes/repository.py`, backed by rows instead of by a script.
 
-    It counts reads as well as answering them: RF-47 says an invalid range is refused *before*
+    It counts reads as well as answering them: an invalid range is refused *before*
     anything else happens, and "before anything else" includes the database.
     """
 
@@ -115,7 +116,7 @@ class _Repository:
         self.saved: list[QuotePoint] = []
 
     async def candles_in(
-        self, session: AsyncSession, symbol: str, interval: str, start: datetime, end: datetime
+        self, symbol: str, interval: str, start: datetime, end: datetime
     ) -> list[Quote]:
         """The candles of that window, oldest first, which is what the chart reads."""
         self.reads += 1
@@ -129,16 +130,14 @@ class _Repository:
             key=lambda row: row.ts,
         )
 
-    async def newest_ts(self, session: AsyncSession, symbol: str, interval: str) -> datetime | None:
+    async def newest_ts(self, symbol: str, interval: str) -> datetime | None:
         """The instant of the newest candle there is, or nothing if there is none."""
         self.reads += 1
         instants = [key[2] for key in self.rows if key[0] == symbol and key[1] == interval]
 
         return max(instants) if instants else None
 
-    async def save(
-        self, session: AsyncSession, symbol: str, interval: str, points: Sequence[QuotePoint]
-    ) -> int:
+    async def save(self, symbol: str, interval: str, points: Sequence[QuotePoint]) -> int:
         """Upsert what the provider returned, the way the composite key makes it an upsert."""
         self.saved.extend(points)
         for point in points:
@@ -152,8 +151,8 @@ class _Repository:
 class _Provider(MarketDataProvider):
     """The contract, counting every call and remembering the window it was asked for.
 
-    The counter is the whole point of the file: `RF-24` and `RF-25` are claims about how many
-    times this was called, and nothing in a response body can tell them apart.
+    The counter is the whole point of the file: the freshness rule and the gate are claims about
+    how many times this was called, and nothing in a response body can tell them apart.
     """
 
     def __init__(
@@ -196,7 +195,7 @@ def a_gate_that_remembers_nothing(monkeypatch: pytest.MonkeyPatch) -> Iterator[N
     was written to count one. Reaching for the private name is the price of the gate being
     process state, and it is cheaper than a test that passes depending on what ran first.
     """
-    gates = getattr(sys.modules.get(_SERVICE), "_GATES", None)
+    gates = getattr(sys.modules.get(_SERVICE), "_GATEKEEPER", None)
     clear = getattr(gates, "clear", None)
 
     if callable(clear):
@@ -208,45 +207,34 @@ def a_gate_that_remembers_nothing(monkeypatch: pytest.MonkeyPatch) -> Iterator[N
         clear()
 
 
-@pytest.fixture(autouse=True)
-def the_symbol_is_the_users(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`favorites` says yes, which is the case every test but the authorization one is about."""
-
-    async def _yes(session: AsyncSession, user_id: int, symbol: str) -> bool:
-        return True
-
-    monkeypatch.setattr(f"{_SERVICE}.is_favorite", _yes)
+async def _its_theirs(user_id: int, symbol: str) -> bool:
+    """The default `FavoriteCheck`: the symbol is on the caller's list."""
+    return True
 
 
 @pytest.fixture
-def repository(monkeypatch: pytest.MonkeyPatch) -> _Repository:
-    """An empty cache, wired where the service consumes its three repository functions."""
-    return _wire(monkeypatch, _Repository())
+def repository() -> _Store:
+    """An empty cache, handed to the service instead of patched into it."""
+    return _Store()
 
 
-def _wire(monkeypatch: pytest.MonkeyPatch, double: _Repository) -> _Repository:
-    """Patch the three repository names in the service's namespace."""
-    monkeypatch.setattr(f"{_SERVICE}.candles_in", double.candles_in)
-    monkeypatch.setattr(f"{_SERVICE}.newest_ts", double.newest_ts)
-    monkeypatch.setattr(f"{_SERVICE}.save", double.save)
-
-    return double
-
-
-def _cached(monkeypatch: pytest.MonkeyPatch, *candles: Quote) -> _Repository:
+def _cached(*candles: Quote) -> _Store:
     """A cache that already holds those candles."""
-    return _wire(monkeypatch, _Repository(candles))
+    return _Store(candles)
 
 
 async def _ask(
     provider: MarketDataProvider,
+    store: _Store,
+    follows: FavoriteCheck = _its_theirs,
     interval: QuoteInterval = QuoteInterval.ONE_MINUTE,
     start: datetime | None = None,
     end: datetime | None = None,
 ) -> QuoteSeries:
     """One call to the service, with the arguments `plan.md` fixes for it."""
     return await get_series(
-        _UNUSED_SESSION,
+        store,
+        follows,
         provider,
         symbol=_TSLA,
         interval=interval,
@@ -257,84 +245,76 @@ async def _ask(
 
 
 class TestOnlyTheOwnerOfTheSymbolGetsAChart:
-    """RF-35 and Article III: the chart is served for the favourites of whoever is asking."""
+    """The chart is served for the favourites of whoever is asking."""
 
-    async def test_a_symbol_that_is_not_a_favourite_is_refused(
-        self, monkeypatch: pytest.MonkeyPatch, repository: _Repository
-    ) -> None:
+    async def test_a_symbol_that_is_not_a_favourite_is_refused(self, repository: _Store) -> None:
         """The service says no with a domain error; the router is what turns it into a 404."""
 
-        async def _no(session: AsyncSession, user_id: int, symbol: str) -> bool:
+        async def _no(user_id: int, symbol: str) -> bool:
             return False
 
-        monkeypatch.setattr(f"{_SERVICE}.is_favorite", _no)
         provider = _Provider()
 
         with pytest.raises(UnknownSymbolError):
-            await _ask(provider)
+            await _ask(provider, repository, _no)
 
     async def test_a_symbol_that_is_not_a_favourite_costs_no_quota(
-        self, monkeypatch: pytest.MonkeyPatch, repository: _Repository
+        self, repository: _Store
     ) -> None:
-        """Article II with Article III on top: somebody else's symbol never reaches the world."""
+        """The quota and the isolation rule: somebody else's symbol never reaches the world."""
 
-        async def _no(session: AsyncSession, user_id: int, symbol: str) -> bool:
+        async def _no(user_id: int, symbol: str) -> bool:
             return False
 
-        monkeypatch.setattr(f"{_SERVICE}.is_favorite", _no)
         provider = _Provider()
 
         with pytest.raises(UnknownSymbolError):
-            await _ask(provider)
+            await _ask(provider, repository, _no)
 
         assert provider.calls == []
 
-    async def test_it_asks_favorites_about_the_user_of_the_token(
-        self, monkeypatch: pytest.MonkeyPatch, repository: _Repository
-    ) -> None:
+    async def test_it_asks_favorites_about_the_user_of_the_token(self, repository: _Store) -> None:
         """`is_favorite` receives the id the service was given, as its first argument."""
         asked: list[tuple[int, str]] = []
 
-        async def _record(session: AsyncSession, user_id: int, symbol: str) -> bool:
+        async def _record(user_id: int, symbol: str) -> bool:
             asked.append((user_id, symbol))
             return True
 
-        monkeypatch.setattr(f"{_SERVICE}.is_favorite", _record)
-
-        await _ask(_Provider(points=[_point(_now())]))
+        await _ask(_Provider(points=[_point(_now())]), repository, _record)
 
         assert asked == [(_JUAN, _TSLA)]
 
 
 class TestTheQuotaIsSpentOncePerSymbolAndInterval:
-    """RF-24 and RF-25: the reason this feature exists (Article II)."""
+    """The reason this feature exists."""
 
     async def test_a_cached_candle_inside_the_ttl_is_served_without_calling_the_provider(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """RF-24: the TTL is the interval, so a candle ten seconds old is still current."""
-        _cached(monkeypatch, _candle(_now() - timedelta(seconds=10)))
+        """The TTL is the interval, so a candle ten seconds old is still current."""
+        store = _cached(_candle(_now() - timedelta(seconds=10)))
         provider = _Provider()
 
-        await _ask(provider)
+        await _ask(provider, store)
 
         assert provider.calls == []
 
     async def test_asking_twice_in_a_row_reaches_the_provider_once(
-        self, repository: _Repository
+        self, repository: _Store
     ) -> None:
-        """RF-24: the second reader of a symbol pays nothing, which is the whole claim."""
+        """The second reader of a symbol pays nothing, which is the whole claim."""
         provider = _Provider(points=[_point(_now())])
 
-        await _ask(provider)
-        await _ask(provider)
+        await _ask(provider, repository)
+        await _ask(provider, repository)
 
         assert len(provider.calls) == 1
 
     async def test_ten_requests_launched_in_parallel_reach_the_provider_once(
-        self, repository: _Repository
+        self, repository: _Store
     ) -> None:
-        """RF-25: ten browsers on the same symbol cost what one costs.
+        """Ten browsers on the same symbol cost what one costs.
 
         Launched with `gather` and against a provider that takes a moment, which is what makes
         this different from the test above: a TTL alone is green in sequence and spends ten
@@ -342,12 +322,12 @@ class TestTheQuotaIsSpentOncePerSymbolAndInterval:
         """
         provider = _Provider(points=[_point(_now())], delay=0.05)
 
-        await asyncio.gather(*(_ask(provider) for _ in range(10)))
+        await asyncio.gather(*(_ask(provider, repository) for _ in range(10)))
 
         assert len(provider.calls) == 1
 
     async def test_a_symbol_with_no_series_is_not_asked_again_inside_a_ttl(
-        self, repository: _Repository
+        self, repository: _Store
     ) -> None:
         """A Sunday is not paid ten times because somebody pressed `Graficar` ten times.
 
@@ -357,7 +337,7 @@ class TestTheQuotaIsSpentOncePerSymbolAndInterval:
         provider = _Provider(points=[])
 
         for _ in range(10):
-            await _ask(provider)
+            await _ask(provider, repository)
 
         assert len(provider.calls) == 1
 
@@ -365,17 +345,15 @@ class TestTheQuotaIsSpentOncePerSymbolAndInterval:
 class TestTheWindowTheServiceAsksFor:
     """Which window goes out is the service's decision, and it is two of them (plan.md)."""
 
-    async def test_with_a_cold_cache_it_asks_for_the_last_days(
-        self, repository: _Repository
-    ) -> None:
+    async def test_with_a_cold_cache_it_asks_for_the_last_days(self, repository: _Store) -> None:
         """A week in one request: the provider charges per request, not per candle.
 
-        It is also what makes RF-27 possible on a Sunday with an empty database: the last
+        It is also what makes a Sunday work with an empty database: the last
         session is inside the window, so it arrives without a second call.
         """
         provider = _Provider(points=[_point(_now())])
 
-        await _ask(provider)
+        await _ask(provider, repository)
 
         _, _, start, end = provider.calls[0]
         # Against the span and not against the constant: a constant asserted against itself
@@ -387,38 +365,38 @@ class TestTheWindowTheServiceAsksFor:
     ) -> None:
         """The refresh of every minute is the cheap window: from the newest candle to now."""
         newest = _now() - timedelta(minutes=30)
-        _cached(monkeypatch, _candle(newest - timedelta(minutes=1)), _candle(newest))
+        store = _cached(_candle(newest - timedelta(minutes=1)), _candle(newest))
         provider = _Provider(points=[_point(_now())])
 
-        await _ask(provider)
+        await _ask(provider, store)
 
         _, _, start, _ = provider.calls[0]
         assert start == newest
 
-    async def test_the_window_travels_in_utc(self, repository: _Repository) -> None:
+    async def test_the_window_travels_in_utc(self, repository: _Store) -> None:
         """Both ends aware and at zero offset: a naive instant is the bug of this feature."""
         provider = _Provider(points=[_point(_now())])
 
-        await _ask(provider)
+        await _ask(provider, repository)
 
         _, _, start, end = provider.calls[0]
         assert start.utcoffset() == timedelta(0)
         assert end.utcoffset() == timedelta(0)
 
     async def test_it_asks_for_the_symbol_and_the_interval_it_was_given(
-        self, repository: _Repository
+        self, repository: _Store
     ) -> None:
         """The cache is keyed by the pair, so the request has to carry the pair."""
         provider = _Provider(points=[_point(_now())])
 
-        await _ask(provider, interval=QuoteInterval.FIFTEEN_MINUTES)
+        await _ask(provider, repository, interval=QuoteInterval.FIFTEEN_MINUTES)
 
         assert provider.calls[0][0] == _TSLA
         assert provider.calls[0][1] == "15min"
 
 
 class TestTheSessionDateIsReadInMarketTime:
-    """RF-36: which day a session belongs to is a market hour, never a server hour."""
+    """Which day a session belongs to is a market hour, never a server hour."""
 
     async def test_the_session_date_is_the_day_the_market_had(
         self, monkeypatch: pytest.MonkeyPatch
@@ -427,49 +405,49 @@ class TestTheSessionDateIsReadInMarketTime:
 
         The stored candle is at 21:30 in New York, which is already the next day in UTC. An
         implementation that took the date of the instant as it is stored would answer tomorrow's
-        date for yesterday's session, and the notice of RF-28 would name a day that never
+        date for yesterday's session, and the notice would name a day that never
         traded.
         """
         traded_on = (_now().astimezone(_MARKET) - timedelta(days=3)).date()
         late = datetime(
             traded_on.year, traded_on.month, traded_on.day, 21, 30, tzinfo=_MARKET
         ).astimezone(UTC)
-        _cached(monkeypatch, _candle(late))
+        store = _cached(_candle(late))
 
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), store)
 
         assert series.session_date == traded_on
 
 
 class TestTheProviderIsNeverNamed:
-    """RF-26 and Article I: the user has no account with anybody."""
+    """The user has no account with anybody."""
 
     async def test_a_failure_does_not_name_the_provider_in_what_it_answers(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The status is generic on purpose: it says what happened, not who failed."""
-        _cached(monkeypatch, _candle(_now() - timedelta(days=3)))
+        store = _cached(_candle(_now() - timedelta(days=3)))
 
-        series = await _ask(_Provider(failure=ProviderQuotaExceeded("spent")))
+        series = await _ask(_Provider(failure=ProviderQuotaExceeded("spent")), store)
 
         assert "twelvedata" not in repr(series).lower()
 
     async def test_a_failure_is_logged_and_not_swallowed(
         self, monkeypatch: pytest.MonkeyPatch, captured_logs: list[str]
     ) -> None:
-        """ERR-01 and ERR-07: every `except` decides, and every call is auditable."""
-        _cached(monkeypatch, _candle(_now() - timedelta(days=3)))
+        """Every `except` decides, and every call is auditable."""
+        store = _cached(_candle(_now() - timedelta(days=3)))
 
-        await _ask(_Provider(failure=ProviderUnavailable("down")))
+        await _ask(_Provider(failure=ProviderUnavailable("down")), store)
 
         assert captured_logs
 
     async def test_the_log_of_a_failure_does_not_name_the_provider(
         self, monkeypatch: pytest.MonkeyPatch, captured_logs: list[str]
     ) -> None:
-        """A log line ends up in Loki and in a screenshot; Article I covers both."""
-        _cached(monkeypatch, _candle(_now() - timedelta(days=3)))
+        """A log line ends up in Loki and in a screenshot; the credential rule covers both."""
+        store = _cached(_candle(_now() - timedelta(days=3)))
 
-        await _ask(_Provider(failure=ProviderUnavailable("down")))
+        await _ask(_Provider(failure=ProviderUnavailable("down")), store)
 
         assert not any("twelvedata" in line.lower() for line in captured_logs)

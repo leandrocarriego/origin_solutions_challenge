@@ -1,9 +1,9 @@
 """Factory of `stocks` rows, which is the table the catalogue module owns.
 
 The defaults describe a listed symbol, because that is what almost every test needs. The two
-columns of ADR-002 are the ones worth overriding: `delisted_at` is what turns a row into a
-symbol that stopped trading, and that single value is the difference between "it is offered by
-the autocomplete" and "it only survives in the grid of whoever already had it".
+columns the reconciliation writes are the ones worth overriding: `delisted_at` is what turns a
+row into a symbol that stopped trading, and that single value is the difference between "it is
+offered by the autocomplete" and "it only survives in the grid of whoever already had it".
 """
 
 from datetime import UTC, datetime

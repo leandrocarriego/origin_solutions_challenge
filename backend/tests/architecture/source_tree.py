@@ -1,7 +1,7 @@
 """Reading the source tree the way the boundary checks need it.
 
 Python has no visibility at module level: the underscore and `__all__` are convention, not
-enforcement. That is why Article IV says the frontier is held by a test and not by the
+enforcement. That is why the module frontier says the frontier is held by a test and not by the
 language, and why these checks read the imports with `ast` and fail naming file and line.
 
 Every function here takes the root of a package tree instead of reaching for `app/` on its
@@ -17,11 +17,16 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 APP_ROOT = BACKEND_ROOT / "app"
 
-# The composition root mounts every module's router, so it imports from all of them by
-# definition. GEN-03 excludes it by name, and this is the name.
-COMPOSITION_ROOT = "main.py"
+# The composition root imports from every module by definition: it mounts each one's router and
+# names the coroutines that run in the background. The boundary excludes it by name, and these
+# names -- two files rather than one, because the wiring outgrew a single screen.
+#
+# It is a tuple and not a convenience: every name added here is a file allowed to depend on the
+# domain from below the modules, and `TestTheExceptionIsDeclared` fails when the list changes, so
+# a third name is a decision somebody makes rather than one that happens.
+COMPOSITION_ROOTS = ("main.py", "tasks.py")
 
-# The four clients CONVENTIONS.md names in GEN-08, and it has to stay those four: dropping one
+# The four clients the convention names, and it has to stay those four: dropping one
 # narrows a Blocker convention without a single test turning red.
 #
 # The rule is not about TwelveData. A service that imports one of these and builds a URL has
@@ -30,11 +35,13 @@ HTTP_CLIENTS = ("httpx", "requests", "aiohttp", "urllib.request")
 
 # A piece of a module grows from file to directory of the same name when the size asks for it.
 # The direction of the flow does not change with the shape, so both spellings map to one layer.
+# `schemas` maps to itself, and the entry stays for that reason: without it the directory would
+# read as a layer this map does not know, which is the same answer as "not part of a module".
 LAYER_OF_DIRECTORY = {
     "routers": "router",
     "services": "service",
     "repositories": "repository",
-    "schemas": "io",
+    "schemas": "schemas",
     "models": "models",
 }
 
@@ -151,7 +158,7 @@ def owning_module(source: SourceFile, app_root: Path) -> str | None:
 
 
 def layer_of(source: SourceFile, app_root: Path) -> str | None:
-    """Which layer of its module the file is: router, service, repository, io or models."""
+    """Which layer of its module the file is: router, service, repository, schemas or models."""
     module = owning_module(source, app_root)
     if module is None:
         return None

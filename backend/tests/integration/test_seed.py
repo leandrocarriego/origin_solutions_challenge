@@ -1,4 +1,4 @@
-"""The demo data, which the brief asks for by name (REQ-19).
+"""The demo data, which the brief asks for by name.
 
 *"insertar una cantidad minima de datos para poder probar la aplicacion"* is why the seed is in
 phase 0 and not at the end: without it there is nothing to develop against, and the evaluator
@@ -36,7 +36,7 @@ class TestItCreatesWhatTheBriefAsksFor:
         assert usernames == {user.username for user in DEMO_USERS}
 
     async def test_every_demo_password_is_hashed(self, session: AsyncSession) -> None:
-        """SEC-06 applies to the seed first, because the seed writes the first row."""
+        """Applies to the seed first, because the seed writes the first row."""
         await seed(session)
 
         stored = (await session.scalars(select(User))).all()
@@ -95,7 +95,7 @@ class TestItRefusesWhereItDoesNotBelong:
     ) -> None:
         """Two mistakes rather than one: SEC_ON_START is absent there and this refuses anyway."""
         get_settings.cache_clear()
-        monkeypatch.setenv("SENTRY_ENVIRONMENT", "production")
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         with pytest.raises(SeedRefused):
             await seed(session)
@@ -107,7 +107,7 @@ class TestItRefusesWhereItDoesNotBelong:
     ) -> None:
         """Refusing after inserting the users would be the worst of both."""
         get_settings.cache_clear()
-        monkeypatch.setenv("SENTRY_ENVIRONMENT", "production")
+        monkeypatch.setenv("ENVIRONMENT", "production")
 
         with pytest.raises(SeedRefused):
             await seed(session)

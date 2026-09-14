@@ -1,22 +1,21 @@
-"""The catalogue: what is worth ingesting, and how a snapshot becomes the table (ADR-002)."""
+"""The catalogue: what is worth ingesting, and how a snapshot becomes the table."""
 
 import asyncio
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import SessionFactory
+from app.db import SessionDep, SessionFactory
 from app.modules.stocks.models import Stock
-from app.modules.stocks.repository import (
-    find_many,
-    last_seen,
-    mark_absent_as_delisted,
-    search_listed,
-    upsert,
+from app.modules.stocks.repository import StockRepository
+from app.modules.stocks.schemas import (
+    CatalogueReconciliation,
+    CatalogueRefresh,
+    StockInfo,
 )
 from app.observability import CATALOGUE_LAST_SUCCESS
 from app.providers import MarketDataProvider, ProviderError, StockRecord, get_market_data_provider
@@ -27,64 +26,83 @@ log = structlog.get_logger()
 # NASDAQ, so following it to the letter would leave its own screen impossible to reproduce.
 CATALOGUE_EXCHANGES = ("NYSE", "NASDAQ")
 
-# How old the catalogue may get before it is refreshed. Two credits out of 800 buys a full
-# refresh, so the window is about how stale a new listing may be, not about cost.
+# How old the catalogue may get before it is refreshed.
 MAX_CATALOGUE_AGE = timedelta(hours=24)
 
-# The symbol travels in the URL (REQ-11), and a slash in it is not a symbol, it is a route. Dots
-# and dashes are legal inside a path segment, so they stay: dropping them would lose real
-# companies (BRK.B, ABR-D).
+# The symbol travels in the URL, and a slash in it is not a symbol, it is a route.
 ROUTABLE_SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,8}$")
 
 # The only type dropped. A warrant is a derivative, not a stock, and it is the only thing that
-# duplicates a symbol in the catalogue -- which is what makes ADR-001's natural key true.
-# Narrower than Common-Stock-only on purpose: that would have thrown away 393 ADRs and 214 REITs
-# that collide with nothing and that somebody may search for.
+# duplicates a symbol in the catalogue.
 DERIVATIVE = "Warrant"
 
 
-@dataclass(frozen=True, slots=True)
-class CatalogueReconciliation:
-    """What one reconciliation did, for the log line and the metric that follow it."""
-
-    exchange: str
-    listed: int
-    delisted: int
-    discarded: int
-
-
 def is_worth_ingesting(record: StockRecord) -> bool:
-    """Whether a catalogue entry may become a row of `stocks` (ADR-001)."""
+    """Whether a catalogue entry may become a row of `stocks`."""
     if record.instrument_type == DERIVATIVE:
         return False
 
     return bool(ROUTABLE_SYMBOL.match(record.symbol))
 
 
-async def reconcile_catalogue(
-    session: AsyncSession, provider: MarketDataProvider, exchange: str
-) -> CatalogueReconciliation:
-    """Bring the catalogue of one market in line with what the provider lists today.
+class SymbolLookup(Protocol):
+    """What describing a symbol needs, and no more.
 
-    Three outcomes per symbol: new ones are inserted, known ones are refreshed, and the ones
-    that stopped coming back are marked `delisted_at`. That third branch is the whole point --
-    the provider's response carries no status field, so an absence is the only signal that a
-    symbol stopped trading, and an upsert cannot see an absence.
-
-    The snapshot is fetched first and on its own. If the provider fails, the exception leaves
-    this function before anything is written: reconciling against half a snapshot would mark
-    everything that did not arrive as delisted, which for a failed request is the whole market.
+    Narrower than `CatalogueStore` on purpose: `describe` is what the cross-module entry runs
+    on, and a lookup that also demanded `commit()` would make every caller carry a write it
+    never makes.
     """
+
+    async def find_many(self, symbols: Sequence[str]) -> list[Stock]:
+        """The rows of those symbols, in one query."""
+        ...
+
+
+class CatalogueStore(SymbolLookup, Protocol):
+    """What this module needs from whatever stores the catalogue it serves."""
+
+    async def upsert(self, records: list[StockRecord], seen_at: datetime) -> None:
+        """Write those entries, refreshing the ones already there."""
+        ...
+
+    async def mark_absent_as_delisted(
+        self, exchange: str, still_listed: set[str], at: datetime
+    ) -> int:
+        """Mark every symbol of that market the snapshot no longer carries."""
+        ...
+
+    async def last_seen(self, exchange: str) -> datetime | None:
+        """When that market was last reconciled, or nothing if it never was."""
+        ...
+
+    async def search_listed(self, text: str, limit: int) -> list[Stock]:
+        """Candidates still trading whose symbol or name contains that text."""
+        ...
+
+    async def commit(self) -> None:
+        """Make permanent what the reconciliation wrote."""
+        ...
+
+
+def catalogue_store(session: SessionDep) -> CatalogueStore:
+    """The catalogue a route is served with."""
+    return StockRepository(session)
+
+
+async def reconcile_catalogue(
+    store: CatalogueStore, provider: MarketDataProvider, exchange: str
+) -> CatalogueReconciliation:
+    """Bring the catalogue of one market in line with what the provider lists today."""
     snapshot = await provider.list_stocks(exchange)
 
     keeping = [record for record in snapshot if is_worth_ingesting(record)]
     now = datetime.now(UTC)
 
-    await upsert(session, keeping, seen_at=now)
-    delisted = await mark_absent_as_delisted(
-        session, exchange, {record.symbol for record in keeping}, at=now
+    await store.upsert(keeping, seen_at=now)
+    delisted = await store.mark_absent_as_delisted(
+        exchange, {record.symbol for record in keeping}, at=now
     )
-    await session.commit()
+    await store.commit()
 
     return CatalogueReconciliation(
         exchange=exchange,
@@ -94,32 +112,16 @@ async def reconcile_catalogue(
     )
 
 
-@dataclass(frozen=True, slots=True)
-class CatalogueRefresh:
-    """What one scheduled refresh did, including the markets that did not answer."""
-
-    reconciled: tuple[CatalogueReconciliation, ...]
-    failed: tuple[str, ...]
-    skipped: bool
-
-
 async def is_catalogue_stale(
-    session: AsyncSession, older_than: timedelta, exchange: str | None = None
+    store: CatalogueStore, older_than: timedelta, exchange: str | None = None
 ) -> bool:
-    """Whether the catalogue is old enough to be worth spending a request on.
-
-    Per market when one is named, and "any of them" otherwise. That distinction is not
-    cosmetic: each exchange is its own snapshot, so asking the table as a whole lets a
-    successful NYSE make a failed NASDAQ look fresh -- and the failed one is then not retried
-    for a day. That is what happened on the first real ingestion.
-
-    A market nobody ever ingested is stale: an empty table is not fresh, it is unknown.
-    """
+    """Whether the catalogue is old enough to be worth spending a request on."""
     markets = (exchange,) if exchange is not None else CATALOGUE_EXCHANGES
     now = datetime.now(UTC)
 
     for market in markets:
-        seen = await last_seen(session, market)
+        seen = await store.last_seen(market)
+
         if seen is None or now - seen > older_than:
             return True
 
@@ -127,27 +129,20 @@ async def is_catalogue_stale(
 
 
 async def refresh_catalogue_if_stale(
-    session: AsyncSession,
+    store: CatalogueStore,
     provider: MarketDataProvider,
     older_than: timedelta = MAX_CATALOGUE_AGE,
 ) -> CatalogueRefresh:
-    """Reconcile both markets, but only when the catalogue has gone stale.
-
-    The staleness check is what keeps this affordable in the one case that would not be:
-    `restart: unless-stopped` can try many times a minute, and a refresh on every start turns a
-    crash loop into an exhausted quota.
-
-    It never raises. This runs as a background task, and an exception there kills the task for
-    the life of the process -- the catalogue would stop refreshing with nothing to show for it.
-    A market that failed comes back in the result and in the log instead.
-    """
+    """Reconcile both markets, but only when the catalogue has gone stale."""
     stale = [
         exchange
         for exchange in CATALOGUE_EXCHANGES
-        if await is_catalogue_stale(session, older_than=older_than, exchange=exchange)
+        if await is_catalogue_stale(store, older_than=older_than, exchange=exchange)
     ]
+
     if not stale:
         await log.adebug("catalogue_refresh_skipped", reason="every market is fresh")
+
         return CatalogueRefresh(reconciled=(), failed=(), skipped=True)
 
     done: list[CatalogueReconciliation] = []
@@ -155,11 +150,13 @@ async def refresh_catalogue_if_stale(
 
     for exchange in stale:
         try:
-            done.append(await reconcile_catalogue(session, provider, exchange))
+            done.append(await reconcile_catalogue(store, provider, exchange))
+
         except ProviderError as error:
             # One market is one snapshot. Skipping the other because this one timed out would
             # be losing data for no reason.
             failed.append(exchange)
+
             await log.awarning(
                 "catalogue_refresh_failed", exchange=exchange, reason=type(error).__name__
             )
@@ -179,72 +176,27 @@ async def refresh_catalogue_if_stale(
 
 
 async def keep_the_catalogue_fresh(every: timedelta = MAX_CATALOGUE_AGE) -> None:
-    """Refresh the catalogue when it goes stale, for as long as the process lives (ADR-002).
-
-    Started by the composition root and cancelled with it. The first pass happens immediately,
-    which is what covers the case of a container that came up after being down for a week; the
-    staleness check is what stops that from costing anything when it came up ten seconds ago.
-
-    Nothing escapes this loop. A background task that raises is a background task that is gone,
-    and a catalogue that silently stopped refreshing looks exactly like one that is up to date
-    -- which is why the freshness is a gauge and why this catches everything.
-    """
+    """Refresh the catalogue when it goes stale, for as long as the process lives."""
     while True:
         try:
             async with SessionFactory() as session:
-                await refresh_catalogue_if_stale(session, get_market_data_provider())
+                await refresh_catalogue_if_stale(
+                    StockRepository(session), get_market_data_provider()
+                )
+
         except asyncio.CancelledError:
             raise
+
         except Exception as error:  # noqa: BLE001 -- see the docstring: the loop has to survive
             await log.aexception("catalogue_refresh_crashed", reason=type(error).__name__)
 
         await asyncio.sleep(every.total_seconds())
 
 
-@dataclass(frozen=True, slots=True)
-class StockInfo:
-    """What the catalogue tells another module about a symbol (GEN-02).
-
-    Four fields, and the fourth is the one that needs a reason. The first three are the grid of
-    `Mis Acciones` (RF-03). `is_listed` exists because `favorites` has to do two opposite things
-    with the same lookup: **show** a favourite that stopped trading -- the business rule asks for
-    it expressly -- and **refuse** to add one that is no longer offered. Filtering the delisted
-    ones out here would take rows away from whoever saved them; saying nothing would let the add
-    accept what the autocomplete cannot suggest. A boolean is less surface than a second exported
-    function.
-
-    Frozen, and never a row of `stocks`: a contract that handed back the ORM would hand the
-    session and the table layout over with it, and the boundary would live only in the docs.
-    """
-
-    symbol: str
-    name: str
-    currency: str
-    is_listed: bool
-
-
-async def get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[StockInfo]:
-    """Describe those symbols, in one call, for whoever asks from another module.
-
-    Three properties of the contract, all of them deliberate:
-
-    - **It is a set.** Repeated symbols collapse and unknown ones are simply absent, so the
-      length of the answer does not follow the length of the question. A symbol the catalogue
-      does not have is not a failure here: `add_favorite` is the one that decides what that
-      absence means.
-    - **The order is not promised.** Whoever consumes it reorders -- `favorites` already has its
-      own, `added_at DESC, symbol ASC` -- which is what lets the repository resolve the `IN` as
-      it pleases.
-    - **The symbols arrive in upper case.** This does not normalise: normalising already has an
-      owner, `add_favorite`, and two places that normalise are two places that one day do it
-      differently. The price is written down and fixed by a test -- lower case gets `[]` and no
-      error.
-
-    An empty list never reaches the database: `WHERE symbol IN ()` is a round trip whose result
-    is known before writing it. "Is this query worth making" is a decision, and decisions live
-    here and not in the repository (PY-06).
-    """
+async def describe(store: SymbolLookup, symbols: Sequence[str]) -> list[StockInfo]:
+    """Describe those symbols, in one call, for whoever asks from another module."""
     wanted = list(dict.fromkeys(symbols))
+
     if not wanted:
         return []
 
@@ -255,38 +207,27 @@ async def get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[Stoc
             currency=row.currency,
             is_listed=row.delisted_at is None,
         )
-        for row in await find_many(session, wanted)
+        for row in await store.find_many(wanted)
     ]
 
 
-# RF-13: shorter than this and no suggestion is worth showing, so the database is not asked. The
-# router imports it for its `Query(min_length=...)`, which is what keeps the number in one place.
+async def get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[StockInfo]:
+    """Describe those symbols for whoever asks from another module."""
+    return await describe(StockRepository(session), symbols)
+
+
+# Shorter than this and no suggestion is worth showing, so the database is not asked.
 MIN_QUERY_LENGTH = 2
 
-# RF-11: what fits in a dropdown. A product decision, applied **after** the ranking.
+# It is truncated to avoid a dropdown that is too long to be useful
 SUGGESTION_LIMIT = 20
 
-# A containment cap on the query, and a different number for a different reason. It is chosen so
-# that today it cannot cut: the catalogue is ~7.200 rows, so even a text matching all of it comes
-# back whole and the ranking is exact by construction rather than by luck. A small cap would have
-# looked prudent and reintroduced the bug in its hard-to-see form -- truncating only on the most
-# common texts, by an order that has nothing to do with relevance.
+# A containment cap on the query, and a different number for a different reason.
 CANDIDATE_LIMIT = 10_000
 
 
 def _relevance(stock: Stock, folded: str) -> tuple[int, str]:
-    """Which of the four groups a row falls in, and its place inside the group.
-
-    Exact symbol, then symbol that starts with the text, then name that starts with it, then
-    everything else that matched; `symbol ASC` inside each, which is what makes the answer the
-    same on every call.
-
-    **Both sides are folded, once.** The two columns are not in the same case -- the catalogue
-    stores `MSFT` and `Microsoft Corp` -- so upper-casing the text would serve the symbol groups
-    and silently kill the name one: `"Microsoft Corp"` does not start with `MICRO`. `casefold()`
-    and not `lower()` because it is the operation Python defines for comparing without case, and
-    the catalogue carries the issuer names of two markets.
-    """
+    """Which of the four groups a row falls in, and its place inside the group."""
     symbol = stock.symbol.casefold()
 
     if symbol == folded:
@@ -301,31 +242,15 @@ def _relevance(stock: Stock, folded: str) -> tuple[int, str]:
     return group, stock.symbol
 
 
-async def search_stocks(session: AsyncSession, text: str) -> list[StockInfo]:
-    """The suggestions for what somebody typed: at most twenty, most relevant first.
-
-    Three decisions live here and none of them is the repository's:
-
-    - **`strip()`, once, on the way in**, and the stripped text is what travels down. Sending the
-      raw text instead would search `ILIKE '%  micro  %'` while the ranking reasoned about
-      `micro` -- the two halves of one search talking about two different texts.
-    - **Shorter than `MIN_QUERY_LENGTH` after that, and the database is never asked.** `"  "`
-      passes the router's `min_length` and would become `ILIKE '%%'`, which is the whole
-      catalogue: exactly the cost RF-13's minimum exists to avoid. `[]` is a result, not a
-      failure, and not a 422 either -- a service that raised for the transport to translate would
-      be opining about HTTP (PY-06).
-    - **Rank first, cut second.** The repository brings candidates; cutting at twenty before the
-      ranking existed would mean ranking a set the database already chose, and `MSFT` would not
-      be in the answer for `micro`.
-
-    Nothing is upper-cased and nothing is escaped on the way down: `ILIKE` handles case on its
-    own, and escaping is the syntax of an operator this layer does not know about.
-    """
+async def search_stocks(store: CatalogueStore, text: str) -> list[StockInfo]:
+    """The suggestions for what somebody typed: at most twenty, most relevant first."""
     needle = text.strip()
+
     if len(needle) < MIN_QUERY_LENGTH:
         return []
 
-    candidates = await search_listed(session, needle, CANDIDATE_LIMIT)
+    candidates = await store.search_listed(needle, CANDIDATE_LIMIT)
+
     if len(candidates) == CANDIDATE_LIMIT:
         # The cap was reached, so the ranking is no longer trustworthy: the rows that did not
         # come back were chosen by nothing in particular. A tope that ages in silence is a

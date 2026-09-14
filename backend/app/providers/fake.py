@@ -1,20 +1,12 @@
-"""A provider that answers without a network, so the suite can run without one.
-
-TEST-03 is not a convenience: the quota is 800 requests a day (Article II) and a suite that
-spends it is not a suite. This is also what runs locally, so `make up` needs no credential.
-
-Everything it returns is derived from its inputs, never random: a fake that varies turns a
-failing test into a coin toss instead of a bug.
-"""
+"""A provider that answers without a network, so the suite can run without one."""
 
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from app.providers.base import MarketDataProvider, QuotePoint, StockRecord
+from app.providers.base import MarketDataProvider
+from app.providers.schemas import QuotePoint, StockRecord
 
-# A catalogue small enough to read and large enough to exercise what matters: the three symbols
-# of the brief's wireframe, one on each exchange, and one that the ADR-001 ingestion filter has
-# to reject.
+# A catalogue small enough to read and large enough to exercise what matters.
 _CATALOGUE = (
     ("TSLA", "Tesla, Inc.", "NASDAQ", "XNGS", "Common Stock"),
     ("AAPL", "Apple Inc.", "NASDAQ", "XNGS", "Common Stock"),
@@ -59,6 +51,7 @@ class FakeProvider(MarketDataProvider):
 
         points: list[QuotePoint] = []
         instant = start
+
         while instant <= end and len(points) < _POINTS:
             # A small deterministic wobble, so a chart drawn from this is not a flat line.
             offset = Decimal(len(points) % 7) - Decimal(3)

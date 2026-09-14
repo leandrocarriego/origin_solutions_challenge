@@ -1,4 +1,4 @@
-"""Every route decides who may call it, and says so out loud (PY-08, Article III).
+"""Every route decides who may call it, and says so out loud.
 
 There are two halves, and neither replaces the other.
 
@@ -12,10 +12,10 @@ one.
 because the router forgot to include it, because a middleware short-circuits earlier-- declares
 an authorization that does not happen, and only a request finds that out.
 
-`TestNoRouteAcceptsAUserId` is the static half of Article III: the id of the user whose data is
+`TestNoRouteAcceptsAUserId` is the static half of the isolation rule: the id of the user whose
 being touched never arrives in the request. The other half --two users, real rows, one of them
 trying to read the other's-- needs endpoints and a database, and belongs to the feature that
-builds them (`GEN-09`, `tests/integration/test_user_isolation.py`).
+builds them (`tests/integration/test_user_isolation.py`).
 """
 
 from collections.abc import Iterator
@@ -29,7 +29,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 # Where the authorization primitives live. `get_current_user` is consumed by the routers of
-# every module, so it is not the property of any of them (GEN-03).
+# every module, so it is not the property of any of them.
 SECURITY_MODULE = "app.security"
 
 # FastAPI mounts these on every application it builds, this project's and the throwaway ones
@@ -50,22 +50,21 @@ PUBLIC_ROUTES: dict[str, str] = {
     "GET /api/health": (
         "Traefik and the deploy ask it whether to route traffic here, before there is any "
         "session to authenticate. It answers three fields and none of them come from "
-        "configuration (Article I)."
+        "configuration."
     ),
     "POST /api/auth/login": (
         "It is the route the credential is obtained from, and requiring one in order to ask for "
         "one does not close. What protects it is not a token: the same 401 for an unknown user "
-        "and for a wrong password (RF-06), and the attempt limit of RF-21 and RF-22."
+        "and for a wrong password, and the attempt limit."
     ),
     "GET /metrics": (
         "Prometheus scrapes it and has no credentials to offer. It is never published through "
-        "Traefik: it stays on the internal Docker network, because it names observed symbols "
-        "(ADR-009)."
+        "Traefik: it stays on the internal Docker network, because it names observed symbols."
     ),
 }
 
 # Names that must never arrive from the path, the query string or the body. The frontend is the
-# attacker's: "it always sends its own id" is not a control, it is a hope (Article III).
+# attacker's: "it always sends its own id" is not a control, it is a hope.
 #
 # It is a list of spellings, so `uid` or `id_usuario` would walk past it. This catches the
 # obvious shapes; the guarantee is the two-user isolation test that comes with 002.
@@ -76,7 +75,7 @@ IGNORED_METHODS = frozenset({"HEAD", "OPTIONS"})
 
 # The one route `003-quote-chart` mounts. Written out rather than discovered, because what is
 # under test is that this particular route decided something: a check that looks for "whatever
-# is mounted" passes just as happily over a feature that was never wired up (GEN-04).
+# is mounted" passes just as happily over a feature that was never wired up.
 _CHART_ROUTE = "GET /api/quotes/{symbol}"
 
 
@@ -245,7 +244,7 @@ class TestRoutesEnforceAuthorization:
 
 
 class TestNoRouteAcceptsAUserId:
-    """Article III, the half that can be read off the signatures."""
+    """The isolation rule, in the half that can be read off the signatures."""
 
     def test_no_route_takes_the_identity_of_the_user_from_the_request(self) -> None:
         """The id comes from the `sub` of the token, never from the path, query or body."""

@@ -12,21 +12,21 @@
  * Library's waiting still works while the clock is ours.
  *
  * What is asserted about a refresh is what distinguishes the requirement from something that merely
- * looks right: **the chart node is the same one** (RF-19). A screen that threw the chart away and
+ * looks right: **the chart node is the same one**. A screen that threw the chart away and
  * drew a new one every interval would show the same points and flicker once a minute, and no
  * assertion about content would notice -- so the node is compared by identity, before and after.
  *
  * **What jsdom cannot be asked.** Highcharts draws into an SVG and jsdom computes no layout: there
- * is no way to read a *point* off the chart. So RF-18 and RF-20 are asserted where they are
+ * is no way to read a *point* off the chart. So the two are asserted where they are
  * decided and where they can be seen -- one request per interval, and a request for the whole
  * session rather than for "what is new", which is the shape that makes dropping a point
- * impossible. That the answer is then drawn is RF-19, which is the identity of the node.
+ * impossible. That the answer is then drawn is the identity of the node.
  *
  * Today every test here is red because `/stocks/:symbol` has nothing behind it: the address falls
  * through to `Mis Acciones` and there is no `Graficar` to press. That is the intended red --
  * absence of implementation.
  *
- * `fetch` is replaced in every test and restored afterwards (`add_tests`, `TEST-03`).
+ * `fetch` is replaced in every test and restored afterwards.
  */
 
 import { render, screen } from '@testing-library/react';
@@ -37,7 +37,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { writeStoredSession } from '../src/auth/storage';
 
-// Verbatim from docs/design/COPY.md (UI-02): the controls this file has to drive, and the
+// Verbatim from docs/design/COPY.md: the controls this file has to drive, and the
 // axis title that is the only thing a chart writes that jsdom can read.
 const INTERVALO = 'Intervalo';
 const GRAFICAR = 'Graficar';
@@ -64,7 +64,7 @@ interface Favorite {
   currency: string;
 }
 
-/** The favourites of the demo user. `MSFT` is deliberately not one of them (RF-35). */
+/** The favourites of the demo user. `MSFT` is deliberately not one of them. */
 const THE_LIST: Favorite[] = [
   { symbol: 'TSLA', name: 'Tesla Inc', currency: 'USD' },
   { symbol: 'AAPL', name: 'Apple Inc', currency: 'USD' },
@@ -117,7 +117,7 @@ function seriesOf(
   };
 }
 
-/** The candle that closes while the chart is on screen, and that a refresh has to bring (RF-18). */
+/** The candle that closes while the chart is on screen, and that a refresh has to bring. */
 const A_SIXTH_CANDLE: QuotePoint = { ts: '2026-09-11T20:05:00Z', price: '365.52000' };
 
 /** What `GET /api/quotes/{symbol}` answers next. A test changes it to change the state. */
@@ -182,7 +182,7 @@ function openAt(address: string): { unmount: () => void } {
  * that owns it -- instead of being typed into the login on the way to every test here. What is
  * being tested is wireframe 03 and not the door: `Login.test.tsx` and `session.test.tsx` own the
  * door, and walking through it fifty times would add a minute to the suite to re-prove what they
- * already prove. That an address opened with no session lands on the login is RF-02, and it lives
+ * already prove. That an address opened with no session lands on the login is another test, and it lives
  * in `session.test.tsx`.
  */
 function openTheDetail(symbol: string): { unmount: () => void } {
@@ -243,7 +243,7 @@ function timesAskedForASeries(): number {
 /** One minute, in milliseconds: the shortest interval the brief offers (`1min`). */
 const ONE_MINUTE = 60_000;
 
-/** Put the tab in the background, the way changing to another tab does (RF-21). */
+/** Put the tab in the background, the way changing to another tab does. */
 function hideTheTab(): void {
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
@@ -252,7 +252,7 @@ function hideTheTab(): void {
   document.dispatchEvent(new Event('visibilitychange'));
 }
 
-/** Come back to the tab (RF-22). */
+/** Come back to the tab. */
 function showTheTab(): void {
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
@@ -296,9 +296,9 @@ describe('a chart of Tiempo Real that is left on screen', () => {
   });
 
   it('asks our API again once the chosen interval has gone by', async () => {
-    // RF-18. One interval, one request: the screen refreshes on the rhythm the person chose, and
+    // One interval, one request: the screen refreshes on the rhythm the person chose, and
     // not on one of its own. The series that answers the refresh carries the candle that closed
-    // meanwhile, which is the whole reason to ask -- that the extra point is *drawn* is RF-19
+    // meanwhile, which is the whole reason to ask -- that the extra point is *drawn* is the node
     // below, because the node it is drawn into is the only thing jsdom lets a test see of it.
     const chart = await plotAndTakeTheClock('1min');
     const asked = timesAskedForASeries();
@@ -311,7 +311,7 @@ describe('a chart of Tiempo Real that is left on screen', () => {
   });
 
   it('draws the refresh into the chart that is already there', async () => {
-    // RF-19, and it is the heart of this story: the same node, not an equivalent one. `setData`
+    // It is the heart of this story: the same node, not an equivalent one. `setData`
     // on the chart that exists is what makes the update invisible; a remount "works" and blinks.
     const chart = await plotAndTakeTheClock('1min');
 
@@ -321,7 +321,7 @@ describe('a chart of Tiempo Real that is left on screen', () => {
   });
 
   it('keeps asking for the whole session, so nothing that was drawn is dropped', async () => {
-    // RF-20. The realtime answer is the whole session (`plan.md` → *Alternativas descartadas*):
+    // The realtime answer is the whole session (`plan.md` → *Alternativas descartadas*):
     // the screen does not ask for "what is new", which is where a chart loses its left-hand side.
     await plotAndTakeTheClock('1min');
 
@@ -334,7 +334,7 @@ describe('a chart of Tiempo Real that is left on screen', () => {
   });
 
   it('refreshes on the interval that was chosen, and not on another one', async () => {
-    // RF-18 again, with the interval changed: at `5min` a minute is not a refresh. A screen that
+    // Again, with the interval changed: at `5min` a minute is not a refresh. A screen that
     // polled on a fixed rhythm would pass the test above and spend five times the quota here.
     await plotAndTakeTheClock('5min');
     const asked = timesAskedForASeries();
@@ -347,7 +347,7 @@ describe('a chart of Tiempo Real that is left on screen', () => {
   });
 
   it('stops asking while the tab is not being looked at', async () => {
-    // RF-21, and Article II: a forgotten tab renewing the TTL of its symbol all session long is
+    // a forgotten tab renewing the TTL of its symbol all session long is
     // quota spent by nobody.
     await plotAndTakeTheClock('1min');
     const asked = timesAskedForASeries();
@@ -359,7 +359,7 @@ describe('a chart of Tiempo Real that is left on screen', () => {
   });
 
   it('catches up as soon as the tab is looked at again', async () => {
-    // RF-22. Coming back asks immediately -- waiting a whole interval would show a chart that is
+    // Coming back asks immediately -- waiting a whole interval would show a chart that is
     // visibly out of date -- and arms the timer again, which the second half checks.
     await plotAndTakeTheClock('1min');
     hideTheTab();

@@ -54,7 +54,7 @@ class TestHealthReportsDegradation:
 
     async def test_never_leaks_the_connection_string(self, database_is_unreachable: None) -> None:
         """The failure path is where a credential would surface first."""
-        # Article I: the credential does not leave, not even inside an error. The DSN carries
+        # the credential does not leave, not even inside an error. The DSN carries
         # the password, so the degraded answer is where a leak would show up first.
         _, body = await _get_health()
 
@@ -70,7 +70,7 @@ class TestHealthIsPublic:
     async def test_does_not_require_authentication(self, database_is_reachable: None) -> None:
         """Health stays reachable for callers that cannot authenticate."""
         # This is the route the proxy polls, and the proxy carries no token. It belongs in
-        # PUBLIC_ROUTES with its reason written down (PY-08).
+        # PUBLIC_ROUTES with its reason written down.
         status_code, _ = await _get_health()
 
         assert status_code != 401

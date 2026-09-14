@@ -44,10 +44,13 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://origin:origin@localhost:5432/origin_test
-      # TEST-03, and the entire point of this variable: it is declared EMPTY on purpose. Any
-      # test reaching for the provider fails on the missing credential instead of quietly
-      # spending the Article II quota.
-      TWELVEDATA_API_KEY: ""
+      # The entire point of this variable: it is declared EMPTY on purpose. Any test reaching
+      # for the provider fails on the missing credential instead of quietly spending the quota.
+      MARKET_DATA_API_KEY: ""
+      # Which provider gets built has no default, so every environment names one. The value is
+      # the same one `tests/conftest.py` falls back to: the client's own tests read the real
+      # one's responses from fixtures, and the empty key above is what keeps it off the network.
+      MARKET_DATA_PROVIDER: twelvedata
       # With no DSN, Sentry never initialises: no events and no network from CI.
       SENTRY_DSN: ""
       # A signing secret for the suite, long enough to be accepted (32 characters minimum). It
@@ -212,7 +215,14 @@ jobs:
         # and app/providers/ imports it, so the container crash-looped in production while the
         # suite, mypy, ruff and this very job were all green. Building an image is not the same
         # as being able to run it.
+        #
+        # The two variables are what the settings require, not what this step measures: the
+        # engine is built at import time, so without them the import fails on configuration
+        # and never reaches the dependency this step is here to check.
         run: |
-          docker run --rm --entrypoint python origin-backend:ci -c 'import app.main' \
+          docker run --rm --entrypoint python \
+            -e JWT_SECRET=ci-import-check-not-a-real-secret-0000 \
+            -e MARKET_DATA_PROVIDER=fake \
+            origin-backend:ci -c 'import app.main' \
             || { echo "::error::La imagen no puede importar la aplicación: falta una dependencia de runtime."; exit 1; }
           echo "La aplicación importa con lo que la imagen instala."

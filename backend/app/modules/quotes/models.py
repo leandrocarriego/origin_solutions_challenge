@@ -1,4 +1,4 @@
-"""The quote cache (ADR-001), which is what makes Article II possible."""
+"""The quote cache, which is what keeps the quota finite."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
+# The same number as the catalogue's.
 SYMBOL_LENGTH = 12
 
 # Money, and therefore never a float: 18 digits with 6 decimals covers every price the provider
@@ -25,7 +26,7 @@ PRICE = Numeric(18, 6)
 
 
 class QuoteInterval(StrEnum):
-    """The three intervals REQ-16 offers the user, and the only ones the table accepts."""
+    """The three intervals the user is offered, and the only ones the table accepts."""
 
     ONE_MINUTE = "1min"
     FIVE_MINUTES = "5min"
@@ -36,15 +37,12 @@ _ALLOWED_INTERVALS = ", ".join(f"'{interval}'" for interval in QuoteInterval)
 
 
 class Quote(Base):
-    """One candle: a symbol, an interval and an instant.
+    """
+    One candle: a symbol, an interval and an instant.
 
     The composite primary key is the cache: fetching the same point twice writes one row, so a
     re-fetch cannot duplicate the series, and the gap detection can ask the database what it
     already has instead of trusting a bookkeeping table.
-
-    `interval` is a String with a CHECK and not a native enum: adding a value to a Postgres enum
-    is an awkward migration and removing one is worse, while a CHECK is altered in one line
-    (ADR-001).
     """
 
     __tablename__ = "quotes"

@@ -1,4 +1,4 @@
-"""The counter behind the attempt limit (RF-21, RF-22).
+"""The counter behind the attempt limit.
 
 It counts events per key over a sliding window and knows nothing else: not what a login is, not
 what a username is. That is the whole contract, and it is why the same class can later give
@@ -79,7 +79,7 @@ class TestTheWindowFills:
         assert limiter.is_exceeded(_KEY) is False
 
     def test_the_limit_itself_is_exceeded(self, clock: _Clock) -> None:
-        """Ten in the window is the line: what comes after it is refused (RF-21)."""
+        """Ten in the window is the line: what comes after it is refused."""
         limiter = _limiter(limit=10)
 
         for _ in range(10):
@@ -88,7 +88,7 @@ class TestTheWindowFills:
         assert limiter.is_exceeded(_KEY) is True
 
     def test_each_key_is_counted_on_its_own(self, clock: _Clock) -> None:
-        """The address and the username are two counters, not one (RF-21, RF-22)."""
+        """The address and the username are two counters, not one."""
         limiter = _limiter(limit=2)
 
         limiter.hit(_KEY)
@@ -129,7 +129,7 @@ class TestTheWindowSlides:
         assert limiter.is_exceeded(_KEY) is True
 
     def test_retry_after_is_the_wait_until_the_oldest_hit_falls_out(self, clock: _Clock) -> None:
-        """It is what the 429 puts in `Retry-After`, so it has to be the real wait (RF-21)."""
+        """It is what the 429 puts in `Retry-After`, so it has to be the real wait."""
         limiter = _limiter(limit=3)
         limiter.hit(_KEY)
         clock.advance(10)
@@ -160,7 +160,7 @@ class TestTheWindowSlides:
 
 
 class TestResetting:
-    """What a successful login does to the count it had accumulated (RF-25, RF-26)."""
+    """What a successful login does to the count it had accumulated."""
 
     def test_reset_empties_the_key(self, clock: _Clock) -> None:
         """Whoever proved they know the password is not the attacker being counted."""

@@ -1,4 +1,4 @@
-"""No password is ever stored as itself (SEC-06).
+"""No password is ever stored as itself.
 
 `md5`, `sha1` and `sha256` are designed to be fast, which is exactly what you do not want the
 day somebody walks off with the `users` table. Argon2id is OWASP's first recommendation and the
@@ -45,5 +45,5 @@ class TestChecking:
         assert not verify_password(attempt, hash_password(PASSWORD))
 
     def test_a_stored_value_that_is_not_a_hash_does_not_verify(self) -> None:
-        """A row written by something that ignored SEC-06 must fail closed, not crash."""
+        """A row written by something that ignored the hashing rule must fail closed, not crash."""
         assert not verify_password(PASSWORD, PASSWORD)

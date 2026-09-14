@@ -1,1 +1,1 @@
-"""Test suite. Runs with no network and no API key (TEST-03)."""
+"""Test suite. Runs with no network and no API key."""

@@ -1,4 +1,4 @@
-"""What the search decides before HTTP and before SQL (RF-11, RF-13).
+"""What the search decides before HTTP and before SQL.
 
 **Everything here is red until task 11 exists**, and it is red by name. The four names the plan
 fixed -- `search_stocks`, `MIN_QUERY_LENGTH`, `SUGGESTION_LIMIT`, `CANDIDATE_LIMIT` -- are looked
@@ -39,9 +39,9 @@ from app.modules.stocks.models import Stock
 
 
 class _SearchStocks(Protocol):
-    """The signature the plan fixes for the search: session first, raw text second."""
+    """The signature the plan fixes for the search: the store first, raw text second."""
 
-    def __call__(self, session: AsyncSession, text: str) -> Awaitable[list[StockInfo]]:
+    def __call__(self, store: object, text: str) -> Awaitable[list[StockInfo]]:
         """Answer at most `SUGGESTION_LIMIT` suggestions, already ordered by relevance."""
         ...
 
@@ -57,13 +57,13 @@ def _of_the_service(name: str) -> object:
         ) from missing
 
 
-async def search_stocks(session: AsyncSession, text: str) -> list[StockInfo]:
+async def search_stocks(store: object, text: str) -> list[StockInfo]:
     """Call the service's search, failing by name while that door does not exist yet."""
-    return await cast(_SearchStocks, _of_the_service("search_stocks"))(session, text)
+    return await cast(_SearchStocks, _of_the_service("search_stocks"))(store, text)
 
 
 def _suggestion_limit() -> int:
-    """RF-11: how many suggestions fit in the dropdown."""
+    """How many suggestions fit in the dropdown."""
     return cast(int, _of_the_service("SUGGESTION_LIMIT"))
 
 
@@ -73,7 +73,7 @@ def _candidate_limit() -> int:
 
 
 def _min_query_length() -> int:
-    """RF-13: how short a text the service refuses to ask the database about."""
+    """How short a text the service refuses to ask the database about."""
     return cast(int, _of_the_service("MIN_QUERY_LENGTH"))
 
 
@@ -107,7 +107,7 @@ class _Catalogue:
         self.rows = rows
         self.asked_for: list[tuple[str, int]] = []
 
-    async def search_listed(self, session: AsyncSession, text: str, limit: int) -> list[Stock]:
+    async def search_listed(self, text: str, limit: int) -> list[Stock]:
         """Record the text and the limit the service passed down, then answer the fixed rows."""
         self.asked_for.append((text, limit))
 
@@ -115,9 +115,9 @@ class _Catalogue:
 
 
 @pytest.fixture
-def catalogue(monkeypatch: pytest.MonkeyPatch) -> _Catalogue:
+def catalogue() -> _Catalogue:
     """A spied repository holding the four groups of the ranking, in a misleading order."""
-    stub = _Catalogue(
+    return _Catalogue(
         [
             _row("ALPHA", "Amicrobial Labs"),
             _row("BETA", "Micron Systems"),
@@ -125,9 +125,6 @@ def catalogue(monkeypatch: pytest.MonkeyPatch) -> _Catalogue:
             _row("MICRO", "Micro Devices"),
         ]
     )
-    monkeypatch.setattr("app.modules.stocks.service.search_listed", stub.search_listed)
-
-    return stub
 
 
 class TestTheOrderByRelevance:
@@ -135,65 +132,56 @@ class TestTheOrderByRelevance:
 
     async def test_the_four_groups_come_back_in_that_order(self, catalogue: _Catalogue) -> None:
         """One row per group, handed over shuffled so the sequence cannot be an accident."""
-        found = await search_stocks(_UNUSED_SESSION, "micro")
+        found = await search_stocks(catalogue, "micro")
 
         assert [info.symbol for info in found] == ["MICRO", "MICROX", "BETA", "ALPHA"]
 
-    async def test_inside_a_group_the_symbol_decides(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_inside_a_group_the_symbol_decides(self) -> None:
         """`symbol ASC` is what makes the answer the same on every call."""
         stub = _Catalogue([_row("ZZ", "Zz Micro Corp"), _row("AA", "Aa Micro Corp")])
-        monkeypatch.setattr("app.modules.stocks.service.search_listed", stub.search_listed)
 
-        found = await search_stocks(_UNUSED_SESSION, "micro")
+        found = await search_stocks(stub, "micro")
 
         assert [info.symbol for info in found] == ["AA", "ZZ"]
 
-    async def test_the_symbol_is_compared_without_case(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_the_symbol_is_compared_without_case(self) -> None:
         """`msft` is the exact symbol `MSFT`, or the first group is empty for everybody."""
         stub = _Catalogue([_row("AMSFT", "Amsft Corp"), _row("MSFT", "Microsoft Corp")])
-        monkeypatch.setattr("app.modules.stocks.service.search_listed", stub.search_listed)
 
-        found = await search_stocks(_UNUSED_SESSION, "msft")
+        found = await search_stocks(stub, "msft")
 
         assert [info.symbol for info in found] == ["MSFT", "AMSFT"]
 
-    async def test_the_name_is_compared_without_case_too(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_the_name_is_compared_without_case_too(self) -> None:
         """The half an `.upper()` breaks: `Microsoft Corp` does not start with `MICRO`."""
         stub = _Catalogue([_row("ZZZ", "Zeta Microsystems"), _row("MSFT", "Microsoft Corp")])
-        monkeypatch.setattr("app.modules.stocks.service.search_listed", stub.search_listed)
 
-        found = await search_stocks(_UNUSED_SESSION, "MICRO")
+        found = await search_stocks(stub, "MICRO")
 
         assert [info.symbol for info in found] == ["MSFT", "ZZZ"]
 
 
 class TestTheCutAtTwentyHappensAfterTheOrder:
-    """RF-11, and the bug the plan corrected: ranking a set somebody already truncated."""
+    """the bug the plan corrected: ranking a set somebody already truncated."""
 
-    async def test_at_most_twenty_come_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_at_most_twenty_come_back(self) -> None:
         """Twenty-five candidates, twenty suggestions: `SUGGESTION_LIMIT` is the dropdown."""
         stub = _Catalogue([_row(f"A{index:02d}", f"Amicrobial {index:02d}") for index in range(25)])
-        monkeypatch.setattr("app.modules.stocks.service.search_listed", stub.search_listed)
 
-        found = await search_stocks(_UNUSED_SESSION, "micro")
+        found = await search_stocks(stub, "micro")
 
         assert len(found) == _suggestion_limit() == 20
 
-    async def test_the_relevant_one_survives_the_cut(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_the_relevant_one_survives_the_cut(self) -> None:
         """`MSFT` sorts last by symbol and first by relevance, and twenty rows fit.
 
         Cutting before ranking drops it, and nothing downstream can bring it back: this is the
-        acceptance criterion of RF-15 expressed against the service alone.
+        acceptance criterion expressed against the service alone.
         """
         crowd = [_row(f"A{index:02d}", f"Amicrobial {index:02d}") for index in range(24)]
         stub = _Catalogue([*crowd, _row("MSFT", "Microsoft Corp")])
-        monkeypatch.setattr("app.modules.stocks.service.search_listed", stub.search_listed)
 
-        found = await search_stocks(_UNUSED_SESSION, "micro")
+        found = await search_stocks(stub, "micro")
 
         assert next(info.symbol for info in found) == "MSFT"
 
@@ -205,14 +193,14 @@ class TestTheCutAtTwentyHappensAfterTheOrder:
         A `limit=20` travelling down to `search_listed` is the corrected bug returning, so the
         assertion is on the number that went down and not only on the number that came back.
         """
-        await search_stocks(_UNUSED_SESSION, "micro")
+        await search_stocks(catalogue, "micro")
 
         assert catalogue.asked_for == [("micro", _candidate_limit())]
         assert _candidate_limit() > _suggestion_limit()
 
 
 class TestATextThatIsTooShort:
-    """RF-13 seen from the service: `[]`, and the database never hears about it."""
+    """from the service: `[]`, and the database never hears about it."""
 
     async def test_two_spaces_never_reach_the_repository(self, catalogue: _Catalogue) -> None:
         """`ILIKE '%%'` is the whole catalogue, and this is where it is not asked for.
@@ -220,7 +208,7 @@ class TestATextThatIsTooShort:
         Integration cannot see this: an empty answer looks the same whether the query ran or
         not. `asked_for` staying empty is the assertion.
         """
-        found = await search_stocks(_UNUSED_SESSION, "  ")
+        found = await search_stocks(catalogue, "  ")
 
         assert found == []
         assert catalogue.asked_for == []
@@ -229,7 +217,7 @@ class TestATextThatIsTooShort:
         self, catalogue: _Catalogue
     ) -> None:
         """One character of intention is below `MIN_QUERY_LENGTH`, whatever the router counted."""
-        found = await search_stocks(_UNUSED_SESSION, "a ")
+        found = await search_stocks(catalogue, "a ")
 
         assert found == []
         assert catalogue.asked_for == []
@@ -243,13 +231,13 @@ class TestTheTextThatTravelsDown:
         self, catalogue: _Catalogue
     ) -> None:
         """The raw text would search `ILIKE '%  micro  %'` while the ranking read `micro`."""
-        await search_stocks(_UNUSED_SESSION, "  micro  ")
+        await search_stocks(catalogue, "  micro  ")
 
         assert catalogue.asked_for == [("micro", _candidate_limit())]
 
     async def test_the_case_is_left_alone(self, catalogue: _Catalogue) -> None:
         """`ILIKE` is case-insensitive by itself, so an `.upper()` here is a second rule."""
-        await search_stocks(_UNUSED_SESSION, "MiCrO")
+        await search_stocks(catalogue, "MiCrO")
 
         assert catalogue.asked_for == [("MiCrO", _candidate_limit())]
 
@@ -259,6 +247,6 @@ class TestTheTextThatTravelsDown:
         The consequence is not theoretical -- with the escape one layer up, the ranking would
         compare an escaped `s_p` against `S_P Global` and the name group would stop matching.
         """
-        await search_stocks(_UNUSED_SESSION, "%a")
+        await search_stocks(catalogue, "%a")
 
         assert catalogue.asked_for == [("%a", _candidate_limit())]

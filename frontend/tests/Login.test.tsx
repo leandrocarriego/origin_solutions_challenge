@@ -1,5 +1,5 @@
 /**
- * The login screen (RF-01 to RF-05, RF-12, RF-13, RF-23).
+ * The login screen.
  *
  * The screen is reached through its own route, by rendering the application at `/login`, and not
  * by rendering `Login` on its own. It needs the router (it navigates on success) and the session
@@ -9,16 +9,16 @@
  *
  * That does fix one thing, and it is deliberate: **the `Router` lives in `main.tsx`, around
  * `<App />`, and not inside `App`.** Otherwise this file cannot open the screen at a chosen URL,
- * and RF-09 -- "paste the address of Mis Acciones in a browser" -- is not verifiable at all.
+ * and "paste the address of Mis Acciones in a browser" is not verifiable at all.
  *
  * Three of these tests are about what the user is *not* told:
  *
- * - An empty field never reaches the API (RF-13), so the credential is not what is wrong.
+ * - An empty field never reaches the API, so the credential is not what is wrong.
  * - The three notices are exclusive and ordered: empty field, then the attempt limit, then the
  *   credential (`COPY.md` says so explicitly). Two at once is a bug, not a detail.
  * - Neither the 401 nor the 429 of the login is a session that expired, so neither may trigger
  *   the interceptor. If it did, the screen would reload itself instead of saying what happened,
- *   and RF-04 would look like a server fault.
+ *   and a bad credential would look like a server fault.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -28,7 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/App';
 
-// Verbatim from docs/design/COPY.md, misspellings included (UI-02).
+// Verbatim from docs/design/COPY.md, misspellings included.
 const USUARIO = 'Usuario';
 const PLACEHOLDER_USUARIO = 'Ingresar nombre de usuario';
 const CLAVE = 'Clave';
@@ -93,7 +93,7 @@ function stubTheApi(status: number, body: unknown = {}): void {
  *
  * `TypeError: Failed to fetch` is what a browser rejects with when it cannot reach the host at all
  * -- the connection is down, the server is not listening, DNS does not resolve. It is not a status
- * code, which is exactly why RF-27 exists: there is no response to read, so a screen that only
+ * code, which is exactly why the notice exists: there is no response to read, so a screen that only
  * knows how to react to statuses falls back to its default notice and blames the credential.
  */
 function stubAServerThatCannotBeReached(): void {
@@ -152,7 +152,7 @@ describe('the login screen as the wireframe draws it', () => {
   });
 
   it('adds no page title and no logo', () => {
-    // UI-01: wireframe 01 has neither, so neither is added.
+    // wireframe 01 has neither, so neither is added.
     openTheLoginScreen();
 
     expect(screen.queryByRole('heading')).toBeNull();
@@ -183,7 +183,7 @@ describe('the login screen with a credential that works', () => {
   });
 
   it('asks our own API, and asks it once', async () => {
-    // Article I: the browser never learns the provider's domain, and never spends quota.
+    // the browser never learns the provider's domain, and never spends quota.
     openTheLoginScreen();
 
     await tryToLogIn('juan', A_PASSWORD);
@@ -195,7 +195,7 @@ describe('the login screen with a credential that works', () => {
   });
 
   it('sends what was typed in the body and never in the address', async () => {
-    // A password in a query string ends up in every access log on the way (RF-11).
+    // A password in a query string ends up in every access log on the way.
     openTheLoginScreen();
 
     await tryToLogIn('juan', A_PASSWORD);
@@ -243,7 +243,7 @@ describe('the login screen with a credential that does not work', () => {
   });
 
   it('does not say the server could not be reached, because it answered', async () => {
-    // The other direction of RF-27's exclusivity: the API said no, and saying "we could not ask"
+    // The other direction of that exclusivity: the API said no, and saying "we could not ask"
     // would send the visitor to check a connection that is working.
     stubTheApi(401, { detail: 'invalid credentials' });
     openTheLoginScreen();
@@ -257,7 +257,7 @@ describe('the login screen with a credential that does not work', () => {
 
 describe('the login screen when the server cannot be reached at all', () => {
   it('says so with the words of the copy, and does not blame the credential', async () => {
-    // RF-27. There is no response to read, so nothing is known about the credential: it was
+    // There is no response to read, so nothing is known about the credential: it was
     // never checked. Blaming it sends the visitor to change a password that was right.
     stubAServerThatCannotBeReached();
     openTheLoginScreen();
@@ -356,7 +356,7 @@ describe('the login screen with a field left empty', () => {
   });
 
   it('does not ask the API anything', async () => {
-    // RF-13: a blank field is a slip, not a credential to check.
+    // a blank field is a slip, not a credential to check.
     openTheLoginScreen();
 
     await tryToLogIn('juan', '');

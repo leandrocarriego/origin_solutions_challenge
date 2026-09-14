@@ -40,10 +40,10 @@ services:
       CORS_ORIGINS: '["https://${DOMAIN}"]'
       VERSION: ${VERSION:-latest}
       SENTRY_DSN: ${SENTRY_DSN:-}
-      SENTRY_ENVIRONMENT: production
+      ENVIRONMENT: production
       # Empty is allowed while phase 0 only serves health. The quotes module reads it and
       # will fail loudly the moment it needs the provider, which is the right place to notice.
-      TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      MARKET_DATA_API_KEY: ${TWELVEDATA_API_KEY:-}
       # The one that cannot be forgotten here, and the reason it carries ":?" and not just the
       # bare name: the secret is validated at use and not at import, so a deploy without it
       # starts, answers health in green, and breaks at the first login -- the worst of the three
@@ -52,7 +52,7 @@ services:
       # comment exists to stop. ":?" is what refuses to start, and it is the same form
       # POSTGRES_PASSWORD and GRAFANA_ADMIN_PASSWORD already use above.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env, at least 32 chars}
-      # The real provider here, which is what makes the catalogue refresh of ADR-002 real: two
+      # The real provider here, which is what makes the catalogue refresh real: two
       # requests a day out of 800. With an empty key it fails loudly and the freshness gauge
       # stops advancing, which is visible on the dashboard.
       MARKET_DATA_PROVIDER: twelvedata
@@ -99,7 +99,7 @@ services:
       traefik.http.middlewares.origin-challenge-https.redirectscheme.permanent: "true"
       traefik.http.services.origin-challenge.loadbalancer.server.port: "80"
 
-  # --- Observability, layer 3 (ADR-009) --------------------------------------------------------
+  # --- Observability, layer 3 ------------------------------------------------------------------
   # Grafana is public and has a login. Prometheus is NOT: it has no authentication of any kind,
   # so publishing it would publish every metric and every observed symbol name to whoever walks
   # past. It stays on loopback, reached with `ssh -L 9090:127.0.0.1:9090 mendri`.

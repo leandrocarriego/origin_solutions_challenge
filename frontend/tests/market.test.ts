@@ -2,8 +2,8 @@
  * `quotes/market.ts` -- the two time zones of the product, and the four readings built on them.
  *
  * This is the half of `003-quote-chart` that a screen test cannot reach. Highcharts draws into an
- * SVG and jsdom computes no layout, so `RF-15` (every quote at the moment it belongs to), `RF-36`
- * (everything told in the market's hour) and `RF-38` (the two hours of the tooltip) have no
+ * SVG and jsdom computes no layout, so every quote at the moment it belongs to, everything told
+ * in the market's hour and the two hours of the tooltip have no
  * assertion available from the outside. `plan.md` -> *Frontend — estructura y contrato de pantalla*
  * moves the arithmetic out of the component into pure functions with a fixed signature, and fixes
  * what each one answers character by character. This file is the test that block enables.
@@ -19,11 +19,11 @@
  *
  * **The winter instant is not decoration.** New York changes to daylight saving time and Argentina
  * does not, so a September case alone is passed by a `+ 4 hours` written by hand. January is what
- * tells a real conversion apart from an offset, and it is why `RF-36` gets two instants and not
+ * tells a real conversion apart from an offset, and it is why the market hour gets two instants and not
  * one.
  *
  * **Why the module is loaded and not imported.** `src/quotes/market.ts` does not exist yet -- this
- * is the red the Article VI gate signs -- and a static import of a missing module is a compile
+ * is the red the human signs off on -- and a static import of a missing module is a compile
  * error, which would stop the whole suite from running (`npx tsc --noEmit` included) instead of
  * turning these tests red. The load is deliberate and it fails loudly, by name, saying which module
  * is missing: that is the red of "no implementation yet", told apart from a typo by the message.
@@ -32,7 +32,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
-/** The three intervals of the statement (RF-06). The empty option of the selector is not one. */
+/** The three intervals of the statement. The empty option of the selector is not one. */
 type QuoteInterval = '1min' | '5min' | '15min';
 
 /** What `plan.md` -> *Frontend — estructura y contrato de pantalla* declares this module exports. */
@@ -87,9 +87,9 @@ const SEPTEMBER_AS_A_CLOCK = '15:55';
 const JANUARY_AS_A_CLOCK = '14:55';
 
 /*
- * The two labels of the tooltip (RF-38), as the human fixed them on 2026-09-14: they echo the
+ * The two labels of the tooltip, as the human fixed them on 2026-09-14: they echo the
  * vocabulary of the spec and the `Horarios en hora del mercado.` that already sits in the header.
- * Their two rows of `docs/design/COPY.md` are written by the `Solution-Designer` (UI-02).
+ * Their two rows of `docs/design/COPY.md` are written by the `Solution-Designer`.
  */
 const MERCADO = 'Hora del mercado: ';
 const ARGENTINA = 'Hora de Argentina: ';
@@ -119,13 +119,13 @@ function clockReadingIn(zone: string, instant: Date): string {
 
 describe('the two time zones of the product', () => {
   it('name the market where the catalogue quotes, as an IANA zone', () => {
-    // RF-36: NYSE and NASDAQ, both in the same zone (A4), so it is a constant of the product and
+    // NYSE and NASDAQ, both in the same zone (A4), so it is a constant of the product and
     // not a column of the database.
     expect(market.MARKET_TIME_ZONE).toBe('America/New_York');
   });
 
   it('name Argentina, which is the second hour of the tooltip', () => {
-    // RF-38. It is written as an IANA zone too, and not as a number of hours: an offset written by
+    // It is written as an IANA zone too, and not as a number of hours: an offset written by
     // hand is the bug, and Buenos Aires is not `-3` in a way anybody should have to remember.
     expect(market.LOCAL_TIME_ZONE).toBe('America/Argentina/Buenos_Aires');
   });
@@ -133,7 +133,7 @@ describe('the two time zones of the product', () => {
 
 describe('how often Tiempo Real refreshes', () => {
   it('is the duration of each of the three intervals, in milliseconds', () => {
-    // RF-18: the chart of `1min` gets a new point after a minute, and the same rule holds for the
+    // the chart of `1min` gets a new point after a minute, and the same rule holds for the
     // other two. The numbers are the interval itself, which is why nobody has to choose them.
     expect(market.INTERVAL_MS['1min']).toBe(60_000);
     expect(market.INTERVAL_MS['5min']).toBe(300_000);
@@ -141,14 +141,14 @@ describe('how often Tiempo Real refreshes', () => {
   });
 
   it('is declared for the three intervals of the statement and for nothing else', () => {
-    // RF-06: the empty option of the selector is not an interval, so it has no duration either.
+    // the empty option of the selector is not an interval, so it has no duration either.
     expect(Object.keys(market.INTERVAL_MS).sort()).toEqual(['15min', '1min', '5min']);
   });
 });
 
 describe('an instant written in the market hour', () => {
   it('is the market clock reading, in DD/MM/YYYY HH:MM', () => {
-    // RF-36, on the candle the screen tests share: 19:55 UTC is 15:55 in New York.
+    // On the candle the screen tests share: 19:55 UTC is 15:55 in New York.
     expect(market.formatMarket(A_SEPTEMBER_INSTANT)).toBe(SEPTEMBER_IN_MARKET_TIME);
   });
 
@@ -173,7 +173,7 @@ describe('an instant written in the market hour', () => {
 
 describe('the same instant written in the Argentine hour', () => {
   it('is the Argentine clock reading, in the same format', () => {
-    // RF-38: 19:55 UTC is 16:55 in Buenos Aires.
+    // 19:55 UTC is 16:55 in Buenos Aires.
     expect(market.formatLocal(A_SEPTEMBER_INSTANT)).toBe(SEPTEMBER_IN_LOCAL_TIME);
   });
 
@@ -229,7 +229,7 @@ describe('the hour the horizontal axis is labelled with', () => {
   });
 
   it('follows the market through its change of season', () => {
-    // RF-36 again, on the reading the axis actually shows: in January the market is on standard
+    // Again, on the reading the axis actually shows: in January the market is on standard
     // time and the same UTC wall clock reads 14:55. An offset written by hand fails here.
     expect(market.marketClockValue(A_JANUARY_INSTANT)).toBe(JANUARY_AS_A_CLOCK);
   });
@@ -246,7 +246,7 @@ describe('the hour the horizontal axis is labelled with', () => {
 
   it('is the very hour the full reading ends with', () => {
     // The relation, so the two cannot drift apart: whatever mask `formatMarket` writes, the axis
-    // and the tooltip are telling the same clock about the same instant (RF-15, RF-36).
+    // and the tooltip are telling the same clock about the same instant.
     expect(
       market
         .formatMarket(A_SEPTEMBER_INSTANT)
@@ -269,7 +269,7 @@ describe('the hour the horizontal axis is labelled with', () => {
 
 describe('the period the two date fields come filled with', () => {
   it('is the last twenty-four hours, told in market time', () => {
-    // RF-10, with the clock injected: `to` is `now` and `from` is `now` minus twenty-four hours of
+    // With the clock injected: `to` is `now` and `from` is `now` minus twenty-four hours of
     // clock -- not "the last session", which is a different thing and not what the statement asks.
     expect(market.defaultHistoricRange(A_SEPTEMBER_INSTANT)).toEqual({
       from: '2026-09-10T15:55',
@@ -300,7 +300,7 @@ describe('the period the two date fields come filled with', () => {
 
 describe('the two lines of the tooltip', () => {
   it('are the market hour first and the Argentine hour second, each saying which it is', () => {
-    // RF-38 in full: two hours for the same quote, and a label on each -- two hours in a row with
+    // The tooltip in full: two hours for the same quote, and a label on each -- two in a row with
     // nothing to tell them apart do not answer the requirement.
     expect(market.tooltipTimeLines(A_SEPTEMBER_INSTANT)).toEqual([
       `${MERCADO}${SEPTEMBER_IN_MARKET_TIME}`,
@@ -337,7 +337,7 @@ describe('a series of candles as the chart receives it', () => {
   );
 
   it('puts every quote at the moment it belongs to, with no shift', () => {
-    // RF-15: the instant that goes in is the instant that comes out. The expectation is computed
+    // the instant that goes in is the instant that comes out. The expectation is computed
     // from each instant naming the market zone, so a module that stamps UTC, that reads the
     // machine's clock, or that adds a fixed number of hours fails here on at least one instant.
     const written = FIVE_CANDLES.map((candle) => market.formatMarket(candle));
@@ -355,7 +355,7 @@ describe('a series of candles as the chart receives it', () => {
   });
 
   it('keeps the hours moving forward, five minutes at a time', () => {
-    // The second half of RF-15: the hours advance from left to right. Written as the readings
+    // The second half: the hours advance from left to right. Written as the readings
     // being strictly increasing, which is what "forward" means once the axis is a time axis.
     const written = FIVE_CANDLES.map((candle) => market.formatMarket(candle));
 

@@ -1,4 +1,4 @@
-"""The way out to the world is `app/providers/`, and it is the only one (GEN-08).
+"""The way out to the world is `app/providers/`, and it is the only one.
 
 Two checks, and the second is the one that surprises people.
 
@@ -27,9 +27,9 @@ from tests.architecture.source_tree import (
 )
 
 # Where the outside world is allowed to be named. `settings.py` reads the credential because
-# Article I puts every secret there and nowhere else; the client is the file that uses it.
+# Every secret lives in the settings and nowhere else; the client is the file that uses it.
 PROVIDER_NAME = "twelvedata"
-PROVIDER_HOMES = ("providers/twelvedata.py", "settings.py")
+PROVIDER_HOMES = ("providers/twelvedata.py",)
 
 PROVIDERS_DIRECTORY = "providers"
 
@@ -81,7 +81,7 @@ def app_tree() -> list[SourceFile]:
 
 
 class TestTheProviderStaysBehindItsInterface:
-    """GEN-08, over the code that is on disk."""
+    """The way out to the world, over the code that is on disk."""
 
     def test_no_file_outside_the_providers_imports_an_http_client(
         self, app_tree: list[SourceFile]
@@ -154,13 +154,18 @@ class TestTheChecksCatchARealViolation:
 
         assert any("modules/quotes/service.py:1" in line for line in found)
 
-    def test_the_two_files_allowed_to_name_it_are_not_reported(self, tmp_path: Path) -> None:
-        """The client and the settings know the provider; that is what they are for."""
+    def test_the_one_file_allowed_to_name_it_is_not_reported(self, tmp_path: Path) -> None:
+        """The client knows the provider; that is what it is for, and it is the only one.
+
+        It used to be two: `settings.py` carried a `twelvedata_api_key` and a default that named
+        the provider. It asks for `market_data_api_key` now, and which provider is built has no
+        default at all, so the name has one home and this test is what keeps it there.
+        """
         root = write_tree(
             tmp_path / "app",
             {
                 "providers/twelvedata.py": 'BASE_URL = "https://api.twelvedata.com"\n',
-                "settings.py": 'twelvedata_api_key: str = ""\n',
+                "settings.py": 'market_data_api_key: SecretStr = SecretStr("")\n',
             },
         )
 

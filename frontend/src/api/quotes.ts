@@ -17,7 +17,7 @@ import { request } from './client';
 export type QuoteSeries = components['schemas']['QuoteSeriesResponse'];
 
 /** One point of the chart: the instant in UTC, and the price as a string (`plan.md`). */
-export type QuotePoint = components['schemas']['QuotePointOut'];
+export type QuotePoint = components['schemas']['QuoteCandle'];
 
 /** The three intervals of the statement (RF-06). */
 export type QuoteInterval = components['schemas']['QuoteInterval'];

@@ -7,15 +7,15 @@
  * own -- what the screen owes when the answer teaches it nothing -- and it is not one request but
  * two: the series behind `Graficar` and the list of favourites that decides whether the address
  * opens at all. Reading them together is the point, because they are the same fact from the
- * person's side and used to be the same silence (ERR-06, TS-06).
+ * person's side and used to be the same silence.
  *
  * **The three things fixed here.**
  *
- *   * A failure that is not one of the two range refusals says so, above the chart (UI-05), and
+ *   * A failure that is not one of the two range refusals says so, above the chart, and
  *     leaves the chart that was there exactly as it was -- the same node with the same points
- *     drawn in it (RF-48).
+ *     drawn in it.
  *   * A list of favourites that never arrived is not a list that came back without the symbol.
- *     The second means the action is not this person's and sends them to the list (RF-35); the
+ *     The second means the action is not this person's and sends them to the list; the
  *     first means nothing at all, and answering it with a redirect asserts something the server
  *     never said. Both are asserted here, side by side, because what makes either of them right
  *     is the contrast.
@@ -29,7 +29,7 @@
  * `ActionDetail` to find the controller.
  *
  * `fetch` is replaced in every test and restored afterwards: a frontend test that goes to the
- * network is not a frontend test (`add_tests`, `TEST-03`).
+ * network is not a frontend test.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -41,7 +41,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { writeStoredSession } from '../src/auth/storage';
 
-/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md (UI-02). */
+/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md. */
 const INTERVALO = 'Intervalo';
 const GRAFICAR = 'Graficar';
 const COTIZACION = 'Cotización';
@@ -75,7 +75,7 @@ interface Favorite {
 const THE_LIST: Favorite[] = [{ symbol: 'TSLA', name: 'Tesla Inc', currency: 'USD' }];
 const TSLA = THE_LIST[0] as Favorite;
 
-/** A symbol deliberately outside the list, which is how RF-35 is told from a list that failed. */
+/** A symbol deliberately outside the list, which is how "not yours" is told from a failed list. */
 const NOT_HERS = 'MSFT';
 
 /** One candle as `GET /api/quotes/{symbol}` answers it: an instant in UTC and a price as string. */
@@ -329,7 +329,7 @@ afterEach(() => {
 
 describe('Graficar when our API fails for a reason that is not a rule of the range', () => {
   it('says we could not connect, in the words of the copy, when our API answers 500', async () => {
-    // ERR-06 and TS-06: pressing `Graficar` and watching nothing happen at all was the failure
+    // pressing `Graficar` and watching nothing happen at all was the failure
     // this closes. A 500 is not one of the two range refusals, so there is nothing to explain
     // about the query -- what is left to say is that the chart could not be got.
     await theDetailOf(TSLA.symbol);
@@ -352,7 +352,7 @@ describe('Graficar when our API fails for a reason that is not a rule of the ran
   });
 
   it('never names the provider while saying it', async () => {
-    // RF-26 and Article I: whoever could not be reached is our business, and the person reads the
+    // Whoever could not be reached is our business, and the person reads the
     // sentence the client wrote and nothing else.
     await theDetailOf(TSLA.symbol);
 
@@ -364,7 +364,7 @@ describe('Graficar when our API fails for a reason that is not a rule of the ran
   });
 
   it('draws no chart when there was none', async () => {
-    // RF-46: a failure is not a series, and an empty plotting area would show a period nobody
+    // a failure is not a series, and an empty plotting area would show a period nobody
     // could get.
     await theDetailOf(TSLA.symbol);
 
@@ -376,7 +376,7 @@ describe('Graficar when our API fails for a reason that is not a rule of the ran
   });
 
   it('leaves the chart that was already there exactly as it was, points included', async () => {
-    // RF-48, and this is the invariant the four invalid queries of the feature already have: a
+    // This is the invariant the four invalid queries of the feature already have: a
     // query that failed does not touch what is on screen. The node is compared by identity --
     // a chart thrown away and drawn again "looks right" and is not what the requirement says --
     // and what it has drawn inside it is compared too, so a chart kept but emptied is not read as
@@ -395,7 +395,7 @@ describe('Graficar when our API fails for a reason that is not a rule of the ran
   });
 
   it('puts the notice above the chart it could not replace', async () => {
-    // UI-05: the notice qualifies the data the person is about to read -- the chart on screen is
+    // the notice qualifies the data the person is about to read -- the chart on screen is
     // not the one they just asked for -- so it goes before it and not at its foot.
     await theDetailOf(TSLA.symbol);
     await plotWith('5min');
@@ -429,7 +429,7 @@ describe('Graficar when our API fails for a reason that is not a rule of the ran
 
 describe('the detail of an action whose list of favourites did not arrive', () => {
   it('says we could not connect instead of opening the screen', async () => {
-    // ERR-06 and TS-06: the list is what the header and the membership are read from, so without
+    // the list is what the header and the membership are read from, so without
     // it there is no screen to draw -- and a blank page is the failure this closes.
     favoritesDo = 500;
     openTheDetail(TSLA.symbol);
@@ -438,7 +438,7 @@ describe('the detail of an action whose list of favourites did not arrive', () =
   });
 
   it('does not send the person to Mis Acciones, because nobody said the action is not theirs', async () => {
-    // The finding this file exists for. Redirecting asserts RF-35 -- "this action is not yours" --
+    // The finding this file exists for. Redirecting asserts "this action is not yours" --
     // on the strength of a question the server never answered. The two cases are told apart by
     // what came back, not by what is convenient: no list is no answer.
     favoritesDo = 500;
@@ -460,7 +460,7 @@ describe('the detail of an action whose list of favourites did not arrive', () =
   });
 
   it('asks our API for no series, since there is no screen to plot on', async () => {
-    // Article II from the browser's side: a screen that never opened cannot spend a request, and
+    // From the browser's side: a screen that never opened cannot spend a request, and
     // therefore cannot spend a credit of the provider's quota.
     favoritesDo = 500;
     openTheDetail(TSLA.symbol);
@@ -472,7 +472,7 @@ describe('the detail of an action whose list of favourites did not arrive', () =
   it('still goes to Mis Acciones when the list did arrive and the action is not on it', async () => {
     // The contrast that makes the case above right, and it is nailed down here so that it cannot
     // be lost while fixing the other: a list that came back without the symbol *is* an answer, and
-    // RF-35 is what it says. This is the behaviour that did not change.
+    // That is what it says. This is the behaviour that did not change.
     theFavorites = THE_LIST;
     openTheDetail(NOT_HERS);
 

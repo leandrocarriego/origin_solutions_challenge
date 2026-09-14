@@ -14,16 +14,8 @@ dependencies = [
     "structlog>=26.1.0",
     "prometheus-client>=0.21",
     "sentry-sdk[fastapi]>=2.19",
-    # FastAPI carries no cryptography. `fastapi.security` extracts the Authorization header and
-    # documents it in OpenAPI; verifying the signature and hashing the password are these two.
-    #   argon2-cffi -> SEC-06, the only approved algorithm for a stored password
-    #   pyjwt       -> ADR-004, HS256
-    # Neither needs a stubs package: both ship py.typed, so mypy strict reads them directly.
     "argon2-cffi>=25.1.0",
     "pyjwt>=2.14.0",
-    # A runtime dependency and not a dev one: app/providers/twelvedata.py imports it, and
-    # the production image installs with --no-dev. It used to be in the dev group, and the
-    # container crash-looped on the first deploy that actually used the provider.
     "httpx>=0.28.1",
 ]
 
@@ -43,16 +35,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 
-# --- GEN-01 · format and lint-------------------------------------------------
+# --- Format and lint--------------------------------------------------------
 [tool.ruff]
 line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-# Three of these exist so a convention stops depending on the review:
-#   BLE     -> ERR-01, blindly caught exception
-#   PLC0415 -> PY-03, import inside a function
-#   D       -> PY-11, docstring on every function and method
+# Three of these exist so a convention stops depending on the review of a single person.
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "ASYNC", "S", "A", "RUF", "D", "PLC0415"]
 ignore = [
   "S101",  # assert: it is how tests are written
@@ -71,19 +60,17 @@ ignore = [
 convention = "pep257"
 
 [tool.ruff.lint.isort]
-# `alembic` is the library, not the alembic/ directory next to this file. Without this, isort
-# classifies it as first-party and reorders the imports of every migration.
 known-third-party = ["alembic"]
 
 [tool.ruff.lint.per-file-ignores]
 # Test credentials, on purpose.
 "tests/**" = ["S105", "S106"]
 
-# --- PY-09 · types------------------------------------------------------------
+# --- Types--------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.13"
 strict = true
-# GEN-02: importing from a package a name its __all__ does not declare is a type error, not
+# Importing from a package a name its __all__ does not declare is a type error, not
 # only a convention violation.
 no_implicit_reexport = true
 plugins = ["pydantic.mypy"]

@@ -1,5 +1,5 @@
 /**
- * The header of an inner screen: who is logged in (RF-08).
+ * The header of an inner screen: who is logged in.
  *
  * One row of `COPY.md` and one trap. The text is `Usuario: {nombre completo}`, and
  * `{nombre completo}` is *the name of the person*, not the name they typed to get in: `Usuario:
@@ -15,13 +15,13 @@
  * its signature, and a test that chose one would be fixing a shape nobody signed. What a person
  * sees is the same either way.
  *
- * **H3 adds the second thing the header carries: `Cerrar sesión` (RF-18).** It goes in the header,
+ * **H3 adds the second thing the header carries: `Cerrar sesión`.** It goes in the header,
  * on the right, next to the name -- so it is asserted inside the header and not merely somewhere on
  * the page, which a text dropped at the bottom of the screen would also satisfy. And it is looked
  * up as a button or a link, because an action a person activates has to be reachable as one; a
  * `<span onClick>` fails that on purpose.
  *
- * RF-18 also asks for it on the Detail screen, and that cannot be tested here: the Detail is `003`
+ * It is also asked for on the Detail screen, and that cannot be tested here: the Detail is `003`
  * and does not exist. What makes it true when it does is that both screens draw this same `Header`,
  * which is why the title is a prop.
  */
@@ -37,7 +37,7 @@ const USUARIO = 'Usuario';
 const CLAVE = 'Clave';
 const INGRESAR = 'Ingresar';
 const MIS_ACCIONES = 'Mis Acciones';
-// Verbatim from the session table of docs/design/COPY.md (UI-02).
+// Verbatim from the session table of docs/design/COPY.md.
 const CERRAR_SESION = 'Cerrar sesión';
 
 const LOGIN_URL = '/api/auth/login';
@@ -139,7 +139,7 @@ describe.each(DEMO_USERS)('the header after logging in as $username', ({ usernam
 
 describe('the header after a reload', () => {
   it('still reads the name, which then comes from the API and not from the form', async () => {
-    // RF-07 and RF-08 together: after F5 nothing was typed, so a header painted from what the
+    // After F5 nothing was typed, so a header painted from what the
     // form held would come out empty. The restored session is where the name has to come from.
     stubTheApiFor('Juan Perez');
 
@@ -158,7 +158,7 @@ describe('the header after a reload', () => {
 
 describe('the header of an inner screen, with somebody logged in', () => {
   it('offers `Cerrar sesión`, spelled as the copy spells it', async () => {
-    // RF-18. Without it, the only way out of a session on a shared computer is closing the tab,
+    // Without it, the only way out of a session on a shared computer is closing the tab,
     // and whoever sits down next reopens it into somebody else's account.
     stubTheApiFor('Juan Perez');
 
@@ -202,7 +202,7 @@ describe('the header of an inner screen, with somebody logged in', () => {
 
 describe('the login screen, with nobody logged in', () => {
   it('does not offer a way out of a session that was never opened', async () => {
-    // RF-18 is conditional: it asks for the way out only while a user is identified, and the
+    // It is conditional: the way out is asked for only while a user is identified, and the
     // header is where that condition lives. A way out shown to a visitor who is already out is
     // an invitation to press something that does nothing.
     vi.stubGlobal(

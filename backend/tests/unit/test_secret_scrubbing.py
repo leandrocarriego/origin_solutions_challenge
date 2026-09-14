@@ -1,4 +1,4 @@
-"""Nothing that carries a credential reaches Sentry (ADR-009, Article I, SEC-06).
+"""Nothing that carries a credential reaches Sentry.
 
 This is the highest-stakes test in the observability layer. Sentry captures the local variables
 of every frame by default, and in this backend those frames hold the Postgres DSN and the

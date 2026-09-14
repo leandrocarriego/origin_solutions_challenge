@@ -63,7 +63,7 @@ está en `fixtures/twelvedata/README.md`: la cuota es de 800 requests por día y
 gasta rompe el Artículo II en cada corrida.
 
 ```
-cd backend && TWELVEDATA_API_KEY= uv run pytest
+cd backend && MARKET_DATA_API_KEY= uv run pytest
 ```
 
 **Debilitar un test para pasar un gate.** Es el Artículo VI: si un test molesta, o el código está

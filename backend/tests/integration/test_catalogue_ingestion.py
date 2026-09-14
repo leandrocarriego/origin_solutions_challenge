@@ -1,12 +1,12 @@
-"""The catalogue reconciles against the provider's snapshot; it does not accumulate (ADR-002).
+"""The catalogue reconciles against the provider's snapshot; it does not accumulate.
 
 The response of `/stocks` is what is listed today and carries no status field, so the only signal
 that a symbol stopped trading is that it stopped coming back. An upsert cannot see an absence,
 which is why a catalogue kept by upserts grows forever and drifts from reality. These tests are
 the difference between the two.
 
-They run against Postgres and not a double (TEST-02), each inside a transaction that is rolled
-back, and the provider is a stub: no test here spends a request of the Article II quota.
+They run against Postgres and not a double, each inside a transaction that is rolled
+back, and the provider is a stub: no test here spends a request of the the quota quota.
 """
 
 from datetime import datetime
@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.stocks.models import Stock
+from app.modules.stocks.repository import StockRepository
 from app.modules.stocks.service import reconcile_catalogue
 from app.providers import MarketDataProvider, ProviderUnavailable, QuotePoint, StockRecord
 
@@ -78,12 +79,12 @@ class TestItBringsInWhatIsNew:
         """Nothing in the table, four in the snapshot: four rows afterwards."""
         provider = StubProvider({"NASDAQ": [listed("TSLA"), listed("AAPL"), listed("NFLX")]})
 
-        await reconcile_catalogue(session, provider, "NASDAQ")
+        await reconcile_catalogue(StockRepository(session), provider, "NASDAQ")
 
         assert set(await symbols_in(session)) == {"TSLA", "AAPL", "NFLX"}
 
     async def test_it_drops_what_the_ingestion_filter_rejects(self, session: AsyncSession) -> None:
-        """The filter of ADR-001 runs before anything reaches the table."""
+        """The ingestion filter runs before anything reaches the table."""
         provider = StubProvider(
             {
                 "NASDAQ": [
@@ -94,7 +95,7 @@ class TestItBringsInWhatIsNew:
             }
         )
 
-        await reconcile_catalogue(session, provider, "NASDAQ")
+        await reconcile_catalogue(StockRepository(session), provider, "NASDAQ")
 
         assert set(await symbols_in(session)) == {"TSLA"}
 
@@ -102,7 +103,7 @@ class TestItBringsInWhatIsNew:
         """Telling "still listed" from "never checked" is what makes a delisting detectable."""
         provider = StubProvider({"NASDAQ": [listed("TSLA")]})
 
-        await reconcile_catalogue(session, provider, "NASDAQ")
+        await reconcile_catalogue(StockRepository(session), provider, "NASDAQ")
 
         assert (await symbols_in(session))["TSLA"].last_seen_at is not None
 
@@ -111,13 +112,17 @@ class TestItUpdatesWhatChanged:
     """A company renames, and the catalogue is where the name is stored once."""
 
     async def test_it_updates_a_name_that_changed(self, session: AsyncSession) -> None:
-        """REQ-08 stores the name in `stocks`, so a stale name there is stale everywhere."""
+        """Stores the name in `stocks`, so a stale name there is stale everywhere."""
         await reconcile_catalogue(
-            session, StubProvider({"NASDAQ": [listed("TSLA", name="Tesla Motors, Inc.")]}), "NASDAQ"
+            StockRepository(session),
+            StubProvider({"NASDAQ": [listed("TSLA", name="Tesla Motors, Inc.")]}),
+            "NASDAQ",
         )
 
         await reconcile_catalogue(
-            session, StubProvider({"NASDAQ": [listed("TSLA", name="Tesla, Inc.")]}), "NASDAQ"
+            StockRepository(session),
+            StubProvider({"NASDAQ": [listed("TSLA", name="Tesla, Inc.")]}),
+            "NASDAQ",
         )
 
         assert (await symbols_in(session))["TSLA"].name == "Tesla, Inc."
@@ -131,18 +136,24 @@ class TestItMarksWhatIsGone:
     ) -> None:
         """The absence is the signal: the provider sends no status field."""
         await reconcile_catalogue(
-            session, StubProvider({"NASDAQ": [listed("TSLA"), listed("OLD")]}), "NASDAQ"
+            StockRepository(session),
+            StubProvider({"NASDAQ": [listed("TSLA"), listed("OLD")]}),
+            "NASDAQ",
         )
 
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
+        )
 
         assert (await symbols_in(session))["OLD"].delisted_at is not None
 
     async def test_it_never_deletes_the_row(self, session: AsyncSession) -> None:
         """`user_stocks` and `quotes` reference it: deleting takes away a favourite or a history."""
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("OLD")]}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("OLD")]}), "NASDAQ"
+        )
 
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": []}), "NASDAQ")
+        await reconcile_catalogue(StockRepository(session), StubProvider({"NASDAQ": []}), "NASDAQ")
 
         assert "OLD" in await symbols_in(session)
 
@@ -150,10 +161,14 @@ class TestItMarksWhatIsGone:
         self, session: AsyncSession
     ) -> None:
         """A relisting is as real as a delisting, and leaving the mark would hide the symbol."""
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": []}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
+        )
+        await reconcile_catalogue(StockRepository(session), StubProvider({"NASDAQ": []}), "NASDAQ")
 
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
+        )
 
         assert (await symbols_in(session))["TSLA"].delisted_at is None
 
@@ -164,10 +179,10 @@ class TestItIsSafeToRunAgain:
     async def test_running_it_twice_changes_nothing(self, session: AsyncSession) -> None:
         """A catalogue that drifts on a second run would drift on every scheduled refresh."""
         provider = StubProvider({"NASDAQ": [listed("TSLA"), listed("AAPL")]})
-        await reconcile_catalogue(session, provider, "NASDAQ")
+        await reconcile_catalogue(StockRepository(session), provider, "NASDAQ")
         first = {symbol: row.delisted_at for symbol, row in (await symbols_in(session)).items()}
 
-        await reconcile_catalogue(session, provider, "NASDAQ")
+        await reconcile_catalogue(StockRepository(session), provider, "NASDAQ")
 
         assert {
             symbol: row.delisted_at for symbol, row in (await symbols_in(session)).items()
@@ -179,18 +194,24 @@ class TestOneExchangeDoesNotSpeakForAnother:
 
     async def test_it_only_touches_the_exchange_it_was_given(self, session: AsyncSession) -> None:
         """NYSE's snapshot says nothing about NASDAQ, so it cannot delist it."""
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
+        )
 
-        await reconcile_catalogue(session, StubProvider({"NYSE": []}), "NYSE")
+        await reconcile_catalogue(StockRepository(session), StubProvider({"NYSE": []}), "NYSE")
 
         assert (await symbols_in(session))["TSLA"].delisted_at is None
 
     async def test_a_snapshot_that_failed_delists_nothing(self, session: AsyncSession) -> None:
         """Marking everything that "did not arrive" would delist the whole exchange."""
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
+        )
 
         with pytest.raises(ProviderUnavailable):
-            await reconcile_catalogue(session, StubProvider({}, failing={"NASDAQ"}), "NASDAQ")
+            await reconcile_catalogue(
+                StockRepository(session), StubProvider({}, failing={"NASDAQ"}), "NASDAQ"
+            )
 
         assert (await symbols_in(session))["TSLA"].delisted_at is None
 
@@ -208,6 +229,8 @@ class TestACatalogueThatIsActuallyBig:
         """
         snapshot = [listed(f"SYM{index:04d}") for index in range(4000)]
 
-        await reconcile_catalogue(session, StubProvider({"NASDAQ": snapshot}), "NASDAQ")
+        await reconcile_catalogue(
+            StockRepository(session), StubProvider({"NASDAQ": snapshot}), "NASDAQ"
+        )
 
         assert len(await symbols_in(session)) == 4000

@@ -1,10 +1,13 @@
-"""Typed configuration. The provider credential is read here and nowhere else (Article I)."""
+"""Typed configuration: everything the process reads from its environment."""
 
 import re
 from functools import lru_cache
+from typing import Final
 
-from pydantic import Field
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MIN_JWT_SECRET_LENGTH: Final = 32
 
 
 class Settings(BaseSettings):
@@ -12,58 +15,47 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Identity of the running build. The deploy stamps it; locally it stays "dev".
     version: str = "dev"
 
     database_url: str = "postgresql+asyncpg://origin:origin@localhost:5432/origin"
+    market_data_api_key: SecretStr = SecretStr("")
+    jwt_secret: SecretStr = Field(min_length=MIN_JWT_SECRET_LENGTH)
 
-    # Article I: this never leaves the backend, and never reaches a VITE_* variable.
-    twelvedata_api_key: str = ""
-
-    # ADR-004: what session tokens are signed with. The empty value is not a default, it is a
-    # refusal -- app/security.py raises rather than signing with something that is not a secret,
-    # and it does so at use and not at import, so `import app.main` works without one (SEC-05).
-    jwt_secret: str = ""
-
-    # Which module under app/providers/ serves market data. It lives here because GEN-08 keeps
-    # the provider's name to one file plus this one: a composition root that imported the class
-    # to wire it would have written the name in a third. Set it to "fake" and nothing reaches
-    # the network.
-    market_data_provider: str = "twelvedata"
+    market_data_provider: str = Field(min_length=1)
 
     # Empty disables Sentry, which is what local and CI want: no events, no network.
     sentry_dsn: str = ""
-    sentry_environment: str = "local"
 
-    # Narrowed to the frontend origin, never "*": the API answers with credentials.
+    # Which deployment this is. Sentry tags its events with it, and `seed.py` refuses
+    # to run when it says production.
+    environment: str = "local"
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
-    @property
-    def market_data_api_key(self) -> str:
-        """The credential of whichever provider is configured.
+    @field_validator("cors_origins")
+    @classmethod
+    def _refuse_any_origin(cls, origins: list[str]) -> list[str]:
+        """Refuse `"*"`, because Starlette will not."""
+        if "*" in origins:
+            raise ValueError(
+                'CORS_ORIGINS must name the origins it allows, never "*": with credentials '
+                "enabled that lets any site make authenticated requests from a visitor's browser"
+            )
 
-        The provider's name may not appear outside this file (GEN-08), so the wiring asks for
-        the credential by what it is for and not by who issued it.
-        """
-        return self.twelvedata_api_key
+        return origins
 
     def secret_values(self) -> tuple[str, ...]:
-        """Every literal secret this process holds, for whoever has to blank them out.
-
-        It lives here, next to the fields, and not next to the scrubber that uses it. That way
-        adding a credential to this class and covering it are the same act: a secret the
-        scrubber was never told about is a secret it prints.
-
-        The database password is included because it is not a field of its own -- it arrives
-        inside the URL, and a SQLAlchemy traceback carries that URL whole.
-        """
+        """Every literal secret this process holds, for whoever has to blank them out."""
+        # `SecretStr` keeps a credential out of a repr; this keeps it out of a message that
+        # already holds the value as text -- a URL inside an exception, a DSN inside a traceback
+        # -- where it is a substring and no longer a field anybody can hide.
         password = re.search(r"://[^:/@]+:([^@]+)@", self.database_url)
 
         return tuple(
             value
             for value in (
-                self.twelvedata_api_key,
-                self.jwt_secret,
+                self.market_data_api_key.get_secret_value(),
+                self.jwt_secret.get_secret_value(),
                 password.group(1) if password else "",
             )
             if value

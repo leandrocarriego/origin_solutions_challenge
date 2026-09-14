@@ -1,4 +1,4 @@
-"""DELETE /api/favorites/{symbol}: taking a stock out of my list (RF-24, RF-27).
+"""DELETE /api/favorites/{symbol}: taking a stock out of my list.
 
 Written before the route exists, so everything here answers 404 or 405 until task 17 mounts it.
 That is the intended red: absence of implementation, not a broken import -- nothing in this file
@@ -10,18 +10,18 @@ Three claims, one class each:
 - **204 always, and the removal is idempotent.** Removing something that is not in the list is
   not a mistake to report: whoever deletes twice wants the same thing both times, and a 404 would
   be the one answer that tells an attacker whether a symbol is in somebody's list. The second
-  delete of the same symbol answers exactly like the first (RF-24).
-- **It is persisted, not remembered.** The backend half of the F5 that RF-24 asks for on screen:
+  delete of the same symbol answers exactly like the first.
+- **It is persisted, not remembered.** The backend half of the F5 asked for on screen:
   a *second* session of the same user -- signed in again through `POST /api/auth/login`, the way
   somebody who closed the tab gets one -- still does not see the action that was removed. Asking
   again on the same client would only prove that the endpoint answers twice.
-- **The catalogue is not touched** (RF-27). `user_stocks` is the only table this route writes:
+- **The catalogue is not touched**. `user_stocks` is the only table this route writes:
   the symbol stays in `stocks` and the very next search suggests it again, which is what makes
   "I removed it by accident" a recoverable mistake instead of a permanent one.
 
 What is *not* here is the isolation between users: the delete of a symbol that **is** in somebody
 else's list lives in `test_user_isolation.py`, next to the read and the write of the same rule,
-because it is Article III and deserves to be read in one place.
+because it is the isolation rule and deserves to be read in one place.
 """
 
 from collections.abc import AsyncIterator, Iterator
@@ -124,7 +124,7 @@ async def _rows_of(session: AsyncSession, user_id: int, symbol: str) -> int:
 
 
 class TestRemovingAFavouriteThatIsThere:
-    """RF-24: the action leaves the list, and the answer carries no body to read."""
+    """The action leaves the list, and the answer carries no body to read."""
 
     async def test_it_answers_204(self, client: AsyncClient, the_list_of_juan: User) -> None:
         """No content, because there is nothing to say: the list is what changed."""
@@ -171,14 +171,14 @@ class TestRemovingAFavouriteThatIsThere:
         assert await _rows_of(session, the_list_of_juan.id, _NETFLIX) == 0
 
     async def test_an_anonymous_call_is_refused(self, client: AsyncClient) -> None:
-        """PY-08: the route is protected, and it is not in `PUBLIC_ROUTES`."""
+        """The route is protected, and it is not in `PUBLIC_ROUTES`."""
         response = await client.delete(f"{_FAVORITES}/{_NETFLIX}")
 
         assert response.status_code == 401
 
 
 class TestRemovingSomethingThatIsNotInTheList:
-    """RF-24: the removal has no failure mode, which is a decision and not an oversight."""
+    """The removal has no failure mode, which is a decision and not an oversight."""
 
     async def test_a_symbol_that_was_never_there_answers_204_too(
         self, client: AsyncClient, the_list_of_juan: User
@@ -215,7 +215,7 @@ class TestRemovingSomethingThatIsNotInTheList:
     async def test_removing_the_same_symbol_twice_answers_the_same_both_times(
         self, client: AsyncClient, session: AsyncSession, the_list_of_juan: User
     ) -> None:
-        """TEST-04 seen from the other side: the second delete is the same request, repeated.
+        """From the other side: the second delete is the same request, repeated.
 
         Somebody who double-clicks `Eliminar`, or whose first request was retried by the
         network, must not be told that something went wrong the second time.
@@ -230,7 +230,7 @@ class TestRemovingSomethingThatIsNotInTheList:
 
 
 class TestTheRemovalSurvivesTheSession:
-    """RF-24, backend half: the list lives in Postgres, so it is gone for the next session too."""
+    """backend half: the list lives in Postgres, so it is gone for the next session too."""
 
     async def test_a_second_session_of_the_same_user_does_not_see_it_again(
         self, session: AsyncSession, the_list_of_juan: User
@@ -265,7 +265,7 @@ class TestTheRemovalSurvivesTheSession:
 
 
 class TestTheCatalogueIsNotTouched:
-    """RF-27: what leaves is the favourite, never the stock.
+    """What leaves is the favourite, never the stock.
 
     The removal writes `user_stocks` and nothing else. If it ever reached `stocks`, taking an
     action out of one list would take it out of everybody's autocomplete -- and out of the lists
@@ -294,7 +294,7 @@ class TestTheCatalogueIsNotTouched:
 
         Asked through the search endpoint and not through the table, because that is the door
         the screen knocks on: a row that survived in `stocks` but stopped being suggested would
-        leave RF-27 false for the person even though the data is still there.
+        leave the screen wrong for the person even though the data is still there.
         """
         headers = _bearer(_token_of(the_list_of_juan))
         removed = await client.delete(f"{_FAVORITES}/{_NETFLIX}", headers=headers)

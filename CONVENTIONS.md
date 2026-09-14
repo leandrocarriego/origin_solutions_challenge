@@ -28,7 +28,7 @@ Esta es la distinción más importante del documento.
 
 Estas once convenciones **no dependen de que alguien las lea**: hay un test que falla, y la suite no pasa.
 
-**Dónde se verifican.** El hook `pytest-fast` del pre-commit corre `tests/unit` y `tests/architecture`, así que `GEN-02`, `PY-06`, `PY-08`, `GEN-08` y `GEN-09` frenan el commit antes de que salga de la máquina.
+**Dónde se verifican.** El hook `pytest-fast` del pre-commit corre `tests/unit` y `tests/architecture`, así que `GEN-02`, `PY-06`, `PY-08`, `GEN-08`, `GEN-09` y `SEC-08` frenan el commit antes de que salga de la máquina.
 
 `TEST-03` y `TEST-05` miden la suite completa y por eso se verifican en CI (`.github/workflows/ci.yml`), junto con integración y `alembic check`. `UI-02` y `UI-03` son del frontend: las corre `npm test` (vitest), también en CI.
 
@@ -36,13 +36,14 @@ Estas once convenciones **no dependen de que alguien las lea**: hay un test que 
 |---|---|---|
 | `GEN-02` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando archivo y línea: del import que entra a otro módulo por debajo de su paquete, del que reentra al propio paquete en vez de usar la ruta completa, y del `__init__.py` que tiene algo más que docstring, imports y un `__all__` literal. |
 | `PY-06` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando archivo y línea del import que cruza las capas adentro del módulo. |
-| `GEN-03` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla por cada archivo del kernel o de `providers/` que importa un módulo. `main.py` está excluido por nombre, y un test verifica que ese nombre siga siendo uno solo. |
+| `GEN-03` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla por cada archivo del kernel o de `providers/` que importa un módulo. El composition root —`main.py` y `tasks.py`— está excluido por nombre, y `TestTheExceptionIsDeclared` falla si esa lista cambia. |
 | `GEN-05` | `backend/tests/architecture/test_module_boundaries.py` | La suite falla nombrando los dos módulos que se importan mutuamente. |
-| `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` | La suite falla por dos motivos: un cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor —sin distinguir mayúsculas— fuera de `app/providers/twelvedata.py` y `app/settings.py`. |
+| `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` | La suite falla por dos motivos: un cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor —sin distinguir mayúsculas— fuera de `app/providers/twelvedata.py`, que es su único hogar. |
 | `GEN-09` | `backend/tests/integration/test_user_isolation.py` | La suite falla si un usuario alcanza datos de otro. La mitad estática ya corre: `TestNoRouteAcceptsAUserId` en `test_route_authorization.py` falla por cada ruta que acepta la identidad del usuario por path, query o body. |
 | `PY-08` | `backend/tests/architecture/test_route_authorization.py` (`TestRoutesDeclareAuthorization` + `TestRoutesEnforceAuthorization`) | La suite falla por cada endpoint que responde sin decidir quién lo llama, y por cada entrada de `PUBLIC_ROUTES` sin motivo escrito o que ya no corresponde a ninguna ruta montada. |
-| `TEST-03` | La suite corre en CI con `TWELVEDATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
+| `TEST-03` | La suite corre en CI con `MARKET_DATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
 | `TEST-05` | `--cov-fail-under=80` en `backend/pyproject.toml` | `pytest` termina en rojo aunque todos los tests pasen. |
+| `SEC-08` | `backend/tests/unit/test_cors.py` | La suite falla si `Settings` acepta `"*"` como origen, o si el preflight de la aplicación anuncia credenciales o métodos que la API no tiene. |
 | `UI-02` | `frontend/tests/copy.test.ts` | La suite falla y nombra el texto que no coincide con `docs/design/COPY.md`. |
 | `UI-03` | `frontend/tests/tokens.test.ts` | La suite falla y lista archivo, línea y el color escrito a mano. La paleta de fábrica de Tailwind ya no existe (`--color-*: initial`), así que el test cubre lo que queda: hex, `rgb()`, `hsl()` y estilos inline. |
 
@@ -102,7 +103,7 @@ cd frontend && npm run lint && npm run format:check
 
 Son **dos cláusulas** y las dos son la regla.
 
-- **Afuera:** a un módulo se entra por su paquete. Cualquier ruta más profunda (`app.modules.stocks.service`, `app.modules.stocks.models`) es interior ajeno y para el resto del sistema no existe. Lo que está en `__all__` es lo único que el módulo promete sostener; todo lo demás (`router.py`, `io.py`, `service.py`, `repository.py`, `models.py`) se cambia sin avisarle a nadie. Un import que entra por el costado convierte un detalle interno en API pública sin que su dueño se entere, y ata los dos módulos para siempre.
+- **Afuera:** a un módulo se entra por su paquete. Cualquier ruta más profunda (`app.modules.stocks.service`, `app.modules.stocks.models`) es interior ajeno y para el resto del sistema no existe. Lo que está en `__all__` es lo único que el módulo promete sostener; todo lo demás (`router.py`, `schemas.py`, `service.py`, `repository.py`, `models.py`) se cambia sin avisarle a nadie. Un import que entra por el costado convierte un detalle interno en API pública sin que su dueño se entere, y ata los dos módulos para siempre.
 
 - **Adentro:** los archivos del módulo se importan entre sí **por ruta completa**, nunca por `app.modules.<modulo>`: eso reentra al `__init__` a medio inicializar y da un `ImportError` confuso. Es la cláusula que evita el error, así que vale tanto como la primera.
 
@@ -161,19 +162,21 @@ Los archivos sueltos en `app/` son lo único que cualquier módulo puede importa
 
 Un import de `modules/` acá ata todos los módulos entre sí por abajo y deja de ser posible extraer uno solo. Y en `providers/` invierte la dependencia: la infraestructura pasaría a depender del dominio, que es exactamente al revés de lo que hace extraíble a `quotes`.
 
-La excepción es `main.py`, que es el composition root: monta los routers, así que importa de todos los módulos por definición. Por eso el chequeo lo excluye por nombre.
+La excepción es el **composition root**, que son dos archivos: `main.py` monta los routers y `tasks.py` nombra las corrutinas que corren de fondo. Los dos importan de los módulos por definición, así que el chequeo los excluye por nombre.
+
+Son dos y no más: cada nombre en esa lista es un archivo habilitado a depender del dominio desde abajo de los módulos, y la lista está fijada por `TestTheExceptionIsDeclared`. Un tercero no es imposible — nada podría impedirlo — pero es una línea que alguien edita a propósito, en un test, con el motivo en el commit.
 
 `errors.py` además no importa `fastapi`: si lo hiciera, las excepciones de dominio arrastrarían media aplicación y dejarían de poder levantarse desde cualquier módulo.
 
 ```
-cd backend && grep -nE "^from app\.modules|^import app\.modules" app/*.py | grep -v "^app/main.py:"
+cd backend && grep -nE "^from app\.modules|^import app\.modules" app/*.py | grep -vE "^app/(main|tasks)\.py:"
 cd backend && grep -rnE "^from app\.modules|^import app\.modules" app/providers
 cd backend && grep -n "fastapi" app/errors.py
 ```
 
 ### `GEN-04` - Major: El router de un módulo nuevo se monta explícitamente en `app/main.py`.
 
-`main.py` es el *composition root*: es el único lugar que conoce todos los módulos, monta el router de cada uno, configura CORS y traduce las excepciones de dominio a códigos HTTP.
+`main.py` es el *composition root* del HTTP: monta el router de cada módulo. Lo que corre de fondo se declara igual de explícito, en `app/tasks.py`. La traducción de las excepciones de dominio a códigos HTTP vive en `app/error_handlers.py`, que `main.py` engancha con `register_error_handlers(app)`.
 Un módulo que existe y cuyo router no está montado es código muerto que aparenta ser una feature.
 
 ### `GEN-05` - Blocker: No hay ciclos entre módulos.
@@ -231,11 +234,13 @@ El protocolo vive en `app/providers/base.py` —hoy `MarketDataProvider`— y la
 
 **Ningún archivo fuera de `app/providers/` importa un cliente HTTP.** No es una regla sobre TwelveData: un service que hace `import httpx` y arma una URL ya salió al mundo por la ventana, y ese es el modo de falla real — el nombre del proveedor puede no aparecer nunca.
 
-El nombre `twelvedata`, su URL y su API key aparecen en **un** archivo: `app/providers/twelvedata.py`, que la lee de `app/settings.py`.
+El nombre `twelvedata` y su URL aparecen en **un solo** archivo: `app/providers/twelvedata.py`. Ni siquiera `app/settings.py` lo nombra: la credencial se llama `market_data_api_key` —se pide por *para qué es*, no por *quién la emitió*— y `market_data_provider` **no tiene default**, así que ningún entorno elige proveedor por olvido.
+
+Un proveedor nuevo es entonces un archivo en `app/providers/` con un `build()` y un valor de `MARKET_DATA_PROVIDER`: el registro lo resuelve por nombre (`import_module`), validado antes de importar. Nada más se toca.
 
 ```
 cd backend && grep -rnE "^\s*(import|from)\s+(httpx|requests|aiohttp|urllib\.request)\b" app | grep -v "^app/providers/"
-cd backend && grep -rni "twelvedata" app --include=*.py | grep -vE "^app/(providers/twelvedata\.py|settings\.py)"
+cd backend && grep -rni "twelvedata" app --include=*.py | grep -v "^app/providers/twelvedata.py"
 ```
 
 El segundo va con `-i` a propósito: sin él, `TwelveDataClient` y `TWELVEDATA_API_KEY` pasan limpio.
@@ -270,12 +275,17 @@ Los que este proyecto ya usa:
 
 | Patrón | Dónde | Qué resuelve |
 |---|---|---|
-| **Strategy** (`Protocol`) | `MarketDataProvider` | Habilita el `FakeProvider` que hace correr la suite sin red (`TEST-03`) y deja el proveedor reemplazable (`NFR-07`) |
+| **Strategy** (`ABC`) | `MarketDataProvider`, con `TwelveDataProvider` y `FakeProvider` | Habilita el `FakeProvider` que hace correr la suite sin red (`TEST-03`) y deja el proveedor reemplazable (`NFR-07`) |
+| **Adapter** | `TwelveDataProvider` | Traduce el JSON del proveedor a `StockRecord` y `QuotePoint`, que son tipos nuestros: el formato del vendor no entra al dominio |
+| **Registry + Factory** | `app/providers/registry.py` | Resuelve el proveedor **por nombre en runtime**, así agregar uno es un archivo en `providers/` y una variable de entorno, sin tocar el composition root (`GEN-08`) |
 | **Repository** | `repository.py` de cada módulo | Aísla SQLAlchemy del service, que así se testea sin base |
-| **Composition Root** | `app/main.py` | Un solo lugar donde se arma el grafo de dependencias |
+| **Dependency Injection** | `Depends` en los routers, y el provider que llega como argumento al service | El service no construye lo que usa, y por eso el test le pasa un doble sin parchear nada |
+| **Composition Root** | `app/main.py` · `app/tasks.py` | Un solo lugar donde se arma el grafo de dependencias: el HTTP y lo que corre de fondo |
+| **Exception translation layer** | `app/errors.py` → `app/error_handlers.py` | El service comunica fallas con excepciones de dominio y no conoce HTTP (`PY-06`); el tipo *es* el status code |
+| **Single-flight** (stampede guard) | `_Gate` y `_Gatekeeper` en `quotes/service.py` | Diez lectores simultáneos del mismo `(símbolo, intervalo)` gastan **un** crédito, que es el Artículo II donde un TTL solo no alcanza (`RF-25`) |
 | **Test Double** | `FakeProvider` | Determinístico y sin gastar cuota (Artículo II) |
 
-Y los que **no**, porque acá no pagan: Factory (no hay familias de objetos que elegir en runtime), Observer o event bus (`ADR-009` lo descarta: un solo servicio), Unit of Work (la sesión de SQLAlchemy ya lo es), CQRS y Mediator (no hay complejidad de lectura/escritura que separar).
+Y los que **no**, porque acá no pagan: Abstract Factory (hay una familia sola, y `registry.py` ya la resuelve con una función), Observer o event bus (`ADR-009` lo descarta: un solo servicio), Unit of Work (la sesión de SQLAlchemy ya lo es), CQRS y Mediator (no hay complejidad de lectura/escritura que separar), Singleton explícito (el módulo de Python ya lo es: `_GATEKEEPER` y `get_settings()` son una instancia por proceso sin ceremonia), y una clase de métodos estáticos en lugar de funciones de módulo (es un namespace disfrazado de objeto, y el namespace ya existe).
 
 ---
 
@@ -335,7 +345,7 @@ Las capas son reales y están verificadas por un test de arquitectura, no por di
 - ✅ `quotes/router.py` → `from app.modules.quotes.service import QuoteService`
 - ✅ `quotes/service.py` → `from app.modules.quotes.repository import QuoteRepository`
 
-Vale igual cuando la pieza creció de archivo a carpeta del mismo nombre (`router.py` → `routers/`, `service.py` → `services/`, `repository.py` → `repositories/`, `io.py` → `schemas/`, `models.py` → `models/`): cambia la forma, no la dirección.
+Vale igual cuando la pieza creció de archivo a carpeta del mismo nombre (`router.py` → `routers/`, `service.py` → `services/`, `repository.py` → `repositories/`, `schemas.py` → `schemas/`, `models.py` → `models/`): cambia la forma, no la dirección.
 
 ```
 cd backend && uv run pytest tests/architecture/test_module_boundaries.py
@@ -405,6 +415,33 @@ En inglés, como todo el código (`GEN-07`).
 
 ```
 cd backend && uv run ruff check --select D app tests
+```
+
+### `PY-12` - Major: Las estructuras de datos son modelos de Pydantic, no `dataclass`.
+
+Todo lo que es **dato** —lo que un service decide, lo que una respuesta lleva, lo que un proveedor devuelve, la identidad que sale de un token— es un `BaseModel`. Inmutable salvo que haya un motivo escrito para lo contrario:
+
+```python
+class FavoriteStock(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    name: str
+    currency: str
+```
+
+Lo que **no** es dato no es ninguna de las dos cosas: un contenedor de estado del proceso, con un `asyncio.Lock` adentro, que nunca cruza una frontera y no tiene nada que validar ni que serializar, es una **clase con comportamiento** (`_Gate` y `_Gatekeeper`, en `quotes/service.py`). Un `dataclass` ahí sólo agregaría un `__init__` generado y dejaría el estado público.
+
+El motivo de la regla es que un modelo se valida, se serializa y genera su schema en el OpenAPI; un `dataclass` no hace ninguna de las tres, así que la misma estructura terminaba escrita dos veces —una como `dataclass` para el service, otra como modelo para la respuesta— y había que mantenerlas en paralelo.
+
+Los modelos viven en `schemas.py` cuando el service y la respuesta comparten la forma; cuando **no** coinciden son dos modelos y el router traduce. Un campo agregado a un modelo que además es respuesta sale por la API sin que nadie lo decida: eso es API3/BOPLA, y es el costo que compra la reutilización.
+
+La excepción declarada son las **clases de infraestructura de los tests** (`tests/architecture/source_tree.py`): no son datos del dominio, no cruzan ninguna frontera y no participan del OpenAPI. En `app/` no queda ningún `dataclass`.
+
+**No la verifica ningún test**, y conviene decirlo en vez de simularlo: `ruff` no distingue un dato de un contenedor de estado. La recorre el `Code-Reviewer`, y el grep que la hace visible es:
+
+```
+cd backend && grep -rn "@dataclass" app/
 ```
 
 ---
@@ -553,7 +590,7 @@ cd backend && grep -rnE "^\s*print\(" app | grep -v "bootstrap.py"
 
 Lanzan excepciones de dominio: las comunes en `app/errors.py` (`DomainError` y su familia : `NotFoundError`, `ConflictError`, `ValidationError`, `AuthenticationError`, `PermissionDeniedError`), y las propias de cada módulo en su propio código, heredando de `DomainError`.
 
-`main.py` las traduce a códigos HTTP.
+`app/error_handlers.py` las traduce a códigos HTTP, y `main.py` lo engancha.
 
 Una excepción de dominio se levanta desde cualquier módulo y no arrastra `fastapi` con ella.
 
@@ -628,14 +665,28 @@ Las que **sí** aplican acá, cada una con la regla que ya la cubre:
 |---|---|---|---|
 | **API1** | **BOLA** — autorización a nivel objeto rota | El riesgo principal del proyecto: favoritas de otro usuario | Artículo III, `GEN-09` |
 | **API2** | Autenticación rota | Login, JWT, expiración, Argon2id | `ADR-004`, `SEC-06` |
-| **API3** | BOPLA — exponer o aceptar campos de más | Los schemas de `io.py` son explícitos en las dos direcciones, nunca `model_config = {"extra": "allow"}` | `PY-01` |
+| **API3** | BOPLA — exponer o aceptar campos de más | Los schemas de `schemas.py` son explícitos en las dos direcciones, nunca `model_config = {"extra": "allow"}`. Un modelo que el service decide **y** la respuesta lleva se revisa con más cuidado: agregarle un campo para uso interno lo publica | `PY-01` |
 | **API4** | Consumo de recursos sin límite | La cuota de 800/día **es** este riesgo | Artículo II, `ADR-003` |
 | **API5** | Autorización a nivel función | Toda ruta declara su autenticación o está en `PUBLIC_ROUTES` con motivo | `PY-08` |
-| **API8** | Mala configuración | CORS acotado al origen del frontend, nunca `*`; Sentry sin PII ni variables locales | `SEC-02`, `ADR-009` |
+| **API8** | Mala configuración | CORS acotado al origen del frontend, nunca `*`; Sentry sin PII ni variables locales | `SEC-08`, `SEC-02`, `ADR-009` |
 
 Las que **no** aplican, dicho de frente: **API6** (flujos de negocio sensibles: no hay pagos ni transferencias), **API7** (SSRF: la única URL saliente es la del proveedor, fija en `app/providers/`), **API9** (gestión de inventario: hay una sola versión y un solo ambiente público), **API10** (consumo inseguro de APIs de terceros — aplica parcialmente, y lo cubre `ERR-05`: la respuesta del proveedor se valida y se tipa, nunca se reenvía cruda).
 
 **API1 y API5 son distintos y se confunden.** API1 pregunta *"¿este usuario puede tocar **este objeto**?"*; API5, *"¿este usuario puede llamar a **este endpoint**?"*. La primera la sostiene el filtro por `sub` del token, la segunda la declaración de autorización de la ruta. Un endpoint puede pasar API5 y fallar API1.
+
+### `SEC-08` - Blocker: CORS nombra sus orígenes, y no habilita credenciales.
+
+`allow_origins` lista los orígenes uno por uno, con esquema, y **nunca** `"*"`. Lo rechaza un validador de `Settings`, porque Starlette no lo rechaza: pedido con `"*"` y credenciales habilitadas, `CORSMiddleware` **no** contesta `"*"` — devuelve el origen que preguntó, que es justo lo que un navegador necesita para entregarle la sesión de un visitante a otro sitio.
+
+`allow_credentials` va en `False`. Acá la sesión es un bearer token en `Authorization`, que es un header de request y lo gobierna `allow_headers`: no hay ninguna cookie que tenga que cruzar un origen. Ese flag es el que convierte una lista de orígenes floja en un agujero, así que está apagado aunque hoy no haga falta.
+
+`allow_methods` nombra los métodos que la API tiene (`GET`, `POST`, `DELETE`). `"*"` anuncia además `PUT` y `PATCH`, que no existen en ninguna ruta.
+
+Vale la pena decir por qué esto es `Blocker` si **nada es cross-origin hoy**: en producción nginx proxea `/api` y en desarrollo lo proxea Vite, así que el navegador nunca sale del origen. Una configuración que nadie ejercita es exactamente la que alguien afloja sin enterarse de lo que enciende.
+
+```
+cd backend && uv run pytest tests/unit/test_cors.py
+```
 
 ---
 
@@ -683,7 +734,7 @@ Los fixtures van en `backend/tests/fixtures/twelvedata/`.
 **La suite completa corre sin red y sin API key**.
 
 ```
-cd backend && TWELVEDATA_API_KEY= uv run pytest
+cd backend && MARKET_DATA_API_KEY= uv run pytest
 ```
 
 ### `TEST-04` - Major: Toda alta de favorita tiene su test de idempotencia, agregar dos veces el mismo símbolo no duplica ni falla.

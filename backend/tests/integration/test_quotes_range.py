@@ -1,6 +1,6 @@
 """`Histórico`: the window the user asks for, and the windows that cannot be asked for.
 
-H3 seen from the endpoint (RF-16, RF-36, RF-41 to RF-45, RF-47). `Tiempo Real` and `Histórico`
+H3 seen from the endpoint. `Tiempo Real` and `Histórico`
 are the same route: what tells them apart is whether `from` and `to` travel with the request.
 
 Three claims here are the ones an implementation that "works" still gets wrong:
@@ -9,17 +9,17 @@ Three claims here are the ones an implementation that "works" still gets wrong:
   candle, once in each reading, and only one of them may find it. A service that stamped UTC on
   the naive input would answer both, and the whole chart would sit four hours away from where it
   was asked for.
-- **The series falls entirely inside the window** (RF-16): no point before `from`, none after
+- **The series falls entirely inside the window**: no point before `from`, none after
   `to`. A repository that answered "everything for the symbol" passes a chart that looks right
   on a fresh database and wrong on a full one.
-- **An invalid range costs nothing** (RF-47): no credit, and not one query against the database
+- **An invalid range costs nothing**: no credit, and not one query against the database
   -- neither the cache nor the membership. The 422 is step 1, decided before authorizing and
   before the window is resolved, which is the ordering `plan.md` fixed on 2026-09-14 so that
   "it is not executed" means what it says.
 
 The provider is a double that counts calls, and the database is watched through the statements
 the engine really executes: nothing in a response body tells a cached answer from one that spent
-a credit (Article II, TEST-03).
+a credit.
 """
 
 from collections.abc import AsyncIterator, Iterator, Sequence
@@ -59,16 +59,16 @@ _SECRET = "a-signing-secret-of-at-least-32-chars"
 _TRADED_ON = datetime(2026, 9, 8, 13, 35, tzinfo=UTC)
 
 # The opening and the close of that same session, written the way the user writes them: naive,
-# and in the hours the market keeps (RF-36).
+# and in the hours the market keeps.
 _MARKET_OPEN = "2026-09-08T09:30:00"
 _MARKET_CLOSE = "2026-09-08T16:00:00"
 
-# The caps of `plan.md`, one per interval (RF-42 to RF-44). Written out rather than imported
+# The caps of `plan.md`, one per interval. Written out rather than imported
 # from the service: a constant asserted against itself proves nothing, and what the spec fixes
 # is the number of days, not the name of the dictionary that holds it.
 _CAPS = [("1min", 7), ("5min", 30), ("15min", 90)]
 
-# The four windows the backend refuses, which are the ones RF-47 says cost nothing.
+# The four windows the backend refuses, which are the ones that cost nothing.
 _REFUSED_RANGES = [
     {"interval": "1min", "from": "2026-09-08T10:00:00", "to": "2026-09-08T10:00:00"},
     {"interval": "1min", "from": "2026-09-08T11:00:00", "to": "2026-09-08T10:00:00"},
@@ -79,7 +79,7 @@ _REFUSED_IDS = ["equal", "reversed", "too long", "half a range"]
 
 
 class _CountingProvider(MarketDataProvider):
-    """The contract, counting calls: the only way Article II is checkable from the outside."""
+    """The contract, counting calls: the only way the quota is checkable from the outside."""
 
     def __init__(self, points: Sequence[QuotePoint] = ()) -> None:
         """Answer with those points, and remember every window it was asked for."""
@@ -146,7 +146,7 @@ async def juan(session: AsyncSession) -> User:
 def statements() -> Iterator[list[str]]:
     """Every SQL statement the engine executes while the test runs.
 
-    RF-47 says an invalid range is refused *before* anything else happens, and "anything else"
+    An invalid range is refused *before* anything else happens, and "anything else"
     includes the authorization and the cache. Recording the statements is what makes that
     observable from outside: a validation done later is green on the body and wrong on the
     ordering.
@@ -172,7 +172,7 @@ def statements() -> Iterator[list[str]]:
 async def _follow(session: AsyncSession, user_id: int, symbol: str) -> None:
     """Make the symbol one of that user's favourites, catalogue row included.
 
-    The chart is served only for the acciones of whoever is asking (RF-35), so every test here
+    The chart is served only for the acciones of whoever is asking, so every test here
     needs the membership to exist or it would be measuring a 404 instead of a range.
     """
     await _catalogue(session, symbol)
@@ -238,7 +238,7 @@ def _instants(payload: dict[str, Any]) -> list[datetime]:
 def _touched_the_database(statements: Sequence[str]) -> bool:
     """Whether any statement went to a table this endpoint reads.
 
-    RF-47 is taken literally *(decision of 2026-09-14, in `plan.md`)*: validating the range is
+    The rule is taken literally *(decision of 2026-09-14, in `plan.md`)*: validating the range is
     step 1, ahead of authorizing, so a window that cannot be asked for reads nothing at all --
     neither `user_stocks`, which is how `favorites` answers whose symbol it is, nor `quotes`,
     which is the cache. Both tables are named here because leaving either out would let the
@@ -255,7 +255,7 @@ def _touched_the_database(statements: Sequence[str]) -> bool:
 
 
 class TestTheWindowTheUserAsksFor:
-    """RF-16 and RF-36: the hours are the market's, and the series stays inside them."""
+    """The hours are the market's, and the series stays inside them."""
 
     async def test_from_and_to_are_read_as_market_hours(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
@@ -297,7 +297,7 @@ class TestTheWindowTheUserAsksFor:
     async def test_the_series_falls_entirely_inside_the_window(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
     ) -> None:
-        """RF-16: no point before `from`, and no point after `to`."""
+        """No point before `from`, and no point after `to`."""
         await _candle(session, ts=_TRADED_ON - timedelta(hours=2))
         await _candle(session, ts=_TRADED_ON)
         await _candle(session, ts=_TRADED_ON + timedelta(hours=8))
@@ -346,7 +346,7 @@ class TestTheWindowTheUserAsksFor:
 
 
 class TestARangeThatCannotBeAskedFor:
-    """RF-41 to RF-45: the 422 the screen turns into the text under the date fields."""
+    """The 422 the screen turns into the text under the date fields."""
 
     @pytest.mark.parametrize(
         "start,end",
@@ -359,7 +359,7 @@ class TestARangeThatCannotBeAskedFor:
     async def test_from_not_before_to_is_422(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, start: str, end: str
     ) -> None:
-        """RF-41: `desde` equal to `hasta` is an empty window, and after it is a mistake."""
+        """`desde` equal to `hasta` is an empty window, and after it is a mistake."""
         response = await client.get(
             _QUOTES,
             params={"interval": "1min", "from": start, "to": end},
@@ -392,7 +392,7 @@ class TestARangeThatCannotBeAskedFor:
     async def test_a_range_exactly_at_the_cap_is_graphed(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, interval: str, days: int
     ) -> None:
-        """RF-42 to RF-44, from the side that graphs: 7 days, 30 days, 90 days."""
+        """From the side that graphs: 7 days, 30 days, 90 days."""
         start = datetime(2026, 6, 1, 10, 0)
 
         response = await client.get(
@@ -411,7 +411,7 @@ class TestARangeThatCannotBeAskedFor:
     async def test_a_range_one_day_past_the_cap_is_422(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, interval: str, days: int
     ) -> None:
-        """RF-42 to RF-44 from the side that refuses: 8 days, 31 days, 91 days."""
+        """From the side that refuses: 8 days, 31 days, 91 days."""
         start = datetime(2026, 6, 1, 10, 0)
 
         response = await client.get(
@@ -430,7 +430,7 @@ class TestARangeThatCannotBeAskedFor:
     async def test_a_range_too_long_carries_the_interval_and_its_cap(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, interval: str, cap: int
     ) -> None:
-        """RF-45: `{intervalo}` and `{N}` of the text are filled in from the body, never guessed.
+        """`{intervalo}` and `{N}` of the text are filled in from the body, never guessed.
 
         The caps live in the service and nowhere else. A browser carrying its own copy would be
         one business rule written twice, and one of the two would go stale without anybody
@@ -481,7 +481,7 @@ class TestARangeThatCannotBeAskedFor:
 
 
 class TestARefusedRangeCostsNothing:
-    """RF-47: the four windows the backend refuses are refused before anything is spent."""
+    """The four windows the backend refuses are refused before anything is spent."""
 
     @pytest.mark.parametrize("params", _REFUSED_RANGES, ids=_REFUSED_IDS)
     async def test_it_never_reaches_the_provider(
@@ -491,7 +491,7 @@ class TestARefusedRangeCostsNothing:
         provider: _CountingProvider,
         params: dict[str, str],
     ) -> None:
-        """A query the screen would not have sent does not reach the world either (Article II).
+        """A query the screen would not have sent does not reach the world either.
 
         The status code is asserted alongside: the claim is that *the refusal* costs nothing,
         and an endpoint that answered something else entirely would satisfy the counter without
@@ -514,7 +514,7 @@ class TestARefusedRangeCostsNothing:
         """The validation is step 1 of the plan: ahead of authorizing and of the window.
 
         Done later the response is identical, which is why the ordering needs a test of its own:
-        it is invisible from the body and it is the whole of RF-47.
+        it is invisible from the body and it is the whole rule.
         """
         statements.clear()
 

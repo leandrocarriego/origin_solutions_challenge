@@ -1,12 +1,12 @@
-"""The real client, against JSON captured from the provider (TEST-03, ERR-05).
+"""The real client, against JSON captured from the provider.
 
 Every response here was captured from the live API on 2026-09-13 and lives in
 `tests/fixtures/`. The suite never reaches the network: the quota is 800 requests a day
-(Article II) and a suite that spends it is not a suite.
+ and a suite that spends it is not a suite.
 
 What is under test is the translation. The client receives the provider's JSON and hands back
 the types of the contract, so a change of format breaks one file instead of every service test.
-And it turns the four ways the upstream says no into exceptions of ours, because `ADR-005` has
+And it turns the four ways the upstream says no into exceptions of ours, because the cache
 to tell "the market is closed" from "we ran out of quota", and a raw 429 reaching the browser
 would blame a client that has no account with the provider.
 """
@@ -65,7 +65,7 @@ def recording(payload: dict[str, Any]) -> tuple[httpx.AsyncClient, list[httpx.Re
 
 
 class TestItReadsTheCatalogue:
-    """`list_stocks` is what the reconciliation of ADR-002 compares against the table."""
+    """`list_stocks` is what the reconciliation compares against the table."""
 
     async def test_it_returns_the_contract_type(self) -> None:
         """The service sees StockRecord, never the provider's dict."""
@@ -76,7 +76,7 @@ class TestItReadsTheCatalogue:
         assert all(isinstance(entry, StockRecord) for entry in catalogue)
 
     async def test_it_returns_every_row_the_provider_sent(self) -> None:
-        """Filtering is the ingestion's job (ADR-001); the client does not decide what counts."""
+        """Filtering is the ingestion's job; the client does not decide what counts."""
         provider = build_upstream_provider(API_KEY, client=answering(fixture("stocks_nasdaq")))
 
         catalogue = await provider.list_stocks("NASDAQ")
@@ -84,7 +84,7 @@ class TestItReadsTheCatalogue:
         assert len(catalogue) == 4
 
     async def test_it_carries_over_what_the_catalogue_table_stores(self) -> None:
-        """symbol, name, currency and the rest of ADR-001's columns arrive filled in."""
+        """Symbol, name, currency and the rest of the catalogue columns arrive filled in."""
         provider = build_upstream_provider(API_KEY, client=answering(fixture("stocks_nasdaq")))
 
         catalogue = await provider.list_stocks("NASDAQ")
@@ -151,7 +151,7 @@ class TestItReadsASeries:
         assert all(point.ts.tzinfo is not None for point in series)
 
     async def test_it_asks_for_the_symbol_and_the_interval_it_was_given(self) -> None:
-        """Article II is only checkable if the request matches what was asked for."""
+        """The quota is only checkable if the request matches what was asked for."""
         client, seen = recording(fixture("time_series_tsla_1min"))
         provider = build_upstream_provider(API_KEY, client=client)
 
@@ -162,10 +162,10 @@ class TestItReadsASeries:
 
 
 class TestItTranslatesEveryWayTheUpstreamSaysNo:
-    """ERR-05: the failure modes are what arrive first in production."""
+    """The failure modes are what arrive first in production."""
 
     async def test_the_quota_running_out_is_its_own_exception(self) -> None:
-        """ADR-005 serves the cache with a notice for this one; it must be distinguishable."""
+        """Serves the cache with a notice for this one; it must be distinguishable."""
         provider = build_upstream_provider(
             API_KEY, client=answering(fixture("error_429_rate_limit"), status=429)
         )
@@ -219,7 +219,7 @@ class TestItTranslatesEveryWayTheUpstreamSaysNo:
 
 
 class TestTheKeyNeverLeaves:
-    """Article I, at the one place that holds the credential."""
+    """the credential rule, at the one place that holds the credential."""
 
     @pytest.mark.parametrize("status", [401, 429, 503])
     async def test_the_api_key_is_not_in_the_exception(self, status: int) -> None:
@@ -236,7 +236,7 @@ class TestTheKeyNeverLeaves:
 
 
 class TestTheSeriesAndItsTimezone:
-    """The most expensive bug of `003-quote-chart`, and the most silent one (RF-15, RF-36).
+    """The most expensive bug of `003-quote-chart`, and the most silent one.
 
     The provider sends its timestamps in the exchange's timezone unless it is asked otherwise,
     and this client used to stamp UTC on them. Nothing fails when that happens: the whole chart

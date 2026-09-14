@@ -1,12 +1,12 @@
 """Alembic environment.
 
-This file is allowed to import from app.modules, and it is the only place outside main.py that
-is: GEN-03 keeps the kernel and the providers from importing a module, but Alembic needs every
-model registered against a single metadata to order a single chain of migrations. It plays the
-same role main.py does -- a composition root -- for the schema rather than for the routes.
+This file is allowed to import from app.modules, and it is the only place outside the
+composition root that is: Alembic needs every model registered against a single metadata to
+order a single chain of migrations. It plays the same role for the schema that `main.py` plays
+for the routes.
 
-The URL comes from Settings and never from alembic.ini. Writing it in the ini would mean a
-second place where the DSN lives, and the second place is the one that goes stale (SEC-03).
+The URL comes from Settings and never from alembic.ini: writing it in the ini would mean a
+second place where the DSN lives, and the second place is the one that goes stale.
 """
 
 import asyncio
@@ -61,7 +61,7 @@ def do_run_migrations(connection: Connection) -> None:
     """Run the migrations on an already-open connection."""
     # compare_type and compare_server_default make autogenerate notice a column whose type or
     # default changed, which it ignores by default and which is exactly how a model and its
-    # table drift apart without anyone seeing it (DB-01).
+    # table drift apart without anyone seeing it.
     context.configure(
         connection=connection,
         target_metadata=target_metadata,

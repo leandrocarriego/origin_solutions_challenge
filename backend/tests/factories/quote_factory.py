@@ -2,7 +2,7 @@
 
 The composite primary key is `(symbol, interval, ts)` and there is no surrogate id, so the three
 halves are arguments: a series built without varying `ts` inserts the same row twice, which is
-exactly what the key exists to refuse -- and what makes the cache a cache (ADR-001).
+exactly what the key exists to refuse -- and what makes the cache a cache.
 
 The catalogue row the foreign key needs is not written here: it is asked of `StockFactory`. A
 factory that inserted another module's table by hand would be the same boundary violation as an
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.quotes.models import Quote
 from tests.factories.stock_factory import StockFactory
 
-# How long each interval lasts, which is both the spacing of a series and the TTL of ADR-003.
+# How long each interval lasts, which is both the spacing of a series and its TTL.
 STEP = {
     "1min": timedelta(minutes=1),
     "5min": timedelta(minutes=5),

@@ -1,6 +1,6 @@
 /**
- * `Mis Acciones` -- the grid of wireframe 02 (RF-01, RF-02, RF-03), its empty state (RF-07) and
- * the reload that has to keep showing the same list (RF-05).
+ * `Mis Acciones` -- the grid of wireframe 02, its empty state and
+ * the reload that has to keep showing the same list.
  *
  * The grid is looked at **through the screen**, not by importing the component that draws it. Two
  * reasons, and both are the point of this file:
@@ -12,14 +12,14 @@
  *   somebody moves a `<td>` without the screen changing for anybody.
  * - The list is not a prop anybody passes in this application: it is what our API answers to
  *   `GET /api/favorites` for the session that is logged in. Rendering the grid with a hand-made
- *   array would skip exactly the half `RF-01` is about -- that the grid shows *the favourites of
+ *   array would skip exactly the half that matters -- that the grid shows *the favourites of
  *   the identified user*.
  *
  * So every test here logs in the way a person does and then reads the screen. Today they are red
  * because `MyActions` draws only the header: there is no table, and nothing asks the API for a
  * list. That is the intended red -- absence of implementation, not a broken import.
  *
- * **The reload is a real F5** (RF-05): the page is thrown away with `unmount()` and the application
+ * **The reload is a real F5**: the page is thrown away with `unmount()` and the application
  * is opened again at the same address, which is the only thing a browser leaves behind -- whatever
  * is in `sessionStorage`. Mounting a second copy of the application without dropping the first
  * would prove that React can render twice, which is not the requirement. It is the same shape
@@ -27,7 +27,7 @@
  * (→ *Riesgos*, first row).
  *
  * `fetch` is replaced in every test: a frontend test that goes to the network is not a frontend
- * test, and it would fail in CI for something that is not the test (`add_tests`, `TEST-03`).
+ * test, and it would fail in CI for something that is not the test.
  */
 
 import { render, screen, within } from '@testing-library/react';
@@ -42,12 +42,12 @@ const USUARIO = 'Usuario';
 const CLAVE = 'Clave';
 const MIS_ACCIONES = 'Mis Acciones';
 
-// Verbatim from the `Mis Acciones` table of docs/design/COPY.md (UI-02). The fourth column has no
+// Verbatim from the `Mis Acciones` table of docs/design/COPY.md. The fourth column has no
 // heading in the wireframe, and that absence is asserted rather than a fourth name.
 const SIMBOLO = 'Símbolo';
 const NOMBRE = 'Nombre';
 const MONEDA = 'Moneda';
-// Verbatim from the *Lista de favoritas* table of docs/design/COPY.md (UI-02).
+// Verbatim from the *Lista de favoritas* table of docs/design/COPY.md.
 const LISTA_VACIA = 'Todavía no agregaste ninguna acción.';
 
 const LOGIN_URL = '/api/auth/login';
@@ -73,7 +73,7 @@ interface Favorite {
   currency: string;
 }
 
-/** The three favourites of the demo user, in the order the backend decides (RF-06). */
+/** The three favourites of the demo user, in the order the backend decides. */
 const THE_LIST: Favorite[] = [
   { symbol: 'TSLA', name: 'Tesla Inc', currency: 'USD' },
   { symbol: 'AAPL', name: 'Apple Inc', currency: 'USD' },
@@ -171,7 +171,7 @@ afterEach(() => {
 
 describe('the grid of Mis Acciones', () => {
   it('shows the favourites of whoever is logged in', async () => {
-    // RF-01. The list is not a prop: it is what our API answers for this session, and the screen
+    // The list is not a prop: it is what our API answers for this session, and the screen
     // has to ask for it on its own.
     await logInThroughTheScreen();
 
@@ -182,7 +182,7 @@ describe('the grid of Mis Acciones', () => {
   });
 
   it('has four columns, and only three of them carry a heading', async () => {
-    // RF-02, and it is the wireframe read literally: the fourth column is drawn with its heading
+    // It is the wireframe read literally: the fourth column is drawn with its heading
     // cell empty. Asserting four headings with the last one blank is what tells that apart from a
     // grid of three columns -- and from one where somebody "fixed" the gap with a word.
     await logInThroughTheScreen();
@@ -200,7 +200,7 @@ describe('the grid of Mis Acciones', () => {
   });
 
   it('shows one row per favourite, and no more', async () => {
-    // RF-03. The heading row is one of them, so three favourites make four rows: a fifth would be
+    // The heading row is one of them, so three favourites make four rows: a fifth would be
     // a row the API never sent.
     await logInThroughTheScreen();
 
@@ -210,7 +210,7 @@ describe('the grid of Mis Acciones', () => {
   });
 
   it('shows the symbol, the name and the currency of each one', async () => {
-    // RF-03 again, read where it matters: the three data live in the same row, so a grid that
+    // Again, read where it matters: the three data live in the same row, so a grid that
     // paints the right names against the wrong symbols fails here and not above.
     await logInThroughTheScreen();
 
@@ -226,7 +226,7 @@ describe('the grid of Mis Acciones', () => {
 
 describe('the grid of somebody with no favourites', () => {
   it('still shows the three headings', async () => {
-    // RF-07, and the reason the client asked for it: a grid with nothing at all reads as something
+    // The reason the client asked for it: a grid with nothing at all reads as something
     // having failed. The headings are what say the list is empty and not broken.
     stubTheApi([]);
 
@@ -244,7 +244,7 @@ describe('the grid of somebody with no favourites', () => {
   });
 
   it('says so, word for word, in place of the rows', async () => {
-    // Verbatim from COPY.md (UI-02): the notice is the text the client wrote, accents included.
+    // Verbatim from COPY.md: the notice is the text the client wrote, accents included.
     stubTheApi([]);
 
     await logInThroughTheScreen();
@@ -283,7 +283,7 @@ describe('the grid of somebody with no favourites', () => {
 
 describe('Mis Acciones after a reload', () => {
   it('shows the same favourites again, and not the login', async () => {
-    // RF-05, and it is a real F5: the page is thrown away and the application is opened again at
+    // It is a real F5: the page is thrown away and the application is opened again at
     // the same address, with nothing left but what the browser kept. Mounting a second copy while
     // the first is still alive would prove the remount and not the persistence (`plan.md`).
     const first = await logInThroughTheScreen();
