@@ -128,12 +128,16 @@ intentando leer las del otro— necesita endpoints y base, y va con la feature q
 
 ### Bloqueos abiertos
 
-- **`ADR-004` sigue en `Propuesta`**, y la tarea 15 (el seed con Argon2) depende de él. Un ADR
-  en `Propuesta` no es autoridad y ningún plan lo puede citar (Artículo X).
-- Nada más. `ADR-006` se enmendó el 2026-09-13: `MarketDataProvider` es una clase abstracta y su
-  método de catálogo es `list_stocks(exchange)`, no el `search_stocks()` que `ADR-002` descartó.
-- **La tarea 11 espera la firma del Artículo VI**, no un ADR: los tests están escritos y el gate
-  es que los leas.
+**Ninguno.** Los dos que había al abrir esta carpeta se cerraron el 2026-09-13:
+
+- `ADR-004` —del que dependía la tarea 15, el seed con Argon2— pasó de `Propuesta` a `Aceptada`,
+  decidido por Leandro Carriego. Ya es autoridad y un plan lo puede citar (Artículo X).
+- La tarea 11 recibió la firma del Artículo VI: sus 42 tests de arquitectura están aprobados y
+  registrados en el encabezado de este archivo.
+
+Queda anotado, porque no era un bloqueo sino una enmienda: `ADR-006` se enmendó el 2026-09-13 —
+`MarketDataProvider` es una clase abstracta y su método de catálogo es `list_stocks(exchange)`,
+no el `search_stocks()` que `ADR-002` descartó.
 
 ## Cobertura de requisitos
 

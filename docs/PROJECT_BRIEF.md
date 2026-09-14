@@ -68,14 +68,14 @@ La columna **Test** se completa a medida que se implementa (`AGENTS.md` → Defi
 
 | ID | Requisito | Test |
 |---|---|---|
-| REQ-18 | Base de datos relacional con todos los objetos necesarios | |
-| REQ-19 | Seed con datos mínimos para poder probar la aplicación | |
+| REQ-18 | Base de datos relacional con todos los objetos necesarios | `backend/tests/architecture/test_data_model.py` |
+| REQ-19 | Seed con datos mínimos para poder probar la aplicación | `backend/tests/integration/test_seed.py` |
 | REQ-20 | Repositorio público con control de versiones | |
 | REQ-21 | Backup de la base de datos incluido en el repo | |
 | REQ-22 | `README.md` con los pasos para levantar la aplicación | |
 | REQ-23 | Arquitectura de dos proyectos: Frontend y Backend | |
 | REQ-24 | API en Python + FastAPI | |
-| REQ-25 | Frontend en React ≥ 18 | |
+| REQ-25 | Frontend en React ≥ 18 | `frontend/tests/HealthPage.test.tsx` |
 
 ## 2. Requisitos no funcionales
 
@@ -85,7 +85,7 @@ Cada uno tiene su artículo en la constitución y su convención verificable.
 
 | ID | Requisito | Autoridad | Verificación |
 |---|---|---|---|
-| NFR-01 | Passwords almacenadas con Argon2, nunca en texto plano | `SEC-06` | |
+| NFR-01 | Passwords almacenadas con Argon2, nunca en texto plano | `SEC-06` | `backend/tests/integration/test_password_hashing.py` |
 | NFR-02 | La API key de TwelveData no es alcanzable desde el navegador | Art. I · `SEC-02` | |
 | NFR-03 | Un usuario no puede leer ni borrar las favoritas de otro | Art. III · `GEN-09` | |
 | NFR-04 | Cuota agotada, símbolo sin datos y mercado cerrado tienen manejo explícito | `ERR-05` | |

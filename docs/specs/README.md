@@ -9,11 +9,11 @@ docs/specs/
 ├── spec.template.md     ← plantilla, cara al cliente
 ├── plan.template.md     ← plantilla, con Constitution Check
 ├── tasks.template.md    ← plantilla, con cobertura de requisitos
-├── 000-scaffolding/     ← la fase 0: sólo tasks.md (ver abajo)
 ├── 001-authentication/
 ├── 002-favorite-stocks/
 ├── 003-quote-chart/
 └── archive/             ← las entregadas; su número no se reutiliza nunca
+    └── 000-scaffolding/  ← la fase 0, ya cerrada: sólo tasks.md (ver abajo)
 ```
 
 ## Nombre
