@@ -47,6 +47,7 @@ está acoplada y hay que corregirla.
 
 | Skill | Comando | Rol dueño | Para qué |
 |---|---|---|---|
+| `deploy.md` | — | Release-Manager | Desplegar a producción lo que ya está en `main`, verificarlo contra el dominio real y habilitar el archivado de la spec |
 | `debug.md` | — | el rol del área afectada | Encontrar la causa raíz de un fallo y corregirla (transversal, cualquier paso) |
 | `project_status.md` | `/status` | Lead | Radiografía del estado real del proyecto |
 
