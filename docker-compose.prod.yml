@@ -99,7 +99,7 @@ services:
       traefik.http.middlewares.origin-challenge-https.redirectscheme.permanent: "true"
       traefik.http.services.origin-challenge.loadbalancer.server.port: "80"
 
-  # --- Observability, layer 3 (ADR-009) --------------------------------------------------------
+  # --- Observability, layer 3 --------------------------------------------------------
   # Grafana is public and has a login. Prometheus is NOT: it has no authentication of any kind,
   # so publishing it would publish every metric and every observed symbol name to whoever walks
   # past. It stays on loopback, reached with `ssh -L 9090:127.0.0.1:9090 mendri`.

@@ -1,4 +1,4 @@
-# Local development. One command from clone to running (ADR-007).
+# Local development. One command from clone to running.
 name: origin-acciones
 
 services:
@@ -39,7 +39,7 @@ services:
       # daily requests (Article II). Set it to "twelvedata" with a key to exercise the real one.
       MARKET_DATA_PROVIDER: fake
       # The entrypoint runs `alembic upgrade head` in every environment. Here it also loads the
-      # demo dataset (REQ-19), because without data there is nothing to develop against. The
+      # demo dataset, because without data there is nothing to develop against. The
       # seed is idempotent: it runs on every `make up`.
       SEED_ON_START: "true"
     ports:

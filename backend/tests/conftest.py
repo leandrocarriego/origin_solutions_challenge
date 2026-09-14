@@ -1,22 +1,4 @@
-"""Shared fixtures.
-
-TEST-03: the suite runs with no network and no API key. Anything that would reach outside is
-replaced here -- never reached, and never a reason to skip a test.
-
-Two variables are set before anything of `app` is imported, and that ordering is the whole point:
-both are required fields of `Settings`, `Settings` is read while `app.main` is imported, so
-without them every module that reaches `app` would fail at collection. `setdefault` and not an
-assignment, so a run against a real environment keeps what it was given.
-
-`MARKET_DATA_PROVIDER` is the upstream one because that is what the suite exercises: the real
-parsing, against fixed JSON, through a transport that never opens a socket (`TEST-03`). Nothing
-here reaches the network, and no test builds a provider from the environment without saying so.
-
-The value is not a secret and does not pretend to be one: it says so, and it is long enough to
-clear the floor and good for nothing else. It lives in the tests and never in `app/`, which is
-the line `SEC-05` actually draws -- what must not exist is a default *the application ships
-with*.
-"""
+"""Shared fixtures."""
 
 import os
 

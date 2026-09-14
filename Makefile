@@ -1,9 +1,5 @@
 # Executable source of the project's commands. README.md explains them; here they run.
 #
-# Rule: when a command appears in CONVENTIONS.md as a convention's verification, it is called
-# here exactly the same way, with no variants. A command spelled differently in two places
-# eventually diverges, and once it does nobody can tell which spelling counts.
-#
 # The `## ...` descriptions are what `make help` prints, so they stay in Spanish (GEN-07).
 
 .DEFAULT_GOAL := help
