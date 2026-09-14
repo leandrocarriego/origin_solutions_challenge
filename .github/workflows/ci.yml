@@ -47,9 +47,10 @@ jobs:
       # The entire point of this variable: it is declared EMPTY on purpose. Any test reaching
       # for the provider fails on the missing credential instead of quietly spending the quota.
       MARKET_DATA_API_KEY: ""
-      # Which provider gets built has no default, so every environment names one. CI names the
-      # fake: nothing here is allowed to reach the real one.
-      MARKET_DATA_PROVIDER: fake
+      # Which provider gets built has no default, so every environment names one. The value is
+      # the same one `tests/conftest.py` falls back to: the client's own tests read the real
+      # one's responses from fixtures, and the empty key above is what keeps it off the network.
+      MARKET_DATA_PROVIDER: twelvedata
       # With no DSN, Sentry never initialises: no events and no network from CI.
       SENTRY_DSN: ""
       # A signing secret for the suite, long enough to be accepted (32 characters minimum). It
