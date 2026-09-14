@@ -35,11 +35,11 @@ from typing import cast
 from zoneinfo import ZoneInfo
 
 import pytest
-from app.modules.quotes.service import QuoteSeries, get_series
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import UnknownSymbolError
 from app.modules.quotes.models import Quote, QuoteInterval
+from app.modules.quotes.service import QuoteSeries, get_series
 from app.providers import (
     MarketDataProvider,
     ProviderError,

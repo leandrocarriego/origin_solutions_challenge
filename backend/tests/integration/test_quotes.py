@@ -26,7 +26,6 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from app.modules.quotes.repository import save
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +34,7 @@ from app.db import get_session
 from app.main import app
 from app.modules.auth.models import User
 from app.modules.quotes.models import Quote
+from app.modules.quotes.repository import save
 from app.providers import (
     MarketDataProvider,
     ProviderQuotaExceeded,

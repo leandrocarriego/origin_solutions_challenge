@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete, select
+from sqlalchemy import CursorResult, delete, exists, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -71,3 +71,20 @@ async def remove(session: AsyncSession, user_id: int, symbol: str) -> None:
         delete(UserStock).where(UserStock.user_id == user_id, UserStock.symbol == symbol)
     )
     await session.commit()
+
+
+async def follows(session: AsyncSession, user_id: int, symbol: str) -> bool:
+    """Whether that user follows that symbol.
+
+    `user_id` is the first argument and it is in the `WHERE`: there is no way to ask this
+    question about somebody else's list, which is what makes it safe to answer a module that
+    serves data costing quota (Article III).
+
+    It asks for existence and not for the row: the caller asked a yes or no, and a row would be
+    an invitation to read a column the answer does not include.
+    """
+    found = await session.scalar(
+        select(exists().where(UserStock.user_id == user_id, UserStock.symbol == symbol))
+    )
+
+    return bool(found)
