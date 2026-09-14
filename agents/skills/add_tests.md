@@ -7,6 +7,8 @@ Escribir los tests de una feature siguiendo las convenciones del proyecto:
 - unitarios para services y lógica pura
 - de integración para endpoints, repositorios y migraciones
 - del proveedor de datos, contra **JSON fijado**
+- de pantalla, con **vitest y Testing Library**, sobre lo que ve una persona: los textos literales
+  de `docs/design/COPY.md` y la estructura del wireframe
 - cobertura que valide los criterios de aceptación de la spec (> 80%)
 
 ## Cuándo usarla
@@ -33,6 +35,11 @@ Escribir los tests de una feature siguiendo las convenciones del proyecto:
   contra TwelveData en vivo: además de higiene, la cuota es de 800 requests por día (Artículo II).
 - El alta de favoritas lleva su test de **idempotencia**.
 - Cada test es independiente y se puede correr aislado.
+- **El frontend tampoco sale a la red:** `fetch` se reemplaza en cada test. Vale la misma razón y
+  una más — un test que depende de que la API esté levantada falla en CI por algo que no es el
+  test.
+- **Un texto de pantalla se afirma verbatim contra `docs/design/COPY.md`** (`UI-02`), faltas de
+  ortografía incluidas. El test no corrige al enunciado.
 
 ## Pasos (ORDEN OBLIGATORIO)
 
@@ -350,6 +357,113 @@ uv run pytest --cov=app/modules/<modulo>/service.py \
 
 Cuando una pieza creció a carpeta, la ruta es la carpeta: `--cov=app/modules/quotes/services/`.
 
+---
+
+## El frontend
+
+Los pasos 1 a 12 son del backend. Los que siguen son del frontend, y **valen las mismas reglas**:
+se escriben antes de la implementación, los firma el humano, no salen a la red y no se debilitan
+para pasar un gate.
+
+Lo que cambia es la herramienta —**vitest** y **Testing Library**, no pytest— y lo que se observa:
+del backend se verifica una respuesta, de una pantalla se verifica **lo que ve una persona**.
+
+### 13) Dónde viven y cómo se llaman
+
+Todos en `frontend/tests/`, planos, al lado de `setup.ts`. No hay carpeta por tipo: el frontend no
+tiene la distinción unidad/integración que justifica `tests/unit` y `tests/integration` en el
+backend.
+
+```bash
+frontend/tests/Login.test.tsx        # una pantalla  → <Pagina>.test.tsx
+frontend/tests/Header.test.tsx       # un componente → <Componente>.test.tsx
+frontend/tests/session.test.tsx      # una capacidad → <capacidad>.test.tsx
+frontend/tests/copy.test.ts          # UI-02, rompe el build
+frontend/tests/tokens.test.ts        # UI-03, rompe el build
+```
+
+`vite.config.ts` ya los levanta (`include: ['tests/**/*.test.{ts,tsx}']`, entorno `jsdom`), así que
+un archivo nuevo no necesita configuración.
+
+Los nombres siguen `TS-05`: el archivo se llama como la pieza que prueba. Adentro, `describe` dice
+**qué** se prueba y `it` dice **qué comportamiento fija**, en la misma línea que `PY-11` pide para
+un docstring: `it('muestra usuario o clave invalida cuando la credencial no sirve')`, no
+`it('testea el login')`.
+
+### 14) Escribir un test de pantalla
+
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+
+import { Login } from '../src/pages/Login';
+
+describe('Login con credenciales que no sirven', () => {
+  it('muestra el aviso del enunciado y no navega', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })));
+
+    // Act
+    render(<Login />);
+    await userEvent.type(screen.getByLabelText('Usuario'), 'juan');
+    await userEvent.type(screen.getByLabelText('Clave'), 'mal');
+    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
+
+    // Assert
+    expect(await screen.findByText('usuario o clave invalida')).toBeInTheDocument();
+  });
+});
+```
+
+Cuatro reglas, y las cuatro tienen el mismo motivo: que el test siga valiendo cuando cambie el
+código que no cambia el comportamiento.
+
+- **Se consulta por rol, etiqueta o texto** (`getByRole`, `getByLabelText`, `getByText`), **nunca
+  por una clase de Tailwind ni por un `data-testid` puesto para esquivar el problema.** Una clase
+  es estilo: cambia sin que la pantalla cambie, y el test se rompe por nada. El rol es lo que ve
+  quien usa la pantalla — y de paso, si un campo no se puede consultar por su etiqueta, es que no
+  la tiene, y eso es un hallazgo de accesibilidad, no un problema del test.
+- **`fetch` se reemplaza siempre** (`vi.stubGlobal`), y se restaura en `afterEach`. Un test de
+  frontend que sale a la red no es un test de frontend. `frontend/tests/HealthPage.test.tsx` ya
+  tiene el patrón, con sus helpers `respondWith` y `neverResolve`.
+- **Los tres estados de `TS-06` se testean**: cargando, error y vacío. El camino feliz es el que
+  nadie se olvida.
+- **Sin `any`** (`TS-02`), también acá: un test es código que se mantiene.
+
+### 15) Los dos tests que rompen el build
+
+No prueban una pantalla: hacen cumplir una convención sobre **todo** `frontend/src/`. Existen
+porque `UI-02` y `UI-03` no se sostienen con revisiones.
+
+**`copy.test.ts` (`UI-02`)** — lee `docs/design/COPY.md`, extrae los literales de sus tablas y
+verifica que cada uno aparezca, **verbatim**, en algún archivo de `frontend/src/`. Verbatim incluye
+las faltas del enunciado: `usuario o clave invalida` va sin tilde, y un test que "corrige" eso es
+un test roto. Falla nombrando el texto que no encontró.
+
+**`tokens.test.ts` (`UI-03`)** — recorre `frontend/src/` (menos `styles/`) y falla si encuentra un
+color escrito a mano —`#rrggbb`, `rgb()`, `hsl()`— o un `style={{ }}` inline. La paleta de fábrica
+de Tailwind ya no existe (`--color-*: initial` en `tokens.css`), así que esto cubre lo que queda.
+Falla listando archivo, línea y el color.
+
+Los dos leen el sistema de archivos, así que se escriben en `.ts` y no en `.tsx`: no renderizan
+nada.
+
+### 16) Correr los del frontend
+
+```bash
+cd frontend
+npm test                 # vitest, una corrida (UI-02, UI-03 y el resto)
+npm run test:watch       # mientras se escribe
+npx tsc --noEmit         # TS-01: un test que no compila no corre
+```
+
+Un test escrito contra una pantalla que todavía no existe **falla al importarla**, y eso es el rojo
+correcto: es el equivalente del `ImportError` del backend. Lo que no vale es que falle porque el
+import está mal escrito — el paso de validación de abajo distingue las dos cosas.
+
+---
+
 ## Validación
 - [ ] Los tests nuevos **fallan, y fallan por ausencia de implementación** — no por un import roto
       ni un fixture mal armado. Un test en verde antes de que exista el código no prueba nada.
@@ -362,6 +476,12 @@ Cuando una pieza creció a carpeta, la ruta es la carpeta: `--cov=app/modules/qu
 - [ ] Los tests son independientes y no comparten estado
 - [ ] Cobertura > 80% sobre el código nuevo
 - [ ] La suite corre sin red y sin API key (`TWELVEDATA_API_KEY=` vacía)
+- [ ] **Frontend** (si la feature toca una pantalla): `cd frontend && npm test` corre, y los tests
+      nuevos fallan por ausencia de implementación; `npx tsc --noEmit` pasa
+- [ ] **Frontend**: se consulta por rol, etiqueta o texto — ni una clase de Tailwind, ni un
+      `data-testid` de conveniencia
+- [ ] **Frontend**: `fetch` está reemplazado en todos los tests, y restaurado después
+- [ ] **Frontend**: si la feature estrena pantalla, `copy.test.ts` y `tokens.test.ts` la cubren
 - [ ] **Se entregaron a aprobación humana (`/approve-tests`).** La skill no se declara completa
       sola: termina presentando los tests y esperando la firma (Artículo VI).
 
@@ -406,6 +526,15 @@ Usar `pytest -v` o `pytest --capture=no`.
 ### 6) Tests que dependen del orden de ejecución
 Cada test debe poder correrse aislado.
 
+### 7) Consultar el DOM por una clase de Tailwind
+`container.querySelector('.text-error')` pasa a estar roto el día que alguien cambia el tono del
+aviso, sin que la pantalla haya cambiado para nadie. Se consulta por rol, etiqueta o texto: es lo
+que ve quien usa la pantalla, y es lo que la spec firmó.
+
+### 8) Escribir el texto esperado a mano
+`expect(screen.getByText('usuario o clave inválida'))` con la tilde que el enunciado no tiene es un
+test que exige lo contrario de `UI-02`. El literal sale de `docs/design/COPY.md`, tal cual está.
+
 ## Troubleshooting
 
 ### Errores de import
@@ -436,3 +565,19 @@ Cada test debe poder correrse aislado.
 - **No cambiar un test de integración por uno con mocks para ganar tiempo.** Si la conducta es la
   interacción con la base, el mock no la prueba: sólo prueba que el mock coincide con lo que
   suponés. Se marca lento y se corre en CI.
+
+### El test de frontend no encuentra el elemento
+- Consultar con `screen.debug()` qué se renderizó de verdad antes de suponer.
+- `getBy*` falla si el elemento todavía no está: si aparece después de un `await`, va
+  `findBy*`, que espera. `getBy*` es para lo que ya está en el primer render.
+- Si el campo no se encuentra por `getByLabelText`, probablemente el `<label>` no está asociado
+  al input. Es un bug de accesibilidad de la pantalla, no del test: se reporta al `Developer`.
+
+### `fetch is not defined`, o el test sale a la red
+Falta el `vi.stubGlobal('fetch', ...)`, o quedó un `vi.unstubAllGlobals()` sin correr entre tests.
+El patrón está en `frontend/tests/HealthPage.test.tsx`.
+
+### Falla `copy.test.ts` después de tocar un texto
+El texto de la pantalla y el de `docs/design/COPY.md` dejaron de coincidir. **La fuente es
+`COPY.md`**: si el texto cambió de verdad, lo cambia el cliente en la spec y baja a `COPY.md`; el
+test no se ajusta a lo que el componente dice hoy.

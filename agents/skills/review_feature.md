@@ -245,8 +245,12 @@ Testing y base de datos tienen sección propia más abajo.
 - Toda pantalla tocada reproduce su wireframe de `docs/design/wireframes/` (`UI-01`).
 - Los textos visibles son los de `docs/design/COPY.md`, verbatim y sin "corregir" las faltas
   del enunciado (`UI-02`).
-- La columna **Test** de `docs/PROJECT_BRIEF.md` quedó completa para los requisitos que la
-  feature cubre.
+- La columna **Test** de la tabla de trazabilidad de `docs/PROJECT_BRIEF.md` está **asignada a
+  `/ship`** para los requisitos que la feature cubre: nadie la completó antes de tiempo ni la dejó
+  sin dueño. **No se verifica que esté completa**, porque no es de este paso: `docs/specs/README.md`
+  → *Al entregar* la asigna a `ship_changes`, en el mismo commit que archiva la spec, y `AGENTS.md`
+  → *Estructura de las specs* le delega a ese documento qué artefacto escribe cada rol — una skill
+  no lo puede sobrescribir. Exigirla completa acá produce un hallazgo falso.
 
 ---
 
