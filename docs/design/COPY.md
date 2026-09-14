@@ -105,9 +105,16 @@ hay. Nunca se muestran a la vez.
 
 ## Detalle: navegación, horarios y validación — no están en el wireframe
 
-Los cinco textos que `003-quote-chart` obliga a inventar. No salen del enunciado ni de sus
-wireframes: los decidió el cliente el 2026-09-13, y su spec los registra con el porqué
-(`docs/specs/003-quote-chart/spec.md` → *Lo que se aparta de los wireframes*).
+Los siete textos que `003-quote-chart` obliga a inventar. No salen del enunciado ni de sus
+wireframes: los cinco primeros los decidió el cliente el 2026-09-13, y su spec los registra con el
+porqué (`docs/specs/003-quote-chart/spec.md` → *Lo que se aparta de los wireframes*).
+
+Las **dos etiquetas del tooltip** las decidió el cliente el 2026-09-14, cuando fijar el contrato de
+`RF-38` dejó a la vista que dos horas una debajo de la otra no dicen cuál es cuál. Se eligieron
+sobre `Mercado:` / `Argentina:` y sobre `Nueva York:` / `Buenos Aires:`: las primeras son más
+cortas pero no dicen que hablan de una hora, y las segundas atan el texto a la ciudad del mercado —
+el día que entre uno que no sea de Nueva York, la etiqueta miente. Estas calcan el vocabulario de
+la spec y el `Horarios en hora del mercado.` que la cabecera ya muestra.
 
 | Elemento | Texto | Dónde |
 |---|---|---|
@@ -116,6 +123,8 @@ wireframes: los decidió el cliente el 2026-09-13, y su spec los registra con el
 | Intervalo sin elegir | `Elegí un intervalo.` | Debajo del selector `Intervalo`, al activar `Graficar` sin haber elegido uno |
 | Fechas al revés | `La fecha desde tiene que ser anterior a la fecha hasta.` | Debajo de los campos de fecha, en modo `Histórico` |
 | Rango excedido | `El rango es demasiado largo para el intervalo {intervalo}. El máximo es {N} días.` | Debajo de los campos de fecha, en modo `Histórico` |
+| Hora del mercado (tooltip) | `Hora del mercado: {fecha y hora}` | Primera línea de hora del tooltip, al apoyar el puntero sobre un punto del gráfico |
+| Hora de Argentina (tooltip) | `Hora de Argentina: {fecha y hora}` | Segunda línea de hora del mismo tooltip, debajo de la anterior |
 
 El aviso de **campo vacío** del Detalle es el mismo de la pantalla de ingreso —`Completá este
 campo.`, en *Sesión y validación*—: un campo en blanco es el mismo olvido en las dos pantallas, y

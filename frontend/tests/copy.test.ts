@@ -126,6 +126,13 @@ const REQUIRED: Pick<CopyRow, 'section' | 'element'>[] = [
   { section: 'Detalle: navegación, horarios y validación', element: 'Volver a la lista' },
   { section: 'Detalle: navegación, horarios y validación', element: 'Aclaración de horarios' },
   { section: 'Detalle: navegación, horarios y validación', element: 'Intervalo sin elegir' },
+  // The two labels of the tooltip (RF-38), chosen by the client on 2026-09-14. Both are
+  // templates, so what is required of `src/` is the label alone -- the instant beside it is
+  // formatted, and `fragmentsOf` is what cuts the row at that edge. They are asked for here
+  // because the tooltip cannot be read off the screen: Highcharts draws into SVG and its
+  // formatter never runs under jsdom, so this is the only place a missing label turns red.
+  { section: 'Detalle: navegación, horarios y validación', element: 'Hora del mercado (tooltip)' },
+  { section: 'Detalle: navegación, horarios y validación', element: 'Hora de Argentina (tooltip)' },
   // `003`, H3: the two date fields the `Histórico` row draws, and the two range failures the
   // client wrote for it. Both of those are templates, and `fragmentsOf` is what splits them at the
   // edges of `{intervalo}` and `{N}`: what is required of a source file is the fixed parts, never

@@ -25,12 +25,12 @@
 | IV — Las fronteras entre módulos son reales | ✅ | `quotes` nace completo —`router`, `service`, `repository`— y es el único dueño de la tabla `quotes`. Entra a `favorites` **por el paquete** (`from app.modules.favorites import is_favorite`) y a `stocks` no entra: los datos de la cabecera se los da al frontend `GET /api/favorites`, que ya existe. El service sale al mundo sólo por `MarketDataProvider` y nunca ve el JSON del proveedor. Adentro, el flujo va `router` → `service` → `repository` y los hermanos se importan por ruta completa. Ningún `relationship()` cruza. |
 | V — Spec primero, y con firma | ✅ | `spec.md` está en `Aprobado`, firmada por Leandro Carriego el 2026-09-13. Este plan cubre `RF-01` a `RF-48` y **no agrega** ningún requisito: lo que la spec deja fuera —velas, volumen, zoom, comparar dos acciones, elegir huso— no aparece en ningún archivo de este plan. |
 | VI — Lo que no está tipado y testeado no está terminado | ✅ | Todo tipado (`PY-04`, `TS-01`). Los tests los escribe el `Tester` **antes** y se firman por historia (`/approve-tests`). La suite sigue corriendo sin red y sin API key: el proveedor se ejercita contra JSON fijado en `tests/fixtures/twelvedata/`, y los caminos de caché, `stale`, `market_closed` y `no_data` se prueban con dobles determinísticos (`TEST-03`). |
-| VII — El enunciado es el contrato, y sus ambigüedades se declaran | ✅ | Los textos son los literales de `COPY.md`, verbatim, faltas incluidas (`opcion`, `segun`), y la tercera aclaración del wireframe no se muestra. `A2` (tiempo real = polling según el intervalo), `A5` (última rueda con aviso), `A6` (rango por defecto y validación) y `A7` (cabecera) están resueltos en el brief y este plan los respeta. Los cinco textos que el enunciado no da ya están en `COPY.md` con su porqué. Nada que el enunciado no pida. |
+| VII — El enunciado es el contrato, y sus ambigüedades se declaran | ✅ | Los textos son los literales de `COPY.md`, verbatim, faltas incluidas (`opcion`, `segun`), y la tercera aclaración del wireframe no se muestra. `A2` (tiempo real = polling según el intervalo), `A5` (última rueda con aviso), `A6` (rango por defecto y validación) y `A7` (cabecera) están resueltos en el brief y este plan los respeta. Los cinco textos que el enunciado no da ya están en `COPY.md` con su porqué. Nada que el enunciado no pida. **La enmienda del 2026-09-14 agrega dos textos más** —`Hora del mercado:` y `Hora de Argentina:`, las etiquetas del tooltip de `RF-38`, que el enunciado no escribe y sin las cuales dos horas seguidas no dicen cuál es cuál—: las eligió el cliente ese mismo día, sobre dos alternativas descartadas, y **ya están registradas en `COPY.md`** con su porqué. `UI-02` queda cerrado. |
 | VIII — Un idioma para cada audiencia | ✅ | Código, commits y docstrings en inglés; este artefacto en español; los strings de pantalla en español y verbatim de `COPY.md`. Los `status` y los `code` de error son identificadores técnicos en inglés y **nadie los muestra**: la pantalla decide qué se lee. |
 | IX — Las dependencias entran por la puerta | ✅ | **Dos dependencias nuevas, las dos justificadas abajo** (*Alternativas descartadas*): `highcharts` en el frontend, que es la que el enunciado nombra (`REQ-17`) y el brief fija en su *Stack*, y `tzdata` en el backend, para que `zoneinfo` tenga base de datos horaria adentro de una imagen `slim`. Entran con `npm install` y `uv add`, con su lockfile en el mismo commit. Ninguna otra. |
 | X — Las decisiones de arquitectura las toma un humano | ✅ | Este plan **no agrega ningún ADR** ni toca los que hay, y **no cita ninguno en `Propuesta`**: se apoya en `ADR-001`, `ADR-003` y `ADR-006`, y en `ADR-005`, que el humano firmó el 2026-09-13 y es el que define los cuatro `status`. `ADR-007` y `ADR-009` no se citan. **No agrega ninguna tabla**: las cuatro de `ADR-001` alcanzan, y una quinta la firmaría un humano. Las decisiones de alcance local —la compuerta, el TTL, la forma del endpoint, la zona horaria como constante— viven acá, que es su lugar. |
 
-**Excepciones solicitadas:** ninguna.
+**Excepciones solicitadas:** ninguna. **Enmienda del 2026-09-14** *(decidida por el humano, a pedido del `Tester`)*: se fijan las firmas de `src/quotes/market.ts`, que este plan nombraba sin declarar, para que `RF-15`, `RF-36` y `RF-38` tengan un test unitario posible. No cambia el alcance, no toca la spec y no agrega ningún ADR (Artículo X). El único artículo que roza es el VII, y queda anotado arriba.
 
 > **El inventario de lecturas cruzadas del backend crece en un nombre** (`is_favorite`), que es el
 > primero que se agrega desde que `ARCHITECTURE.md` lo escribió. **Ya está corregido** —el 2026-09-13,
@@ -100,10 +100,10 @@ JSON fijado con los parámetros nuevos (`TEST-03`: el fixture es la respuesta re
 | `RF-02` | `RequireSession` en `App.tsx`, que ya protege `/stocks/:symbol` desde `002` |
 | `RF-03`, `RF-04`, `RF-05` | `ActionDetail.tsx` — los dos radios, `Tiempo Real` marcado al abrir, la aclaración verbatim |
 | `RF-06`, `RF-07`, `RF-08` | `ActionDetail.tsx` — el `select` con las tres opciones y su opción vacía inicial |
-| `RF-09`, `RF-10` | `ActionDetail.tsx` + `quotes/market.ts` → `defaultHistoricRange()` en hora de mercado |
+| `RF-09`, `RF-10` | `ActionDetail.tsx` + `quotes/market.ts` → `defaultHistoricRange()`, las últimas 24 horas en hora de mercado |
 | `RF-11`, `RF-12`, `RF-17` | `ActionDetail.tsx` — `Graficar` y el estado `plotted: PlotRequest | null`; la `key` del gráfico cambia sólo al graficar |
 | `RF-13`, `RF-16` | `GET /api/quotes/{symbol}` (sin y con `from`/`to`) + `quotes/service.py` |
-| `RF-14`, `RF-15` | `components/QuoteChart.tsx` — título, ejes y eje horizontal temporal en hora de mercado |
+| `RF-14`, `RF-15` | `components/QuoteChart.tsx` — título, ejes y eje horizontal temporal en hora de mercado, con `time.timezone = MARKET_TIME_ZONE` de `quotes/market.ts`. Que la conversión sea la del mercado y no la de la máquina se testea en unidad sobre `formatMarket()`, porque el SVG no se puede leer en jsdom |
 | `RF-18`, `RF-19`, `RF-20` | `ActionDetail.tsx` — `setInterval` con la duración del intervalo; el gráfico se actualiza con `setData`, sin remontarse |
 | `RF-21`, `RF-22` | `ActionDetail.tsx` — `visibilitychange`: se detiene y se reanuda con un pedido inmediato |
 | `RF-23` | `ActionDetail.tsx` — en `Histórico` no se arma ningún intervalo |
@@ -114,8 +114,8 @@ JSON fijado con los parámetros nuevos (`TEST-03`: el fixture es la respuesta re
 | `RF-31` | `quotes/service.py` → `no_data`; `Notice.tsx` |
 | `RF-32`, `RF-33` | `ActionDetail.tsx` — `ok` no dibuja aviso; los otros tres siempre dibujan uno |
 | `RF-35` | `ActionDetail.tsx` (redirección a `/` si el símbolo no está en la lista) + 404 del backend |
-| `RF-36` | `quotes/market.ts` en el frontend, `MARKET_TIMEZONE` en `quotes/service.py` en el backend |
-| `RF-38` | `QuoteChart.tsx` — el `tooltip` formatea el mismo instante en las dos zonas |
+| `RF-36` | `quotes/market.ts` en el frontend (`MARKET_TIME_ZONE`, `formatMarket()`, `marketFieldValue()`), `MARKET_TIMEZONE` en `quotes/service.py` en el backend |
+| `RF-38` | `quotes/market.ts` → `tooltipTimeLines()` arma las dos líneas y es lo que se testea; `QuoteChart.tsx` sólo las une y las dibuja en el `tooltip` |
 | `RF-39`, `RF-40` | `ActionDetail.tsx` — validación de presencia, que no llega a ser un request |
 | `RF-41`, `RF-42`, `RF-43`, `RF-44`, `RF-45` | `quotes/service.py` — `MAX_RANGE_DAYS`; la pantalla arma el texto con lo que devuelve el 422 |
 | `RF-46`, `RF-47`, `RF-48` | `ActionDetail.tsx` — una consulta inválida no cambia `plotted`: el gráfico anterior queda como está y no sale ninguna llamada, ni a nuestra API ni al proveedor. Valen para **los cuatro** casos inválidos, así que aparecen en las dos historias: el intervalo sin elegir es H1 (`RF-39`), las tres fallas del rango son H3 (`RF-40`, `RF-41`, `RF-45`) |
@@ -357,8 +357,9 @@ src/
 │   ├── quotes.ts              getQuotes(symbol, interval, range?) -> QuoteSeries
 │   └── schema.d.ts            GENERADO por `make types` — no se edita a mano (TS-03)
 ├── quotes/
-│   └── market.ts              MARKET_TIME_ZONE · LOCAL_TIME_ZONE · defaultHistoricRange() ·
-│                              formatMarket() · formatLocal() · INTERVAL_MS
+│   └── market.ts              MARKET_TIME_ZONE · LOCAL_TIME_ZONE · INTERVAL_MS ·
+│                              formatMarket() · formatLocal() · marketFieldValue() ·
+│                              defaultHistoricRange() · tooltipTimeLines()
 ├── components/
 │   ├── Header.tsx             EXISTE desde 001 — suma dos props opcionales, no se reescribe
 │   ├── QuoteChart.tsx         Highcharts: título, ejes, serie única, tooltip de dos horas
@@ -412,6 +413,135 @@ cambiar, la que está mal es esta feature.
 siquiera si al llegar acá todavía no estuviera: aparece en el Detalle porque las dos pantallas
 dibujan este mismo `Header`, que es exactamente la razón por la que el título es una prop.
 
+**Los horarios no se formatean en la pantalla: se formatean en `quotes/market.ts`, y por eso se
+pueden testear.** Highcharts dibuja adentro de un SVG y jsdom no calcula layout: de un gráfico sólo
+se puede leer el texto que escribe y la identidad del nodo. `RF-15` (cada cotización en el momento
+que le corresponde), `RF-36` (todo en hora del mercado) y `RF-38` (las dos horas en el tooltip) son
+por lo tanto **inverificables desde la pantalla**, y la única forma de que no queden sin test es que
+el cálculo viva afuera del componente, en funciones puras con firma fija. Esta sección las fija
+*(enmienda del 2026-09-14, decidida por el humano después de que el `Tester` escribiera los tests de
+la feature)*.
+
+```ts
+/**
+ * Las dos zonas horarias del producto, y el poco dominio que la pantalla, el gráfico y los dos
+ * campos de fecha comparten. Es todo función pura: no toca el DOM, no conoce Highcharts y no
+ * importa nada de React.
+ */
+
+/** El mercado donde cotiza el catálogo: NYSE y NASDAQ, los dos acá (A4, RF-36). */
+export const MARKET_TIME_ZONE = 'America/New_York';
+
+/** La hora de Argentina, la segunda que muestra el tooltip (RF-38). */
+export const LOCAL_TIME_ZONE = 'America/Argentina/Buenos_Aires';
+
+/** Los tres intervalos del enunciado (RF-06). El `''` del selector vacío no es uno. */
+export type QuoteInterval = '1min' | '5min' | '15min';
+
+/** Cada cuánto se refresca `Tiempo Real`, en milisegundos (RF-18). */
+export const INTERVAL_MS: Readonly<Record<QuoteInterval, number>> = {
+  '1min': 60_000,
+  '5min': 300_000,
+  '15min': 900_000,
+};
+
+/**
+ * Un instante, escrito para leer: `DD/MM/YYYY HH:MM`, en hora del mercado (RF-15, RF-36).
+ *
+ * Recibe un `Date` —el instante, sin ambigüedad— y no un string: lo que viaja por el cable es
+ * `points[].ts` en UTC con offset, y pasarlo a instante (`new Date(ts)`) es una línea del borde del
+ * gráfico, el mismo borde donde el precio se vuelve `number`.
+ */
+export function formatMarket(instant: Date): string;
+
+/** El mismo instante, en hora de Argentina y con el mismo formato (RF-38). */
+export function formatLocal(instant: Date): string;
+
+/**
+ * El mismo instante, en el formato que come un `<input type="datetime-local">` y que viaja tal cual
+ * en `from`/`to`: `YYYY-MM-DDTHH:mm`, en hora del mercado y **sin zona** (`plan.md` → *Contratos*:
+ * el backend es el que la localiza).
+ */
+export function marketFieldValue(instant: Date): string;
+
+/**
+ * Las últimas 24 horas, escritas en hora del mercado y listas para los dos campos (RF-10).
+ *
+ * `to` es `now`; `from` es `now` menos 24 horas exactas de reloj. No es "la última rueda": son 24
+ * horas corridas, que es lo que dice `RF-10` y lo que el usuario puede cambiar a mano.
+ *
+ * `now` es un parámetro con valor por omisión para que un test pueda fijar el reloj sin tocar
+ * globals; la pantalla la llama sin argumentos.
+ */
+export function defaultHistoricRange(now?: Date): { from: string; to: string };
+
+/**
+ * Las dos líneas del tooltip, ya armadas y en orden: primero el mercado, después Argentina
+ * (RF-38). Quien las dibuja las une con un salto de línea y no agrega ni quita texto.
+ */
+export function tooltipTimeLines(instant: Date): readonly [string, string];
+```
+
+Y lo que devuelve cada una, fijado carácter por carácter sobre el mismo instante — las 15:55 del
+mercado del 11 de septiembre de 2026, que es la vela que usan los tests de pantalla:
+
+```ts
+const instant = new Date('2026-09-11T19:55:00Z');
+
+formatMarket(instant);        // '11/09/2026 15:55'
+formatLocal(instant);         // '11/09/2026 16:55'
+marketFieldValue(instant);    // '2026-09-11T15:55'
+
+defaultHistoricRange(instant);
+// { from: '2026-09-10T15:55', to: '2026-09-11T15:55' }
+
+tooltipTimeLines(instant);
+// ['Hora del mercado: 11/09/2026 15:55', 'Hora de Argentina: 11/09/2026 16:55']
+
+// El mismo reloj en enero, que es el caso que distingue una conversión real de un offset
+// escrito a mano: el mercado cambia de horario de verano y Argentina no.
+const winter = new Date('2026-01-15T19:55:00Z');
+
+formatMarket(winter);         // '15/01/2026 14:55'
+formatLocal(winter);          // '15/01/2026 16:55'
+```
+
+**El formateo es `Intl.DateTimeFormat` y se arma con `formatToParts`, no con `format`.** La zona la
+resuelve la plataforma —es exactamente para esto que existe— y no hace falta ninguna librería nueva.
+Pero el string terminado **no** puede salir de `format()`: el orden de los campos, el separador entre
+la fecha y la hora y el ciclo horario son datos de locale, cambian entre versiones de ICU y entre
+máquinas, y un test que afirme carácter por carácter se pondría rojo por eso y no por un bug. Se
+piden `year: 'numeric'`, `month: '2-digit'`, `day: '2-digit'`, `hour: '2-digit'`, `minute: '2-digit'`
+y `hourCycle: 'h23'`, se leen las partes y **las arma este módulo**. Con eso el locale deja de ser
+load-bearing: lo único que la plataforma decide es a qué hora de qué zona corresponde el instante.
+
+**Ninguna de las cinco funciones mira el reloj de la máquina que las corre**, y eso es el requisito y
+no una propiedad casual: `MARKET_TIME_ZONE` y `LOCAL_TIME_ZONE` son literales IANA y van siempre como
+`timeZone`, nunca se omite el campo para "que tome el del sistema". `new Date()` sólo aparece como
+valor por omisión de `defaultHistoricRange`, que es el único lugar donde *qué hora es* forma parte de
+la pregunta. Un `getHours()`, un `toLocaleString()` sin `timeZone` o un `toISOString().slice(0, 16)`
+son el bug que esta feature persigue: los tres devuelven la hora de la máquina y los tres "andan" en
+la máquina de quien los escribe.
+
+**El tooltip se arma acá y no adentro de `QuoteChart.tsx`, y es el punto de esta enmienda.** El
+`formatter` de Highcharts corre adentro del SVG: en jsdom no se dispara y su resultado no se puede
+leer, así que `RF-38` escrito ahí no tiene forma de tener un test. Partido así, lo que se verifica en
+unidad es todo lo que el requisito promete —las dos horas, cuál es cuál y de qué instante salen— y lo
+que queda en el componente es una línea sin decisiones: `tooltipTimeLines(new Date(this.x)).join('<br/>')`,
+más el precio, en mono tabular (`UI-04`).
+
+**Las dos etiquetas del tooltip —`Hora del mercado:` y `Hora de Argentina:`— son texto nuevo en
+pantalla**, y las eligió el cliente el 2026-09-14 cuando fijar el contrato de `RF-38` dejó a la
+vista que dos horas una debajo de la otra no dicen cuál es cuál. Ya están registradas en
+`docs/design/COPY.md`, como dos filas de *Detalle: navegación, horarios y validación* —la sección
+donde viven los textos que esta feature obligó a inventar—, con las dos alternativas descartadas y
+el porqué. `COPY.md` es la fuente (`UI-02`): si alguna vez difieren, gana esa fila y no este bloque.
+
+**El `session_date` de `market_closed` no pasa por acá.** Llega como fecha sola (`2026-09-11`), ya en
+hora del mercado, y convertirla con una zona la correría un día —medianoche UTC en Nueva York es el
+día anterior—. `Notice.tsx` la reescribe sin cambiarle la zona, y eso lo verifica
+`quoteNotice.test.tsx`, que es una pantalla y no necesita que el cálculo salga del componente.
+
 **El estado vive en `ActionDetail.tsx`**, y es poco:
 
 ```ts
@@ -457,8 +587,9 @@ no hay ninguna llamada al proveedor (`RF-47`): un 422 no llega ni a mirar la bas
 
 **El gráfico** (`RF-14`, `RF-15`, `RF-38`): título `{símbolo}`, eje vertical `Cotización`, eje
 horizontal `Intervalo`, una sola serie de línea, eje horizontal de tipo `datetime` con
-`time.timezone = MARKET_TIME_ZONE` para que las etiquetas sean las del mercado (`RF-36`). El
-tooltip muestra el precio y el mismo instante en las dos zonas (`RF-38`), en mono tabular
+`time.timezone = MARKET_TIME_ZONE` para que las etiquetas sean las del mercado (`RF-36`) y cada
+punto en `[Date.parse(ts), Number(price)]`, que es dónde cae cada cotización (`RF-15`). El tooltip
+muestra el precio y las dos líneas que devuelve `tooltipTimeLines()` (`RF-38`), en mono tabular
 (`UI-04`). Sin zoom, sin selección de rango, sin exportar: la spec los deja fuera y Highcharts los
 trae encendidos, así que hay que **apagarlos explícitamente**.
 
