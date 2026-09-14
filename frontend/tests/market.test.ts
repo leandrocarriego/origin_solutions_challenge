@@ -43,6 +43,7 @@ interface MarketModule {
   formatMarket(instant: Date): string;
   formatLocal(instant: Date): string;
   marketFieldValue(instant: Date): string;
+  marketClockValue(instant: Date): string;
   defaultHistoricRange(now?: Date): { from: string; to: string };
   tooltipTimeLines(instant: Date): readonly [string, string];
 }
@@ -80,6 +81,10 @@ const SEPTEMBER_IN_LOCAL_TIME = '11/09/2026 16:55';
 const SEPTEMBER_AS_A_FIELD_VALUE = '2026-09-11T15:55';
 const JANUARY_IN_MARKET_TIME = '15/01/2026 14:55';
 const JANUARY_IN_LOCAL_TIME = '15/01/2026 16:55';
+
+/* The same two readings with the date dropped, which is how the wireframe rotula the axis. */
+const SEPTEMBER_AS_A_CLOCK = '15:55';
+const JANUARY_AS_A_CLOCK = '14:55';
 
 /*
  * The two labels of the tooltip (RF-38), as the human fixed them on 2026-09-14: they echo the
@@ -212,6 +217,53 @@ describe('an instant written for a date field', () => {
     expect(market.marketFieldValue(A_JANUARY_INSTANT)).toContain(
       market.formatMarket(A_JANUARY_INSTANT).slice(-5),
     );
+  });
+});
+
+describe('the hour the horizontal axis is labelled with', () => {
+  it('is the market clock, with no date on it', () => {
+    // The wireframe rotula the axis `13:10  13:11  13:12`: a session fits inside one day, so the
+    // date repeated on every tick adds nothing and covers the axis. Which day it is, is said by
+    // the header -- `Horarios en hora del mercado.` -- and by the tooltip, which carries it whole.
+    expect(market.marketClockValue(A_SEPTEMBER_INSTANT)).toBe(SEPTEMBER_AS_A_CLOCK);
+  });
+
+  it('follows the market through its change of season', () => {
+    // RF-36 again, on the reading the axis actually shows: in January the market is on standard
+    // time and the same UTC wall clock reads 14:55. An offset written by hand fails here.
+    expect(market.marketClockValue(A_JANUARY_INSTANT)).toBe(JANUARY_AS_A_CLOCK);
+  });
+
+  it('says what a clock in the market zone says, and never what the machine says', () => {
+    // Computed here naming the zone, so this stays true on any machine the suite runs on.
+    expect(market.marketClockValue(A_SEPTEMBER_INSTANT)).toBe(
+      clockReadingIn('America/New_York', A_SEPTEMBER_INSTANT).slice(-5),
+    );
+    expect(market.marketClockValue(A_JANUARY_INSTANT)).toBe(
+      clockReadingIn('America/New_York', A_JANUARY_INSTANT).slice(-5),
+    );
+  });
+
+  it('is the very hour the full reading ends with', () => {
+    // The relation, so the two cannot drift apart: whatever mask `formatMarket` writes, the axis
+    // and the tooltip are telling the same clock about the same instant (RF-15, RF-36).
+    expect(
+      market
+        .formatMarket(A_SEPTEMBER_INSTANT)
+        .endsWith(market.marketClockValue(A_SEPTEMBER_INSTANT)),
+    ).toBe(true);
+    expect(
+      market.formatMarket(A_JANUARY_INSTANT).endsWith(market.marketClockValue(A_JANUARY_INSTANT)),
+    ).toBe(true);
+  });
+
+  it('carries no date, in any shape', () => {
+    // What the hallazgo was about: `11/09/2026 15:55` on every tick is the reading this replaces.
+    const written = market.marketClockValue(A_SEPTEMBER_INSTANT);
+
+    expect(written).toHaveLength(5);
+    expect(written).not.toContain('/');
+    expect(written).not.toContain('2026');
   });
 });
 
