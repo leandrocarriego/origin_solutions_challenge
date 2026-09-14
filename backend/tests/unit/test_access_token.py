@@ -1,4 +1,4 @@
-"""The session token: what it claims, and what it refuses (ADR-004, RF-16).
+"""The session token: what it claims, and what it refuses.
 
 A token is the whole authentication of this system in one string, so most of this file is about
 refusals. The one that matters most is the algorithm: a decode that does not pin `HS256` accepts
@@ -113,7 +113,7 @@ class TestWhatTheTokenSays:
         assert header["alg"] == "HS256"
 
     def test_the_identity_is_the_user_id_in_sub(self, signing_secret: str) -> None:
-        """`sub` is the only source of identity in the system (Article III)."""
+        """`sub` is the only source of identity in the system."""
         token = create_access_token(user_id=_USER_ID, full_name=_FULL_NAME)
 
         claims = _claims_of(token)
@@ -121,7 +121,7 @@ class TestWhatTheTokenSays:
         assert claims["sub"] == str(_USER_ID)
 
     def test_it_carries_the_full_name_the_header_shows(self, signing_secret: str) -> None:
-        """RF-08 is painted from the token, so the name travels with it and costs no request."""
+        """Is painted from the token, so the name travels with it and costs no request."""
         token = create_access_token(user_id=_USER_ID, full_name=_FULL_NAME)
 
         claims = _claims_of(token)
@@ -129,7 +129,7 @@ class TestWhatTheTokenSays:
         assert claims["name"] == _FULL_NAME
 
     def test_a_session_lasts_sixty_minutes(self) -> None:
-        """RF-16, as a constant: it is a security decision and not an operator's setting."""
+        """As a constant: it is a security decision and not an operator's setting."""
         assert ACCESS_TOKEN_TTL == timedelta(minutes=60)
 
     def test_the_expiry_is_the_ttl_after_the_issue_time(self, signing_secret: str) -> None:
@@ -182,7 +182,7 @@ class TestATokenThatIsNot:
         assert refused.value.status_code == 401
 
     async def test_an_expired_token_is_refused(self, signing_secret: str) -> None:
-        """RF-16 from the other side: after sixty minutes the token stops working."""
+        """From the other side: after sixty minutes the token stops working."""
         expired_at = datetime.now(tz=UTC) - timedelta(minutes=5)
         claims = {
             "sub": str(_USER_ID),
@@ -252,7 +252,7 @@ class TestTheSecretIsNotOptional:
     """
 
     def test_there_is_no_default_secret_to_ship_with(self) -> None:
-        """SEC-05: a committed development secret is production's secret the day it is forgotten."""
+        """A committed development secret is production's secret the day it is forgotten."""
         assert Settings.model_fields["jwt_secret"].is_required()
 
     def test_a_process_with_no_secret_does_not_start(self, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,11 +1,11 @@
-"""The contract every provider implements, and the fake that runs the suite (ADR-006).
+"""The contract every provider implements, and the fake that runs the suite.
 
 `MarketDataProvider` is an abstract base class, so a missing method fails when someone tries to
 build the object rather than only under `mypy`. These tests are what say that is true.
 
-`FakeProvider` is not a convenience: TEST-03 says the whole suite runs with no network and no API
-key, and the Article II quota is why. A fake that drifts from the contract leaves the suite green
-against a shape the real provider stopped returning, which is the failure ADR-006 chose the
+`FakeProvider` is not a convenience: the whole suite runs with no network and no API
+key, and the the quota quota is why. A fake that drifts from the contract leaves the suite green
+against a shape the real provider stopped returning, which is the failure this abstraction chose the
 explicit contract to avoid.
 """
 
@@ -53,7 +53,7 @@ class TestTheContractIsAbstract:
         assert getattr(MarketDataProvider, method, None) is not None
 
     def test_there_is_no_search_method(self) -> None:
-        """Searching is a Postgres query (ADR-002), not a capability of the provider."""
+        """Searching is a Postgres query, not a capability of the provider."""
         declared = {
             name
             for name, _ in inspect.getmembers(MarketDataProvider, inspect.isfunction)
@@ -118,13 +118,13 @@ class TestTheFakeIsARealImplementation:
 
 
 class TestTheSeriesIsAnsweredInUtc:
-    """RF-15 and RF-36: the window goes out aware in UTC, and the answer comes back the same.
+    """The window goes out aware in UTC, and the answer comes back the same.
 
     The most expensive bug of the chart is a series sitting four or five hours away from where it
     belongs, with nothing failing anywhere: every point still lands neatly on an axis. The real
     client's half of that is fixed against the recorded JSON, in `test_upstream_client.py`. What
     belongs here is the contract's half -- what *any* implementation has to hand the service, the
-    fake that runs the whole suite included, since it is also what runs locally (TEST-03).
+    fake that runs the whole suite included, since it is also what runs locally.
     """
 
     async def test_its_instants_are_aware(self) -> None:

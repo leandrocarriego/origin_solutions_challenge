@@ -1,7 +1,7 @@
 """Which provider the application builds, and why that is a setting and not an import.
 
-GEN-08 says the provider's name appears in one file. That is not a style rule -- it is what makes
-"changing provider is a new class and a line of wiring" (ADR-006) true rather than aspirational.
+The provider's name appears in one file. That is not a style rule -- it is what makes
+"changing provider is a new class and a line of wiring" true rather than aspirational.
 But a composition root that imports `TwelveDataProvider` to wire it has just written the name in
 a second file.
 

@@ -1,6 +1,6 @@
-"""What serving a chart decides, before HTTP and before SQL (RF-24, RF-25, RF-26, RF-35, RF-36).
+"""What serving a chart decides, before HTTP and before SQL.
 
-This is the core of the feature and the file the Article II claim rests on: the quota is finite,
+This is the core of the feature and the file the the quota claim rests on: the quota is finite,
 and what keeps it finite is that a second reader of the same symbol costs nothing. None of that
 is visible from a response body -- a chart drawn from ten provider calls looks exactly like a
 chart drawn from one -- so what is measured here is **how many times the provider was called and
@@ -14,9 +14,9 @@ Three collaborators are replaced, and they are three different kinds of thing:
   answer something the first write did not produce.
 - `is_favorite` belongs to `favorites` and arrives through its package, so it is patched **where
   it is consumed** -- `app.modules.quotes.service.is_favorite` -- and never where it is defined:
-  that is what ties the test to the contract instead of to somebody else's interior (GEN-02).
+  that is what ties the test to the contract instead of to somebody else's interior.
 - the provider is replaced by the abstract contract, never by an HTTP client. The service does
-  not know TwelveData exists and neither does this file (GEN-08, TEST-03).
+  not know TwelveData exists and neither does this file.
 
 The clock is not injected, because `plan.md` fixes no seam for it: every assertion about "today"
 is therefore written relative to the real `now`, with a tolerance where one is needed.
@@ -87,7 +87,7 @@ def _candle(ts: datetime, close: str = "365.47", interval: str = "1min") -> Quot
 
 
 def _point(ts: datetime, close: str = "365.47") -> QuotePoint:
-    """One candle as the provider hands it over, in the types of the contract (ADR-006)."""
+    """One candle as the provider hands it over, in the types of the contract."""
     price = Decimal(close)
 
     return QuotePoint(
@@ -103,7 +103,7 @@ def _point(ts: datetime, close: str = "365.47") -> QuotePoint:
 class _Store:
     """Stand-in for `quotes/repository.py`, backed by rows instead of by a script.
 
-    It counts reads as well as answering them: RF-47 says an invalid range is refused *before*
+    It counts reads as well as answering them: an invalid range is refused *before*
     anything else happens, and "before anything else" includes the database.
     """
 
@@ -151,8 +151,8 @@ class _Store:
 class _Provider(MarketDataProvider):
     """The contract, counting every call and remembering the window it was asked for.
 
-    The counter is the whole point of the file: `RF-24` and `RF-25` are claims about how many
-    times this was called, and nothing in a response body can tell them apart.
+    The counter is the whole point of the file: the freshness rule and the gate are claims about
+    how many times this was called, and nothing in a response body can tell them apart.
     """
 
     def __init__(
@@ -245,7 +245,7 @@ async def _ask(
 
 
 class TestOnlyTheOwnerOfTheSymbolGetsAChart:
-    """RF-35 and Article III: the chart is served for the favourites of whoever is asking."""
+    """The chart is served for the favourites of whoever is asking."""
 
     async def test_a_symbol_that_is_not_a_favourite_is_refused(self, repository: _Store) -> None:
         """The service says no with a domain error; the router is what turns it into a 404."""
@@ -261,7 +261,7 @@ class TestOnlyTheOwnerOfTheSymbolGetsAChart:
     async def test_a_symbol_that_is_not_a_favourite_costs_no_quota(
         self, repository: _Store
     ) -> None:
-        """Article II with Article III on top: somebody else's symbol never reaches the world."""
+        """The quota and the isolation rule: somebody else's symbol never reaches the world."""
 
         async def _no(user_id: int, symbol: str) -> bool:
             return False
@@ -287,12 +287,12 @@ class TestOnlyTheOwnerOfTheSymbolGetsAChart:
 
 
 class TestTheQuotaIsSpentOncePerSymbolAndInterval:
-    """RF-24 and RF-25: the reason this feature exists (Article II)."""
+    """The reason this feature exists."""
 
     async def test_a_cached_candle_inside_the_ttl_is_served_without_calling_the_provider(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """RF-24: the TTL is the interval, so a candle ten seconds old is still current."""
+        """The TTL is the interval, so a candle ten seconds old is still current."""
         store = _cached(_candle(_now() - timedelta(seconds=10)))
         provider = _Provider()
 
@@ -303,7 +303,7 @@ class TestTheQuotaIsSpentOncePerSymbolAndInterval:
     async def test_asking_twice_in_a_row_reaches_the_provider_once(
         self, repository: _Store
     ) -> None:
-        """RF-24: the second reader of a symbol pays nothing, which is the whole claim."""
+        """The second reader of a symbol pays nothing, which is the whole claim."""
         provider = _Provider(points=[_point(_now())])
 
         await _ask(provider, repository)
@@ -314,7 +314,7 @@ class TestTheQuotaIsSpentOncePerSymbolAndInterval:
     async def test_ten_requests_launched_in_parallel_reach_the_provider_once(
         self, repository: _Store
     ) -> None:
-        """RF-25: ten browsers on the same symbol cost what one costs.
+        """Ten browsers on the same symbol cost what one costs.
 
         Launched with `gather` and against a provider that takes a moment, which is what makes
         this different from the test above: a TTL alone is green in sequence and spends ten
@@ -348,7 +348,7 @@ class TestTheWindowTheServiceAsksFor:
     async def test_with_a_cold_cache_it_asks_for_the_last_days(self, repository: _Store) -> None:
         """A week in one request: the provider charges per request, not per candle.
 
-        It is also what makes RF-27 possible on a Sunday with an empty database: the last
+        It is also what makes a Sunday work with an empty database: the last
         session is inside the window, so it arrives without a second call.
         """
         provider = _Provider(points=[_point(_now())])
@@ -396,7 +396,7 @@ class TestTheWindowTheServiceAsksFor:
 
 
 class TestTheSessionDateIsReadInMarketTime:
-    """RF-36: which day a session belongs to is a market hour, never a server hour."""
+    """Which day a session belongs to is a market hour, never a server hour."""
 
     async def test_the_session_date_is_the_day_the_market_had(
         self, monkeypatch: pytest.MonkeyPatch
@@ -405,7 +405,7 @@ class TestTheSessionDateIsReadInMarketTime:
 
         The stored candle is at 21:30 in New York, which is already the next day in UTC. An
         implementation that took the date of the instant as it is stored would answer tomorrow's
-        date for yesterday's session, and the notice of RF-28 would name a day that never
+        date for yesterday's session, and the notice would name a day that never
         traded.
         """
         traded_on = (_now().astimezone(_MARKET) - timedelta(days=3)).date()
@@ -420,7 +420,7 @@ class TestTheSessionDateIsReadInMarketTime:
 
 
 class TestTheProviderIsNeverNamed:
-    """RF-26 and Article I: the user has no account with anybody."""
+    """The user has no account with anybody."""
 
     async def test_a_failure_does_not_name_the_provider_in_what_it_answers(
         self, monkeypatch: pytest.MonkeyPatch
@@ -435,7 +435,7 @@ class TestTheProviderIsNeverNamed:
     async def test_a_failure_is_logged_and_not_swallowed(
         self, monkeypatch: pytest.MonkeyPatch, captured_logs: list[str]
     ) -> None:
-        """ERR-01 and ERR-07: every `except` decides, and every call is auditable."""
+        """Every `except` decides, and every call is auditable."""
         store = _cached(_candle(_now() - timedelta(days=3)))
 
         await _ask(_Provider(failure=ProviderUnavailable("down")), store)
@@ -445,7 +445,7 @@ class TestTheProviderIsNeverNamed:
     async def test_the_log_of_a_failure_does_not_name_the_provider(
         self, monkeypatch: pytest.MonkeyPatch, captured_logs: list[str]
     ) -> None:
-        """A log line ends up in Loki and in a screenshot; Article I covers both."""
+        """A log line ends up in Loki and in a screenshot; the credential rule covers both."""
         store = _cached(_candle(_now() - timedelta(days=3)))
 
         await _ask(_Provider(failure=ProviderUnavailable("down")), store)

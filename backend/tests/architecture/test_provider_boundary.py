@@ -1,4 +1,4 @@
-"""The way out to the world is `app/providers/`, and it is the only one (GEN-08).
+"""The way out to the world is `app/providers/`, and it is the only one.
 
 Two checks, and the second is the one that surprises people.
 
@@ -27,7 +27,7 @@ from tests.architecture.source_tree import (
 )
 
 # Where the outside world is allowed to be named. `settings.py` reads the credential because
-# Article I puts every secret there and nowhere else; the client is the file that uses it.
+# Every secret lives in the settings and nowhere else; the client is the file that uses it.
 PROVIDER_NAME = "twelvedata"
 PROVIDER_HOMES = ("providers/twelvedata.py",)
 
@@ -81,7 +81,7 @@ def app_tree() -> list[SourceFile]:
 
 
 class TestTheProviderStaysBehindItsInterface:
-    """GEN-08, over the code that is on disk."""
+    """The way out to the world, over the code that is on disk."""
 
     def test_no_file_outside_the_providers_imports_an_http_client(
         self, app_tree: list[SourceFile]

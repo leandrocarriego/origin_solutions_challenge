@@ -1,11 +1,11 @@
 """The frontier between modules, and the direction of the flow inside one.
 
-Four rules live here because they are one idea seen from four sides (Article IV):
+Four rules live here because they are one idea seen from four sides:
 
-  GEN-02  a module is entered by its package, and never below it
-  GEN-03  nothing underneath the modules imports a module -- except the composition root
-  GEN-05  no two modules import each other
-  PY-06   inside a module the flow goes router -> service -> repository, one way
+  - a module is entered by its package, and never below it
+  - nothing underneath the modules imports a module -- except the composition root
+  - no two modules import each other
+  - inside a module the flow goes router -> service -> repository, one way
 
 Each rule is a function that takes a tree and returns what it found, and each one is asserted
 twice: against `app/`, and against a tree written on purpose to break it. The second assertion
@@ -54,7 +54,7 @@ FORBIDDEN_LIBRARIES = {
 
 
 def reaching_into_another_module(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-02, outside clause: imports that enter another module below its package."""
+    """The outside clause: imports that enter another module below its package."""
     modules = module_names(app_root)
     found: list[str] = []
 
@@ -75,7 +75,7 @@ def reaching_into_another_module(files: list[SourceFile], app_root: Path) -> lis
 
 
 def reentering_its_own_package(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-02, inside clause: a file of a module importing its own package.
+    """The inside clause: a file of a module importing its own package.
 
     This is the clause that prevents a bug rather than a coupling: it reenters an `__init__`
     that is still half initialised, and the `ImportError` it produces names neither the file
@@ -120,7 +120,7 @@ def _is_literal_all(node: ast.stmt) -> bool:
 
 
 def contract_of_the_package(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-02: a module's `__init__.py` is docstring, imports and a literal `__all__`.
+    """A module's `__init__.py` is docstring, imports and a literal `__all__`.
 
     Nothing else -- not an `if`, not a computed constant, not a registry. The contract has to
     be readable at a glance by whoever is about to depend on it, and anything that runs there
@@ -156,7 +156,7 @@ def contract_of_the_package(files: list[SourceFile], app_root: Path) -> list[str
 
 
 def orm_models_in_the_contract(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-02: nothing a module exports may be a SQLAlchemy model.
+    """Nothing a module exports may be a SQLAlchemy model.
 
     A contract that hands back an ORM entity has isolated nothing: the caller gets lazy loads,
     a live session and the table layout, and the frontier becomes decorative.
@@ -180,7 +180,7 @@ def orm_models_in_the_contract(files: list[SourceFile], app_root: Path) -> list[
 
 
 def modules_imported_from_below(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-03: the kernel and the providers import no module.
+    """The kernel and the providers import no module.
 
     An import of `modules/` down here ties every module together underneath, and in
     `providers/` it inverts the dependency outright: infrastructure would depend on the domain.
@@ -209,7 +209,7 @@ def modules_imported_from_below(files: list[SourceFile], app_root: Path) -> list
 
 
 def layers_crossed(files: list[SourceFile], app_root: Path) -> list[str]:
-    """PY-06: inside a module the flow goes router -> service -> repository, one way."""
+    """Inside a module the flow goes router -> service -> repository, one way."""
     found: list[str] = []
 
     for source in files:
@@ -247,7 +247,7 @@ def _canonical(ring: list[str]) -> tuple[str, ...]:
 
 
 def cycles(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-05: no module reaches another that, directly or not, reaches back.
+    """No module reaches another that, directly or not, reaches back.
 
     Two modules that call each other are one module with two names: they cannot be tested
     apart, deployed apart, or extracted apart. The same is true of three, which is why this
@@ -302,7 +302,7 @@ def _referenced_names(node: ast.AST) -> set[str]:
 
 
 def relationships_that_cross(files: list[SourceFile], app_root: Path) -> list[str]:
-    """GEN-02, the back door the import check cannot see.
+    """The back door the import check cannot see.
 
     `favorite.stock.name` produces no import and still couples `favorites` to the model of
     `stocks`. A `ForeignKey` between tables of different modules is legitimate --it is a
@@ -365,7 +365,7 @@ def app_tree() -> list[SourceFile]:
 
 
 class TestTheFrontierBetweenModules:
-    """GEN-02 and GEN-05, over the code that is on disk."""
+    """The package frontier and the absence of cycles, over the code that is on disk."""
 
     def test_nothing_reaches_into_another_module(self, app_tree: list[SourceFile]) -> None:
         """A module is entered by its package; anything deeper does not exist for the rest."""
@@ -395,7 +395,7 @@ class TestTheFrontierBetweenModules:
 
 
 class TestWhatIsBelowTheModules:
-    """GEN-03, over the code that is on disk."""
+    """Nothing underneath the modules imports a module, over the code that is on disk."""
 
     def test_the_kernel_and_the_providers_import_no_module(
         self, app_tree: list[SourceFile]
@@ -419,7 +419,7 @@ class TestTheExceptionIsDeclared:
 
 
 class TestTheLayersInsideAModule:
-    """PY-06, over the code that is on disk."""
+    """The one-way flow inside a module, over the code that is on disk."""
 
     def test_the_flow_goes_one_way(self, app_tree: list[SourceFile]) -> None:
         """A router does not reach the repository, and a service does not import FastAPI."""

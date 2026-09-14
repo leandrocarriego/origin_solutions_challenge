@@ -17,16 +17,16 @@
  * a test can see is the *text* it writes -- the title and the two axis titles -- and the identity
  * of the node it drew into. So "there is a chart" here means "the vertical axis title `Cotización`
  * is on screen", and "it was left as it was" means the SVG that carries it is the same node as
- * before (RF-48).
+ * before.
  *
  * **The validation is split, and this file reads both halves from outside.** What is *presence* --
- * an empty date field -- the screen resolves on its own and never turns into a request (RF-40).
+ * an empty date field -- the screen resolves on its own and never turns into a request.
  * What is a *rule of the business* -- the dates the wrong way round, the range longer than its
  * interval allows -- the backend decides, and the screen only draws what the 422 tells it, filling
- * `{intervalo}` and `{N}` from the body (RF-41, RF-45). The caps are not copied into the browser.
+ * `{intervalo}` and `{N}` from the body. The caps are not copied into the browser.
  *
  * `fetch` is replaced in every test and restored afterwards: a frontend test that goes to the
- * network is not a frontend test (`add_tests`, `TEST-03`).
+ * network is not a frontend test.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -37,7 +37,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { writeStoredSession } from '../src/auth/storage';
 
-/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md (UI-02). */
+/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md. */
 const HISTORICO = 'Histórico';
 const INTERVALO = 'Intervalo';
 const GRAFICAR = 'Graficar';
@@ -284,11 +284,11 @@ afterEach(() => {
 
 /**
  * The clock is the test's here, and for a reason of its own: the two fields come already filled
- * with the last 24 hours **of market time** (RF-10), so what they say depends on when the screen
+ * with the last 24 hours **of market time**, so what they say depends on when the screen
  * was opened. With the system time fixed, that becomes an assertion.
  *
  * What they are asserted against is the *market* hour and not the hour of the machine running the
- * suite: that is the whole point of RF-36. The format is left alone on purpose -- neither
+ * suite: that is the whole point of the market hour. The format is left alone on purpose -- neither
  * `plan.md` nor `COPY.md` fixes `datetime-local` or a mask -- so each value is required to carry
  * the day, the month, the year and the hour of the instant it stands for, and nothing is said
  * about the order they are written in.
@@ -338,7 +338,7 @@ describe('the two date fields of Histórico', () => {
   });
 
   it('are both on screen, each saying which end of the range it is', async () => {
-    // RF-09, verbatim: `Fecha hora desde` and `Fecha hora hasta`.
+    // Verbatim: `Fecha hora desde` and `Fecha hora hasta`.
     await theDetailOf(TSLA.symbol);
     await chooseHistoric();
 
@@ -347,8 +347,8 @@ describe('the two date fields of Histórico', () => {
   });
 
   it('come already filled with the last 24 hours of market time', async () => {
-    // RF-10, which is A6 resolved: nobody has to type a date to get a chart out of the historic
-    // mode. The two values are told in the market's hour and not in the machine's (RF-36), and
+    // Which is A6 resolved: nobody has to type a date to get a chart out of the historic
+    // mode. The two values are told in the market's hour and not in the machine's, and
     // they are there from the moment the screen opens -- before anybody touches the radio.
     await theDetailOf(TSLA.symbol);
 
@@ -391,7 +391,7 @@ describe('Graficar in Histórico with a date field left empty', () => {
   }
 
   it('says what is missing under the field that is missing it, and not under the other', async () => {
-    // RF-40, with the text the login already uses for an empty field: the client wrote one text
+    // With the text the login already uses for an empty field: the client wrote one text
     // for the same oversight, not two (`COPY.md`). Under *that* field, because that is the one
     // that has to be corrected -- a notice under the field that is filled sends the person to fix
     // what is not broken.
@@ -405,7 +405,7 @@ describe('Graficar in Histórico with a date field left empty', () => {
   });
 
   it('says it under the other field when that is the empty one', async () => {
-    // RF-40 again, on the other end of the range: which field the notice hangs off is decided by
+    // Again, on the other end of the range: which field the notice hangs off is decided by
     // which one is empty, and not by which one the screen happens to draw first.
     const emptied = await emptyTheField(FECHA_DESDE);
 
@@ -416,8 +416,8 @@ describe('Graficar in Histórico with a date field left empty', () => {
   });
 
   it('asks our API for nothing, so the provider is never reached', async () => {
-    // RF-47: an empty field is presence, which the screen resolves on its own -- there is not even
-    // a request to build, so no credit of the provider's quota can be spent on it (Article II).
+    // an empty field is presence, which the screen resolves on its own -- there is not even
+    // a request to build, so no credit of the provider's quota can be spent on it.
     await emptyTheField(FECHA_DESDE);
 
     await pressGraficar();
@@ -427,7 +427,7 @@ describe('Graficar in Histórico with a date field left empty', () => {
   });
 
   it('draws no chart', async () => {
-    // RF-46: a query that was not made cannot be plotted.
+    // a query that was not made cannot be plotted.
     await emptyTheField(FECHA_DESDE);
 
     await pressGraficar();
@@ -437,7 +437,7 @@ describe('Graficar in Histórico with a date field left empty', () => {
   });
 
   it('leaves the chart that was already there exactly as it was', async () => {
-    // RF-48, the first of the three range failures. The node is compared by identity, because a
+    // The first of the three range failures. The node is compared by identity, because a
     // chart thrown away and drawn again "looks right" and is not what the requirement says.
     await theDetailOf(TSLA.symbol);
     await plotWith('5min');
@@ -474,7 +474,7 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   }
 
   it('says the dates are the wrong way round, in the words of the copy', async () => {
-    // RF-41, verbatim. The rule lives in the backend and only there (`plan.md`: a rule of the
+    // Verbatim. The rule lives in the backend and only there (`plan.md`: a rule of the
     // business written on both ends is a rule that one day disagrees with itself), so what the
     // screen owes is turning the `code` of the 422 into the text the client wrote.
     await plotAndBeRefused(refusal({ code: 'range_invalid' }));
@@ -483,9 +483,9 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   });
 
   it('puts that notice underneath the two date fields', async () => {
-    // RF-41 again: `COPY.md` says where it goes -- under the date fields, which are the controls
+    // Again: `COPY.md` says where it goes -- under the date fields, which are the controls
     // that have to be corrected -- and not above the chart, where the notices that qualify data
-    // live (UI-05).
+    // live.
     await plotAndBeRefused(refusal({ code: 'range_invalid' }));
 
     const notice = await screen.findByText(FECHAS_AL_REVES);
@@ -494,7 +494,7 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   });
 
   it('says how long the range may be, with the interval and the number of the answer', async () => {
-    // RF-45. `{intervalo}` and `{N}` are filled in from the body, and the body is the only place
+    // `{intervalo}` and `{N}` are filled in from the body, and the body is the only place
     // they can come from: the caps live in the service and are not copied into the browser.
     await plotAndBeRefused(
       refusal({ code: 'range_too_long', interval: '1min', max_days: 7 }),
@@ -505,7 +505,7 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   });
 
   it('says the other interval and the other number when the answer carries those', async () => {
-    // RF-45 again, and this is the one that tells a filled template from a hardcoded sentence: a
+    // Again, and this is the one that tells a filled template from a hardcoded sentence: a
     // screen with `1min` and `7` written into it passes the test above and fails this one.
     await plotAndBeRefused(
       refusal({ code: 'range_too_long', interval: '5min', max_days: 30 }),
@@ -517,7 +517,7 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   });
 
   it('puts the range notice underneath the two date fields as well', async () => {
-    // RF-45, same place as RF-41: the two failures are about the same pair of controls.
+    // Same place as the invalid range: the two failures are about the same pair of controls.
     await plotAndBeRefused(refusal({ code: 'range_too_long', interval: '1min', max_days: 7 }));
 
     const notice = await screen.findByText(RANGO_EXCEDIDO_1MIN);
@@ -526,7 +526,7 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   });
 
   it('never names the provider when something is refused', async () => {
-    // RF-26. What the person reads is what the client wrote; the `code` of the answer is an
+    // What the person reads is what the client wrote; the `code` of the answer is an
     // identifier for the screen to read, and neither it nor the provider's name is on display.
     await plotAndBeRefused(refusal({ code: 'range_invalid' }));
     await screen.findByText(FECHAS_AL_REVES);
@@ -535,7 +535,7 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   });
 
   it('draws no chart for either refusal', async () => {
-    // RF-46: a 422 is not a series, and a screen that drew an empty chart for it would be showing
+    // a 422 is not a series, and a screen that drew an empty chart for it would be showing
     // a period nobody could get.
     await plotAndBeRefused(refusal({ code: 'range_invalid' }));
     await screen.findByText(FECHAS_AL_REVES);
@@ -544,7 +544,7 @@ describe('Graficar in Histórico with a range our API refuses', () => {
   });
 
   it('leaves the chart that was already there exactly as it was', async () => {
-    // RF-48, the second and third of the three range failures: whatever is on screen stays on
+    // The second and third of the three range failures: whatever is on screen stays on
     // screen, the same node and not a redrawn copy of it.
     await theDetailOf(TSLA.symbol);
     await plotWith('5min');
@@ -566,14 +566,14 @@ describe('Graficar in Histórico with a range our API refuses', () => {
 });
 
 /**
- * RF-23 -- a period that already ended does not change, so nothing refreshes it.
+ * A period that already ended does not change, so nothing refreshes it.
  *
  * The timers are the test's: `vi.useFakeTimers` is what turns "ten minutes go by" into an
  * assertion that runs in milliseconds and always says the same thing. `shouldAdvanceTime` is on so
  * that Testing Library's waiting still works while the clock is ours.
  *
  * This is the half of the polling that quietly spends quota if it is got wrong: a timer armed in
- * `Histórico` renews the TTL of its symbol for nobody (Article II).
+ * `Histórico` renews the TTL of its symbol for nobody.
  */
 describe('a chart of Histórico that is left on screen', () => {
   afterEach(() => {

@@ -1,7 +1,7 @@
-"""Nobody has to remember to refresh the catalogue (ADR-002).
+"""Nobody has to remember to refresh the catalogue.
 
 The reconciliation exists and works, and that is not enough: a catalogue refreshed by whoever
-remembers is the thing ADR-002 was rewritten to stop being. So it runs on its own -- when the
+remembers is the thing the refresher was rewritten to stop being. So it runs on its own -- when the
 process starts if the last success is older than a day, and once a day after that.
 
 Two credits per full refresh out of 800 is 0.25% of the quota, which is what makes "refresh
@@ -57,7 +57,7 @@ class TestWhenTheCatalogueIsStale:
         )
 
     async def test_a_catalogue_older_than_the_window_is_stale(self, session: AsyncSession) -> None:
-        """A day is the window ADR-002 chose, and it is an argument so it can be changed."""
+        """A day is the window chosen, and it is an argument so it can be changed."""
         await reconcile_catalogue(
             StockRepository(session), StubProvider({"NASDAQ": [listed("TSLA")]}), "NASDAQ"
         )
@@ -170,7 +170,7 @@ class TestTheFreshnessIsPublished:
     async def test_the_gauge_carries_the_instant_of_the_last_success(
         self, session: AsyncSession
     ) -> None:
-        """Grafana charts its age, so a refresher that quietly died is visible (ADR-009)."""
+        """Grafana charts its age, so a refresher that quietly died is visible."""
         provider = StubProvider({"NASDAQ": [listed("TSLA")], "NYSE": [listed("A")]})
 
         await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)

@@ -1,6 +1,6 @@
 """Factory of `user_stocks` rows, which is the only table `favorites` owns.
 
-`added_at` is an argument and not a default on purpose: RF-06 orders the grid by it, and the
+`added_at` is an argument and not a default on purpose: the grid is ordered by it, and the
 case that breaks the order -- two favourites inserted in the same statement, sharing the value
 `now()` gave the whole transaction -- is only reachable if a test can hand the same instant
 twice.

@@ -174,7 +174,7 @@ describe('the calls 001 already shipped', () => {
   });
 
   it('still keep the credential out of the address', async () => {
-    // Article III on this side: the identity travels in the header, never as a parameter, because
+    // On this side: the identity travels in the header, never as a parameter, because
     // a token in a query string ends up in every access log on the way.
     await fetchMe(EXPLICIT_TOKEN);
 

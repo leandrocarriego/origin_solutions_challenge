@@ -1,15 +1,15 @@
 /**
  * The notices that say what the chart is showing (H4 of `003-quote-chart`).
  *
- * The four states are the contract of `ERR-05` and all four answer **200**: a failure of the
+ * The four states are the contract and all four answer **200**: a failure of the
  * provider is not a failure of the request, and the screen finds out which of the four it got by
- * reading `status` -- never a 4xx, and never the name of whoever could not be reached (RF-26).
+ * reading `status` -- never a 4xx, and never the name of whoever could not be reached.
  *
  * The screen is opened the way a person opens it: the application is mounted at an address with a
  * session already in the browser, and everything else is read off what is painted. Nothing here
  * imports `ActionDetail`, `Notice` or `QuoteChart` -- which component draws the notice is an
  * internal arrangement of `plan.md`, and what the requirement fixes is that the person reads it,
- * and reads it *before* the chart (UI-05).
+ * and reads it *before* the chart.
  *
  * Today every test here is red because `/stocks/:symbol` has nothing behind it: the address falls
  * through to `Mis Acciones`, so there is no `Graficar` to press. That is the intended red --
@@ -26,7 +26,7 @@
  * that demanded one spelling would be inventing a requirement.
  *
  * `fetch` is replaced in every test and restored afterwards: a frontend test that goes to the
- * network is not a frontend test (`add_tests`, `TEST-03`).
+ * network is not a frontend test.
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -37,7 +37,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 import { writeStoredSession } from '../src/auth/storage';
 
-/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md (UI-02). */
+/* Verbatim from the `Detalle de Acción` table of docs/design/COPY.md. */
 const INTERVALO = 'Intervalo';
 const GRAFICAR = 'Graficar';
 const COTIZACION = 'Cotización';
@@ -126,7 +126,7 @@ function urlOf(input: RequestInfo | URL): string {
 /**
  * Replace fetch: `/me` recognises the session, `/favorites` answers the list and
  * `/quotes/{symbol}` answers whatever the test set up -- always with 200, which is the contract of
- * `ERR-05` and the reason the screen has to read `status` to know what it got.
+ * The reason the screen has to read `status` to know what it got.
  */
 function stubTheApi(): void {
   vi.stubGlobal(
@@ -198,7 +198,7 @@ async function waitForTheChart(): Promise<SVGSVGElement> {
   return chart;
 }
 
-/** Whichever of the three notices is on screen, or `null` when none of them is (RF-32). */
+/** Whichever of the three notices is on screen, or `null` when none of them is. */
 function noticeOrNull(): HTMLElement | null {
   return (
     screen.queryByText(STALE) ??
@@ -242,7 +242,7 @@ afterEach(() => {
 
 describe('a chart of a market that is closed', () => {
   it('explains that it is showing the last session there was, and which one', async () => {
-    // RF-28, and it is the Sunday of the demo: the chart shows the last session available, and
+    // It is the Sunday of the demo: the chart shows the last session available, and
     // the notice says which one, so an empty-looking screen is never mistaken for a broken one.
     await plotAnswering(seriesOf('market_closed', FIVE_CANDLES, THE_LAST_SESSION));
 
@@ -250,7 +250,7 @@ describe('a chart of a market that is closed', () => {
   });
 
   it('writes that date from the answer and not from the calendar of the machine', async () => {
-    // RF-28 again: `{fecha}` is the `session_date` our API sent, in market time. A screen that
+    // Again: `{fecha}` is the `session_date` our API sent, in market time. A screen that
     // wrote "today" would say the wrong day every time somebody opens it on a Monday.
     await plotAnswering(seriesOf('market_closed', FIVE_CANDLES, THE_LAST_SESSION));
 
@@ -260,7 +260,7 @@ describe('a chart of a market that is closed', () => {
   });
 
   it('puts that notice above the chart and not at its foot', async () => {
-    // UI-05: a notice qualifies the data that is about to be read, so it goes before it. At the
+    // a notice qualifies the data that is about to be read, so it goes before it. At the
     // foot it is a footnote to something that has already been misread.
     await plotAnswering(seriesOf('market_closed', FIVE_CANDLES, THE_LAST_SESSION));
 
@@ -273,14 +273,14 @@ describe('a chart of a market that is closed', () => {
 
 describe('a chart our API could not refresh', () => {
   it('says the quotes are the last ones available, in the words of the copy', async () => {
-    // RF-30, verbatim.
+    // Verbatim.
     await plotAnswering(seriesOf('stale', FIVE_CANDLES));
 
     expect(await screen.findByText(STALE)).toBeInTheDocument();
   });
 
   it('never names who did not answer', async () => {
-    // RF-26 and Article I: the person has no account with any provider, so the notice says what is
+    // The person has no account with any provider, so the notice says what is
     // on screen and not whose fault it is. The copy already says `el proveedor`, in the common
     // noun and never by name.
     await plotAnswering(seriesOf('stale', FIVE_CANDLES));
@@ -290,7 +290,7 @@ describe('a chart our API could not refresh', () => {
   });
 
   it('puts the stale notice above the chart too', async () => {
-    // UI-05 again, for the state where there *is* a chart underneath: the notice is what says the
+    // Again, for the state where there *is* a chart underneath: the notice is what says the
     // prices being read are not the latest ones.
     await plotAnswering(seriesOf('stale', FIVE_CANDLES));
 
@@ -303,7 +303,7 @@ describe('a chart our API could not refresh', () => {
 
 describe('an action with no quotes at all for what was asked', () => {
   it('says which action has none, with the symbol inside the text', async () => {
-    // RF-31: the same screen can be open on another action, and a notice that did not name one
+    // the same screen can be open on another action, and a notice that did not name one
     // would be ambiguous exactly when it matters.
     await plotAnswering(seriesOf('no_data', []));
 
@@ -311,7 +311,7 @@ describe('an action with no quotes at all for what was asked', () => {
   });
 
   it('shows that notice even though there is no chart to put it above', async () => {
-    // RF-33 read on the one state where the chart may legitimately be missing: an empty screen
+    // Read on the one state where the chart may legitimately be missing: an empty screen
     // with nothing written on it is what reads as an application that broke.
     await plotAnswering(seriesOf('no_data', []));
 
@@ -322,7 +322,7 @@ describe('an action with no quotes at all for what was asked', () => {
 
 describe('a chart whose quotes are up to date', () => {
   it('shows no notice at all', async () => {
-    // RF-32. A screen that always explains itself teaches people to stop reading the explanation,
+    // A screen that always explains itself teaches people to stop reading the explanation,
     // and then the three notices that do mean something stop being read as well.
     await plotAnswering(seriesOf('ok', FIVE_CANDLES));
     await waitForTheChart();
@@ -334,7 +334,7 @@ describe('a chart whose quotes are up to date', () => {
   });
 
   it('still shows the chart, which is the whole point of saying nothing', async () => {
-    // RF-33 on the happy path: `ok` keeps the invariant by having the chart, not the notice.
+    // On the happy path: `ok` keeps the invariant by having the chart, not the notice.
     await plotAnswering(seriesOf('ok', FIVE_CANDLES));
 
     expect(await waitForTheChart()).toBeInTheDocument();
@@ -343,7 +343,7 @@ describe('a chart whose quotes are up to date', () => {
 
 describe('the four states, one after another', () => {
   it('never leaves the screen with neither a chart nor a notice', async () => {
-    // RF-33, the invariant of the feature: something is always shown, and something always
+    // The invariant of the feature: something is always shown, and something always
     // explains it -- a chart, a notice, or both. Each state gets a screen of its own, so that what
     // is on it was drawn by that state and is not left over from the one before.
     const states: QuoteSeries[] = [

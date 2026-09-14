@@ -1,12 +1,12 @@
-"""The catalogue reconciles against the provider's snapshot; it does not accumulate (ADR-002).
+"""The catalogue reconciles against the provider's snapshot; it does not accumulate.
 
 The response of `/stocks` is what is listed today and carries no status field, so the only signal
 that a symbol stopped trading is that it stopped coming back. An upsert cannot see an absence,
 which is why a catalogue kept by upserts grows forever and drifts from reality. These tests are
 the difference between the two.
 
-They run against Postgres and not a double (TEST-02), each inside a transaction that is rolled
-back, and the provider is a stub: no test here spends a request of the Article II quota.
+They run against Postgres and not a double, each inside a transaction that is rolled
+back, and the provider is a stub: no test here spends a request of the the quota quota.
 """
 
 from datetime import datetime
@@ -84,7 +84,7 @@ class TestItBringsInWhatIsNew:
         assert set(await symbols_in(session)) == {"TSLA", "AAPL", "NFLX"}
 
     async def test_it_drops_what_the_ingestion_filter_rejects(self, session: AsyncSession) -> None:
-        """The filter of ADR-001 runs before anything reaches the table."""
+        """The ingestion filter runs before anything reaches the table."""
         provider = StubProvider(
             {
                 "NASDAQ": [
@@ -112,7 +112,7 @@ class TestItUpdatesWhatChanged:
     """A company renames, and the catalogue is where the name is stored once."""
 
     async def test_it_updates_a_name_that_changed(self, session: AsyncSession) -> None:
-        """REQ-08 stores the name in `stocks`, so a stale name there is stale everywhere."""
+        """Stores the name in `stocks`, so a stale name there is stale everywhere."""
         await reconcile_catalogue(
             StockRepository(session),
             StubProvider({"NASDAQ": [listed("TSLA", name="Tesla Motors, Inc.")]}),

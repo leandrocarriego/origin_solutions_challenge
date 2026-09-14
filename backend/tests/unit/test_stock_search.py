@@ -1,4 +1,4 @@
-"""What the search decides before HTTP and before SQL (RF-11, RF-13).
+"""What the search decides before HTTP and before SQL.
 
 **Everything here is red until task 11 exists**, and it is red by name. The four names the plan
 fixed -- `search_stocks`, `MIN_QUERY_LENGTH`, `SUGGESTION_LIMIT`, `CANDIDATE_LIMIT` -- are looked
@@ -63,7 +63,7 @@ async def search_stocks(store: object, text: str) -> list[StockInfo]:
 
 
 def _suggestion_limit() -> int:
-    """RF-11: how many suggestions fit in the dropdown."""
+    """How many suggestions fit in the dropdown."""
     return cast(int, _of_the_service("SUGGESTION_LIMIT"))
 
 
@@ -73,7 +73,7 @@ def _candidate_limit() -> int:
 
 
 def _min_query_length() -> int:
-    """RF-13: how short a text the service refuses to ask the database about."""
+    """How short a text the service refuses to ask the database about."""
     return cast(int, _of_the_service("MIN_QUERY_LENGTH"))
 
 
@@ -162,7 +162,7 @@ class TestTheOrderByRelevance:
 
 
 class TestTheCutAtTwentyHappensAfterTheOrder:
-    """RF-11, and the bug the plan corrected: ranking a set somebody already truncated."""
+    """the bug the plan corrected: ranking a set somebody already truncated."""
 
     async def test_at_most_twenty_come_back(self) -> None:
         """Twenty-five candidates, twenty suggestions: `SUGGESTION_LIMIT` is the dropdown."""
@@ -176,7 +176,7 @@ class TestTheCutAtTwentyHappensAfterTheOrder:
         """`MSFT` sorts last by symbol and first by relevance, and twenty rows fit.
 
         Cutting before ranking drops it, and nothing downstream can bring it back: this is the
-        acceptance criterion of RF-15 expressed against the service alone.
+        acceptance criterion expressed against the service alone.
         """
         crowd = [_row(f"A{index:02d}", f"Amicrobial {index:02d}") for index in range(24)]
         stub = _Catalogue([*crowd, _row("MSFT", "Microsoft Corp")])
@@ -200,7 +200,7 @@ class TestTheCutAtTwentyHappensAfterTheOrder:
 
 
 class TestATextThatIsTooShort:
-    """RF-13 seen from the service: `[]`, and the database never hears about it."""
+    """from the service: `[]`, and the database never hears about it."""
 
     async def test_two_spaces_never_reach_the_repository(self, catalogue: _Catalogue) -> None:
         """`ILIKE '%%'` is the whole catalogue, and this is where it is not asked for.

@@ -1,4 +1,4 @@
-"""What listing the favourites decides, before HTTP and before SQL (RF-01, RF-03, RF-06).
+"""What listing the favourites decides, before HTTP and before SQL.
 
 Two collaborators are substituted here and neither one is patched: the service declares what it
 needs -- a `FavoritesStore` for its own rows, a `Catalogue` for the batch lookup that belongs to
@@ -8,7 +8,7 @@ exercises is the contract and not an import somebody could rename.
 Three properties, and the order one is the subtle one. `get_stocks` answers a *set*: it is a
 batch lookup and nothing in its contract promises a sequence. So the order of the grid is a
 decision of this service, taken from what the repository already sorted, and an implementation
-that simply forwarded the catalogue's answer would paint RF-06 wrong while every integration
+that simply forwarded the catalogue's answer would paint the order wrong while every integration
 test that only checks membership stayed green.
 
 That the ordering *in the database* is `added_at DESC, symbol ASC` is a different claim, and it
@@ -83,7 +83,7 @@ def catalogue() -> _Catalogue:
 
 
 class TestWhoseListItIs:
-    """Article III at the layer that decides: the id travels down, it is never looked up."""
+    """the isolation rule at the layer that decides: the id travels down, it is never looked up."""
 
     async def test_the_repository_is_asked_for_the_user_it_was_given(
         self, catalogue: _Catalogue
@@ -97,7 +97,7 @@ class TestWhoseListItIs:
 
 
 class TestTheOrderComesFromTheRepository:
-    """RF-06: the grid is ordered by the query, and the service keeps that order."""
+    """The grid is ordered by the query, and the service keeps that order."""
 
     async def test_the_answer_is_in_the_order_the_repository_gave(
         self, catalogue: _Catalogue
@@ -119,7 +119,7 @@ class TestTheOrderComesFromTheRepository:
 
 
 class TestWhatEachRowCarries:
-    """RF-03: symbol, name and currency, read from the catalogue and not from `user_stocks`."""
+    """Symbol, name and currency, read from the catalogue and not from `user_stocks`."""
 
     async def test_it_carries_the_three_columns_of_the_grid(self, catalogue: _Catalogue) -> None:
         """The favourites table stores none of the last two: they can only come from `stocks`."""
@@ -147,7 +147,7 @@ class TestWhatEachRowCarries:
 
 
 class TestItAsksTheCatalogueOnce:
-    """GEN-02: the grid of N favourites is one cross-module call, not N."""
+    """The grid of N favourites is one cross-module call, not N."""
 
     async def test_the_whole_grid_is_one_call(self, catalogue: _Catalogue) -> None:
         """A `get_stocks` inside a `for` is the N+1 the boundary exists to prevent."""
@@ -159,7 +159,7 @@ class TestItAsksTheCatalogueOnce:
 
 
 class TestAUserWithNoFavourites:
-    """RF-07 seen from the service: nothing to describe is an empty list, not a failure."""
+    """from the service: nothing to describe is an empty list, not a failure."""
 
     async def test_it_answers_an_empty_list(self, catalogue: _Catalogue) -> None:
         """The text of the empty state belongs to the screen; here there is just no row."""

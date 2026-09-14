@@ -52,7 +52,7 @@ services:
       # comment exists to stop. ":?" is what refuses to start, and it is the same form
       # POSTGRES_PASSWORD and GRAFANA_ADMIN_PASSWORD already use above.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env, at least 32 chars}
-      # The real provider here, which is what makes the catalogue refresh of ADR-002 real: two
+      # The real provider here, which is what makes the catalogue refresh real: two
       # requests a day out of 800. With an empty key it fails loudly and the freshness gauge
       # stops advancing, which is visible on the dashboard.
       MARKET_DATA_PROVIDER: twelvedata
@@ -99,7 +99,7 @@ services:
       traefik.http.middlewares.origin-challenge-https.redirectscheme.permanent: "true"
       traefik.http.services.origin-challenge.loadbalancer.server.port: "80"
 
-  # --- Observability, layer 3 --------------------------------------------------------
+  # --- Observability, layer 3 ------------------------------------------------------------------
   # Grafana is public and has a login. Prometheus is NOT: it has no authentication of any kind,
   # so publishing it would publish every metric and every observed symbol name to whoever walks
   # past. It stays on loopback, reached with `ssh -L 9090:127.0.0.1:9090 mendri`.

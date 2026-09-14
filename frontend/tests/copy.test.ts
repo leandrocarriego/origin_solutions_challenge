@@ -1,5 +1,5 @@
 /**
- * UI-02: the texts on screen are the literals of `docs/design/COPY.md`, verbatim.
+ * the texts on screen are the literals of `docs/design/COPY.md`, verbatim.
  *
  * It reads the copy and looks for each literal in the *code* of `frontend/src` -- comments do not
  * count, and `withoutComments` below explains why at length. The literal never lives in this file:
@@ -35,7 +35,7 @@ const COPY = '../docs/design/COPY.md';
  * `texts` is a list and not a string because one row of the copy can fix more than one text at a
  * time: `Columnas de la grilla` is written `` `Símbolo` · `Nombre` · `Moneda` `` in a single cell,
  * and a reader that kept only the first would leave two of the three column headings of `002`
- * unverified -- which is exactly the kind of silence `UI-02` exists to prevent.
+ * unverified -- which is exactly the kind of silence this file exists to prevent.
  */
 interface CopyRow {
   section: string;
@@ -47,8 +47,8 @@ interface CopyRow {
  * The rows whose text has to be on screen already.
  *
  * H1 built the login and the title of `Mis Acciones`; H2 adds the three texts of the session --
- * the user in the header (RF-08), the expiry notice (RF-17) and the one for when the server could
- * not be reached (RF-27); H3 adds `Cerrar sesión` (RF-18), which is the last text this feature
+ * the user in the header, the expiry notice and the one for when the server could
+ * not be reached; H3 adds `Cerrar sesión`, which is the last text this feature
  * owes. A row added here before its screen exists turns this suite red for a screen nobody promised
  * yet, so what is left out is what has not been asked for yet: the chart of `003`. H1 of `002` adds
  * the two rows of the grid it draws -- the three column headings and the notice that stands in for
@@ -111,7 +111,7 @@ const REQUIRED: Pick<CopyRow, 'section' | 'element'>[] = [
   // an example of what the screen shows for one action -- never a string a source file contains.
   // Requiring it would ask
   // for a literal that cannot exist. What it stands for is checked where it can be: the header of
-  // the detail is read off the screen in `ActionDetail.test.tsx` (RF-01).
+  // the detail is read off the screen in `ActionDetail.test.tsx`.
   //
   // `Usuario (cabecera, derecha)` and `Cierre de sesión (cabecera, derecha)` are not here either:
   // they belong to `001`, `003` leaves them out of scope, and this list already asks for both from
@@ -127,7 +127,7 @@ const REQUIRED: Pick<CopyRow, 'section' | 'element'>[] = [
   { section: 'Detalle: navegación, horarios y validación', element: 'Volver a la lista' },
   { section: 'Detalle: navegación, horarios y validación', element: 'Aclaración de horarios' },
   { section: 'Detalle: navegación, horarios y validación', element: 'Intervalo sin elegir' },
-  // The two labels of the tooltip (RF-38), chosen by the client on 2026-09-14. Both are
+  // The two labels of the tooltip, chosen by the client on 2026-09-14. Both are
   // templates, so what is required of `src/` is the label alone -- the instant beside it is
   // formatted, and `fragmentsOf` is what cuts the row at that edge. They are asked for here
   // because the tooltip cannot be read off the screen: Highcharts draws into SVG and its
@@ -151,7 +151,7 @@ const REQUIRED: Pick<CopyRow, 'section' | 'element'>[] = [
   // Three and not four: the fourth row of the table is `ok`, whose text is *(sin aviso)* and
   // carries no literal at all. The reader above drops rows with no literal, so asking for that one
   // would raise for a row that, to this suite, does not exist. That `ok` draws no notice is
-  // checked on the screen, in `ActionDetail.test.tsx` (RF-32), which is where it can be checked.
+  // checked on the screen, in `ActionDetail.test.tsx`, which is where it can be checked.
   { section: 'Avisos de estado', element: '`stale`' },
   { section: 'Avisos de estado', element: '`market_closed`' },
   { section: 'Avisos de estado', element: '`no_data`' },
@@ -251,7 +251,7 @@ function readStringLiteral(source: string, from: number): string {
 /**
  * The same source with the contents of its comments removed.
  *
- * A comment that mentions a text does not put that text on screen, and `UI-02` is about what the
+ * A comment that mentions a text does not put that text on screen, and what matters is what the
  * user reads. Without this, a literal is "found" by a docstring that merely names it -- and that is
  * not hypothetical: `Cerrar sesión` passed this suite while the only place it appeared in `src/`
  * was the docstring of `Header.tsx` saying that it belongs to H3 and is *not drawn yet*. The
@@ -397,7 +397,7 @@ describe.each(REQUIRED)('the text of "$element" under "$section"', (required) =>
 describe('the misspelling of the brief', () => {
   it('is not corrected on the way to the screen', () => {
     // The evaluator searches for the text the brief wrote. A tilde added here is a requirement
-    // missed, not a typo fixed (UI-02, Article VII).
+    // missed, not a typo fixed.
     const corrected = sourcesContaining('usuario o clave inválida');
 
     expect(corrected, 'the brief writes "invalida" with no accent').toHaveLength(0);

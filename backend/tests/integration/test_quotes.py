@@ -1,4 +1,4 @@
-"""GET /api/quotes/{symbol}: the series the chart is drawn from (RF-13, RF-24, RF-26).
+"""GET /api/quotes/{symbol}: the series the chart is drawn from.
 
 One route serves the two modes of the screen, because they are not two questions: without
 `from`/`to` it is today's session in market time (`Tiempo Real`), with them it is the window the
@@ -8,17 +8,17 @@ asks for is the first mode; `Histórico` and the validation of its range are H3.
 
 Three claims here are the ones an implementation that "works" still gets wrong:
 
-- **A failure of the provider still answers 200** (`ERR-05`). A 429 forwarded to the browser
+- **A failure of the provider still answers 200**. A 429 forwarded to the browser
   blames a user who has no account with any provider, and nothing in the body names who failed
-  (`RF-26`).
-- **A fresh cache spends no credit** (`RF-24`): the database answers when it can, which is the
-  whole of Article II seen from the endpoint.
+.
+- **A fresh cache spends no credit**: the database answers when it can, which is the
+  whole of the quota seen from the endpoint.
 - **The upsert is `DO UPDATE`**: the last candle of an open session is still forming, so fetching
   the same instant twice has to leave one row carrying the *new* close. With `DO NOTHING` the
   cache would keep a half-made price with the face of a final one, forever.
 
 The provider is a double that counts calls, and it is the whole point of the file: nothing in a
-response body tells a cached answer from one that spent a credit (Article II, TEST-03).
+response body tells a cached answer from one that spent a credit.
 """
 
 from collections.abc import AsyncIterator, Iterator, Sequence
@@ -59,7 +59,7 @@ _TRADED_ON = datetime(2026, 9, 8, 13, 35, tzinfo=UTC)
 
 
 class _CountingProvider(MarketDataProvider):
-    """The contract, counting calls: the only way Article II is checkable from the outside."""
+    """The contract, counting calls: the only way the quota is checkable from the outside."""
 
     def __init__(self, points: Sequence[QuotePoint] = (), failure: Exception | None = None) -> None:
         """Answer with those points, or fail with that error."""
@@ -142,7 +142,7 @@ def _instants(payload: dict[str, object]) -> list[datetime]:
 
 
 class TestAskingForTodaysSession:
-    """RF-13: no `from`/`to` is `Tiempo Real`, which is the session of the day."""
+    """No `from`/`to` is `Tiempo Real`, which is the session of the day."""
 
     async def test_it_answers_200(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
@@ -195,7 +195,7 @@ class TestAskingForTodaysSession:
     async def test_the_instants_are_utc_and_ascending(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
     ) -> None:
-        """RF-15: the axis is rendered in market time, but the wire carries the instant."""
+        """The axis is rendered in market time, but the wire carries the instant."""
         await QuoteFactory.create_series(
             session, first_ts=datetime.now(tz=UTC) - timedelta(minutes=3), count=3
         )
@@ -208,7 +208,7 @@ class TestAskingForTodaysSession:
     async def test_a_fresh_cache_answers_without_spending_a_credit(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
     ) -> None:
-        """RF-24 seen from the endpoint: the database answers when it can (Article II)."""
+        """From the endpoint: the database answers when it can."""
         await QuoteFactory.create_series(
             session, first_ts=datetime.now(tz=UTC) - timedelta(seconds=20), count=1
         )
@@ -220,7 +220,7 @@ class TestAskingForTodaysSession:
     async def test_an_anonymous_call_is_refused(
         self, client: AsyncClient, provider: _CountingProvider
     ) -> None:
-        """PY-08: data that costs quota is not served to whoever asks."""
+        """Data that costs quota is not served to whoever asks."""
         response = await client.get(_QUOTES, params={"interval": "1min"})
 
         assert response.status_code == 401
@@ -231,7 +231,7 @@ class TestAskingForTodaysSession:
 
 
 class TestTheProviderIsNeverNamed:
-    """RF-26 and Article I: not in the happy path, and not in any of the three notices."""
+    """Not in the happy path, and not in any of the three notices."""
 
     async def test_the_body_does_not_name_the_provider(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
@@ -247,7 +247,7 @@ class TestTheProviderIsNeverNamed:
     async def test_a_spent_quota_is_not_a_429_for_the_user(
         self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
     ) -> None:
-        """ERR-05: a 429 forwarded blames a client who has no account with anybody."""
+        """A 429 forwarded blames a client who has no account with anybody."""
         await QuoteFactory.create(session, ts=_TRADED_ON)
         provider.failure = ProviderQuotaExceeded("spent")
 
@@ -262,7 +262,7 @@ class TestTheCacheKeepsOneRowPerInstant:
     async def test_fetching_the_same_instant_twice_leaves_one_row(
         self, session: AsyncSession
     ) -> None:
-        """The composite key is the cache: a refresh cannot duplicate the series (ADR-001)."""
+        """The composite key is the cache: a refresh cannot duplicate the series."""
         await QuoteFactory.create(session, ts=_TRADED_ON, close=Decimal("100.00"))
 
         await QuoteRepository(session).save("TSLA", "1min", [_forming(close="101.00")])

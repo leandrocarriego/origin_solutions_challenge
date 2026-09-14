@@ -1,8 +1,8 @@
-"""Structured logs with a request id, and the metrics that make Article II verifiable (ADR-009).
+"""Structured logs with a request id, and the metrics that make the quota verifiable.
 
-Article II says provider consumption scales with distinct symbols observed, never with clients
+the quota says provider consumption scales with distinct symbols observed, never with clients
 connected. Today that is a sentence in a README. These counters are what turn it into a number
-someone can read off a dashboard, which is the whole point of ERR-07.
+someone can read off a dashboard, which is the whole point.
 """
 
 import json
@@ -77,13 +77,13 @@ class TestRequestsAreCorrelated:
 
 
 class TestLogsCarryNoCredentials:
-    """Article I applied to the log stream."""
+    """the credential rule applied to the log stream."""
 
     async def test_the_api_key_never_reaches_a_log_line(
         self, database_is_reachable: None, captured_logs: list[str], sentinel_api_key: str
     ) -> None:
         """The provider credential stays out of everything the process writes."""
-        # Article I: not in a log, not in a traceback. This is the log half; the Sentry half
+        # not in a log, not in a traceback. This is the log half; the Sentry half
         # is in tests/unit/test_secret_scrubbing.py.
         await _call("/api/health")
 
@@ -91,7 +91,7 @@ class TestLogsCarryNoCredentials:
 
 
 class TestMetricsAreExposed:
-    """The numbers that make Article II verifiable from outside."""
+    """The numbers that make the quota verifiable from outside."""
 
     async def test_metrics_endpoint_speaks_prometheus(self, database_is_reachable: None) -> None:
         """Prometheus can scrape the endpoint without a translation layer."""
@@ -113,7 +113,7 @@ class TestMetricsAreExposed:
     )
     async def test_the_quota_metrics_exist(self, metric: str, database_is_reachable: None) -> None:
         """The four counters that answer where the daily quota went."""
-        # These four are the ones that make Article II verifiable. The generic per-route
+        # These four are the ones that make the quota verifiable. The generic per-route
         # metrics matter less: any framework gives those away.
         _, body, _ = await _call("/metrics")
 

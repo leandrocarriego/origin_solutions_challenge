@@ -1,4 +1,4 @@
-"""What the catalogue hands to another module (RF-01, RF-03, GEN-02).
+"""What the catalogue hands to another module.
 
 `get_stocks` is one of the two cross-module reads of the whole backend, so what it returns *is*
 the contract: `favorites` sees a `StockInfo` and never a row of `stocks`. Three properties are
@@ -6,7 +6,7 @@ the ones a refactor breaks without any test noticing, and each is asserted here 
 
 - **The ORM row does not leave the module.** A contract that returned the model would hand the
   session and the table layout to whoever called it, and the boundary would exist only in the
-  documentation (Article IV).
+  documentation.
 - **It answers in one call.** The grid of N favourites is one question, not N. The N+1 leaves
   every functional test green, so the only way to catch it is to count what the repository was
   asked -- which is what the stub here does.
@@ -78,7 +78,7 @@ class TestWhatItReturns:
     """`StockInfo`, with the four fields of the contract and nothing of SQLAlchemy."""
 
     async def test_it_returns_stock_info_and_not_the_model(self, catalogue: _Catalogue) -> None:
-        """Article IV: the row stays inside the module that owns the table."""
+        """The row stays inside the module that owns the table."""
         described = await describe(catalogue, ["TSLA"])
 
         assert [type(info) for info in described] == [StockInfo]
@@ -97,7 +97,7 @@ class TestWhatItReturns:
     async def test_it_carries_the_symbol_the_name_and_the_currency(
         self, catalogue: _Catalogue
     ) -> None:
-        """RF-03: the three columns of the grid, which is what the caller came for."""
+        """The three columns of the grid, which is what the caller came for."""
         info = (await describe(catalogue, ["TSLA"]))[0]
 
         assert (info.symbol, info.name, info.currency) == ("TSLA", "Tesla Inc", "USD")
@@ -192,7 +192,7 @@ class TestWhetherItIsStillListed:
 
 
 class TestItAnswersInOneCall:
-    """The N+1 that the module boundary exists to prevent (GEN-02)."""
+    """The N+1 that the module boundary exists to prevent."""
 
     async def test_the_repository_is_asked_once_for_the_whole_batch(
         self, catalogue: _Catalogue
@@ -210,7 +210,7 @@ class TestItAnswersInOneCall:
         This is the ordinary path of `GET /api/favorites`, not a rare edge: `favorites` hands
         over whatever list of symbols it has, empty included. The guard belongs to the service,
         because "is this query worth making" is a decision and decisions do not live in the
-        repository (`PY-06`). `asked_for` staying empty is what tells "it was never called"
+        repository. `asked_for` staying empty is what tells "it was never called"
         apart from "it was called with an empty list", which is the whole point.
         """
         described = await describe(catalogue, [])

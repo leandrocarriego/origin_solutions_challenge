@@ -2,7 +2,7 @@
 
 A renamed counter breaks nothing loudly: every panel that used it goes quietly empty, which
 reads as "no traffic" instead of "the dashboard is lying". This test turns that silent failure
-into a red build, and it is the only thing standing between Article II's evidence and a chart
+into a red build, and it is the only thing standing between the quota's evidence and a chart
 nobody can trust.
 
 It reads the dashboard the way Grafana does --from the JSON on disk-- so it also covers the
@@ -23,7 +23,7 @@ from app import observability  # noqa: F401
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DASHBOARD_DIR = REPO_ROOT / "infra" / "grafana" / "dashboards"
 
-# The four counters Article II rests on. They exist to be looked at, so a dashboard that does
+# The four counters the quota rests on. They exist to be looked at, so a dashboard that does
 # not chart one of them is a dashboard that cannot answer the question they were added for.
 ARTICLE_II_METRICS = (
     "provider_requests_total",
@@ -207,7 +207,7 @@ def test_every_charted_metric_exists_in_the_code(path: Path) -> None:
 
 @pytest.mark.parametrize("metric", ARTICLE_II_METRICS)
 def test_every_article_ii_metric_is_charted_somewhere(metric: str) -> None:
-    """The counters that make Article II checkable are on a panel, not just in the registry."""
+    """The counters that make the quota checkable are on a panel, not just in the registry."""
     charted: set[str] = set()
     for path in dashboard_files():
         dashboard = json.loads(path.read_text(encoding="utf-8"))

@@ -1,6 +1,6 @@
-"""Two users, real rows, and neither one reaches the other's data (Article III, GEN-09, RF-04).
+"""Two users, real rows, and neither one reaches the other's data.
 
-This is the half of `GEN-09` that could not exist before there was an endpoint serving data that
+This is the half of the isolation rule that could not exist before there was an endpoint serving
 belongs to somebody. The other half is already running and is static:
 `TestNoRouteAcceptsAUserId` in `tests/architecture/test_route_authorization.py` fails for any
 route that takes the identity of the user from the path, the query string or the body. That check
@@ -14,7 +14,7 @@ somewhere else.
 
 The file grows with the feature: the read is here from H1, the write of H2 and the delete of H3
 add their own classes, and `003` adds the chart -- the first endpoint that serves data of a user
-through an object of somebody else's choosing (`RF-35`). Every endpoint that touches data of a
+through an object of somebody else's choosing. Every endpoint that touches data of a
 user gets a row here, or it is an IDOR that passes the pre-commit.
 """
 
@@ -134,7 +134,7 @@ async def _favourites_of(session: AsyncSession, user_id: int) -> set[str]:
 
 
 class TestReadingTheGrid:
-    """RF-04: the grid is the token's user's, and the other list does not exist for it."""
+    """The grid is the token's user's, and the other list does not exist for it."""
 
     async def test_each_token_gets_its_own_list(
         self, client: AsyncClient, juan: User, ana: User
@@ -169,7 +169,7 @@ class TestReadingTheGrid:
 
 
 class TestAddingToTheGrid:
-    """RF-22: one user adding is one user's row, and the other list does not move.
+    """One user adding is one user's row, and the other list does not move.
 
     The interesting case is the symbol ana **already follows**. A service that asked "is this
     symbol already a favourite" without filtering by user would answer juan a polite 200, write
@@ -208,12 +208,12 @@ class TestAddingToTheGrid:
 
 
 class TestRemovingFromTheGrid:
-    """RF-28: one user removing is one user's row leaving, and the other list does not move.
+    """One user removing is one user's row leaving, and the other list does not move.
 
     This is the test that matters of the three, and the reason is the shape of the failure. The
     read leaks data and the write adds a row; a delete that lost its filter **destroys** somebody
     else's data, silently and with a perfectly polite 204 -- there is no body to look wrong and no
-    error to notice. And the removal is idempotent on purpose (RF-24), so "it answered 204" says
+    error to notice. And the removal is idempotent on purpose, so "it answered 204" says
     nothing at all about whose row it reached.
 
     So the interesting request is the symbol juan does **not** follow and ana **does**: the one
@@ -265,14 +265,14 @@ class TestRemovingFromTheGrid:
 
 
 class TestReadingTheChart:
-    """RF-35 and Article III: the chart is served only for the favourites of who is asking.
+    """The chart is served only for the favourites of who is asking.
 
     404 and not 403: a 403 confirms that the symbol exists and belongs to another user, and here
     there is nothing to confirm. It is also the answer `002` gives for a symbol that cannot be
     added, so the frontend has one case to handle and not two.
 
     The pair of tests is the whole statement: the 404 is the part a reviewer looks for, and the
-    call counter is the part that matters for Article II -- an implementation that authorizes
+    call counter is the part that matters for the quota -- an implementation that authorizes
     *after* fetching answers the same 404 and has already spent a credit on somebody else's
     symbol.
     """
@@ -300,7 +300,7 @@ class TestReadingTheChart:
     async def test_a_symbol_of_the_other_user_costs_no_quota(
         self, client: AsyncClient, juan: User, ana: User, provider: _CallCounter
     ) -> None:
-        """Authorizing first is what makes the refusal free (Article II)."""
+        """Authorizing first is what makes the refusal free."""
         await client.get("/api/quotes/TSLA", params={"interval": "1min"}, headers=_bearer(ana))
 
         assert provider.calls == []

@@ -1,7 +1,7 @@
 """Reading the source tree the way the boundary checks need it.
 
 Python has no visibility at module level: the underscore and `__all__` are convention, not
-enforcement. That is why Article IV says the frontier is held by a test and not by the
+enforcement. That is why the module frontier says the frontier is held by a test and not by the
 language, and why these checks read the imports with `ast` and fail naming file and line.
 
 Every function here takes the root of a package tree instead of reaching for `app/` on its
@@ -18,7 +18,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 APP_ROOT = BACKEND_ROOT / "app"
 
 # The composition root imports from every module by definition: it mounts each one's router and
-# names the coroutines that run in the background. GEN-03 excludes it by name, and these are the
+# names the coroutines that run in the background. The boundary excludes it by name, and these
 # names -- two files rather than one, because the wiring outgrew a single screen.
 #
 # It is a tuple and not a convenience: every name added here is a file allowed to depend on the
@@ -26,7 +26,7 @@ APP_ROOT = BACKEND_ROOT / "app"
 # a third name is a decision somebody makes rather than one that happens.
 COMPOSITION_ROOTS = ("main.py", "tasks.py")
 
-# The four clients CONVENTIONS.md names in GEN-08, and it has to stay those four: dropping one
+# The four clients the convention names, and it has to stay those four: dropping one
 # narrows a Blocker convention without a single test turning red.
 #
 # The rule is not about TwelveData. A service that imports one of these and builds a URL has

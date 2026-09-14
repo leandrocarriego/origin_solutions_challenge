@@ -1,10 +1,10 @@
 /**
  * H3 of `002`: taking an action out of the grid, with a confirmation in between.
  *
- * It covers the `Eliminar` control of every row (RF-23), the confirmation that names the symbol
- * of the row it was fired from and leaves that row where it is until somebody answers (RF-25),
- * the confirmation that removes it without a reload (RF-26), `Cancelar` that changes nothing
- * (RF-32), and the F5 that finds the list exactly as the API left it (RF-24, RF-32).
+ * It covers the `Eliminar` control of every row, the confirmation that names the symbol
+ * of the row it was fired from and leaves that row where it is until somebody answers,
+ * the confirmation that removes it without a reload, `Cancelar` that changes nothing
+ *, and the F5 that finds the list exactly as the API left it.
  *
  * Everything is looked at **through the screen**, the way `addFavorite.test.tsx` already does it:
  * the person logs in, reads the grid, activates a control and answers a question. `plan.md` puts
@@ -13,7 +13,7 @@
  *
  * **The confirmation is read by role, and its text by what it reads out.** `getByRole('dialog')`
  * is what a person using a screen reader gets when a modal opens, and `<dialog>` -- which the plan
- * fixes, against `window.confirm()` (UI-02: the browser labels its button `Aceptar` and will not
+ * fixes, against `window.confirm()` (the browser labels its button `Aceptar` and will not
  * be told otherwise) -- carries that role natively. The question itself is asserted against the
  * dialog's text and not against a single node, because the symbol is interpolated into it and how
  * many elements that ends up being is markup, not copy.
@@ -51,7 +51,7 @@ const USUARIO = 'Usuario';
 const CLAVE = 'Clave';
 const MIS_ACCIONES = 'Mis Acciones';
 
-// Verbatim from `docs/design/COPY.md` (UI-02): the link of the row, and the two options of the
+// Verbatim from `docs/design/COPY.md`: the link of the row, and the two options of the
 // confirmation the client wrote for this feature.
 const ELIMINAR = 'Eliminar';
 const CANCELAR = 'Cancelar';
@@ -131,7 +131,7 @@ function listingsAsked(): number {
 /**
  * The removal, as `DELETE /api/favorites/{symbol}` answers it: 204, with no body, always.
  *
- * Removing something that is not in the list is a 204 too (RF-24), so the double does what the
+ * Removing something that is not in the list is a 204 too, so the double does what the
  * API does and simply filters: no branch, because there is no failure to model.
  */
 function removeFromTheList(url: string): Promise<Response> {
@@ -263,7 +263,7 @@ afterEach(() => {
 
 describe('every row of the grid', () => {
   it('offers the Eliminar of the copy', async () => {
-    // RF-23, and it is the fourth column of the wireframe: the one without a heading. The text is
+    // It is the fourth column of the wireframe: the one without a heading. The text is
     // verbatim from COPY.md, and what it has to be is something a person can activate.
     await logInThroughTheScreen();
 
@@ -283,7 +283,7 @@ describe('every row of the grid', () => {
 
 describe('activating Eliminar on a row', () => {
   it('asks about the action of that row, by name', async () => {
-    // RF-25, verbatim from COPY.md with the symbol interpolated. Naming it is the whole point:
+    // Verbatim from COPY.md with the symbol interpolated. Naming it is the whole point:
     // it is what lets somebody notice they activated the wrong row (`docs/design/COPY.md`).
     await logInThroughTheScreen();
 
@@ -304,7 +304,7 @@ describe('activating Eliminar on a row', () => {
   });
 
   it('offers Eliminar and Cancelar, and nothing has happened yet', async () => {
-    // RF-25: the two options of the copy, and the row still in the grid. A screen that removed
+    // the two options of the copy, and the row still in the grid. A screen that removed
     // first and asked afterwards would answer the question after it stopped mattering.
     await logInThroughTheScreen();
 
@@ -319,7 +319,7 @@ describe('activating Eliminar on a row', () => {
 
 describe('confirming the removal', () => {
   it('asks our API to remove that symbol, and only that one', async () => {
-    // RF-26 on the wire: the symbol of the row that was activated travels in the address, which
+    // On the wire: the symbol of the row that was activated travels in the address, which
     // is the one thing the screen decides about this request.
     await logInThroughTheScreen();
 
@@ -331,7 +331,7 @@ describe('confirming the removal', () => {
   });
 
   it('takes the row out of the grid without a reload', async () => {
-    // RF-26, which is the acceptance criterion of the story: the action is gone from the screen
+    // Which is the acceptance criterion of the story: the action is gone from the screen
     // as soon as it is gone from the list, with nobody pressing F5.
     await logInThroughTheScreen();
 
@@ -367,7 +367,7 @@ describe('confirming the removal', () => {
 
   it('asks our API for the list again instead of patching the one it had', async () => {
     // `plan.md`: after removing, the grid is asked for again. The order of the rows is a decision
-    // of the backend (RF-06), and two places that order are one place that gets it wrong.
+    // of the backend, and two places that order are one place that gets it wrong.
     await logInThroughTheScreen();
     const before = listingsAsked();
 
@@ -381,7 +381,7 @@ describe('confirming the removal', () => {
 
 describe('answering the confirmation with Cancelar', () => {
   it('leaves the action exactly where it was', async () => {
-    // RF-32: the escape hatch of RF-25. If cancelling removed anything, the confirmation would be
+    // the escape hatch the confirmation is for. If cancelling removed anything, it would be
     // a step that changes nothing about the outcome.
     await logInThroughTheScreen();
 
@@ -424,7 +424,7 @@ describe('answering the confirmation with Cancelar', () => {
 
 describe('an action removed and then the page reloaded', () => {
   it('is still gone after the F5', async () => {
-    // RF-24, and it is a real F5: the page is thrown away with `unmount()` and the application is
+    // It is a real F5: the page is thrown away with `unmount()` and the application is
     // opened again at the same address, with nothing left but what the browser kept in
     // `sessionStorage`. Mounting a second copy while the first is alive would prove the remount
     // and not the persistence -- `plan.md` → *Riesgos*, first row, forbids it.
@@ -449,7 +449,7 @@ describe('an action removed and then the page reloaded', () => {
 
 describe('an action whose removal was cancelled and then the page reloaded', () => {
   it('is still there after the F5', async () => {
-    // RF-32 with the same F5, and it is the test that tells "cancelled" apart from "removed and
+    // The same F5, and it is the test that tells "cancelled" apart from "removed and
     // repainted from a list the screen kept in memory": what comes back after a reload is
     // whatever the API stored, and cancelling stored nothing.
     const first = await logInThroughTheScreen();

@@ -2,7 +2,7 @@
  * The health page: what someone opens to find out whether the deployment is alive.
  *
  * It is the frontend half of the backend's /api/health, and it exists for the same reason:
- * answering "is this thing up?" without an SSH session. TS-06 is what most of this file is
+ * answering "is this thing up?" without an SSH session. The typed client is what most of this file is
  * about — loading, error and empty are states, not afterthoughts.
  */
 
@@ -112,7 +112,7 @@ describe('HealthPage when the API cannot be reached', () => {
 
 describe('HealthPage and the provider', () => {
   it('asks our own API and never the provider directly', async () => {
-    // Article I and II: the browser does not know the provider's domain and never spends quota.
+    // The browser does not know the provider's domain and never spends quota.
     respondWith(OK_RESPONSE);
 
     render(<HealthPage />);

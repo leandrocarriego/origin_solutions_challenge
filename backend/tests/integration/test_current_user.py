@@ -1,4 +1,4 @@
-"""GET /api/auth/me: who the token says is calling (RF-07, RF-16).
+"""GET /api/auth/me: who the token says is calling.
 
 The endpoint that lets a reloaded page find out it still has a session without asking for the
 credential again. It is the first protected route of the project, so this file is also where the
@@ -16,7 +16,7 @@ as its own file instead of a couple of cases inside `test_login.py`:
 - **It answers two fields and not the row.** A response that grew `username` or, worse,
   `password_hash` would be API3:2023 (BOPLA) added by convenience.
 
-The expired token is built with an `exp` in the past. Waiting an hour is not a test (RF-16, whose
+The expired token is built with an `exp` in the past. Waiting an hour is not a test (the TTL, whose
 sixty minutes are fixed in `tests/unit/test_access_token.py`).
 """
 
@@ -133,7 +133,7 @@ def _tampered(token: str) -> str:
 
 
 class TestATokenThatIsGood:
-    """RF-07: the session is recognised, and nobody is asked for a credential again."""
+    """The session is recognised, and nobody is asked for a credential again."""
 
     async def test_it_answers_200(self, client: AsyncClient, juan: User) -> None:
         """The call a reloaded page makes before deciding which screen to show."""
@@ -146,7 +146,7 @@ class TestATokenThatIsGood:
     async def test_it_answers_the_identity_of_the_token(
         self, client: AsyncClient, juan: User
     ) -> None:
-        """The `sub` of the token and nothing else decides whose data this is (Article III)."""
+        """The `sub` of the token and nothing else decides whose data this is."""
         token = create_access_token(user_id=juan.id, full_name=juan.full_name)
 
         response = await client.get(_ME, headers=_bearer(token))
@@ -156,7 +156,7 @@ class TestATokenThatIsGood:
     async def test_it_answers_the_full_name_and_not_the_username(
         self, client: AsyncClient, juan: User
     ) -> None:
-        """RF-08: the header reads `Usuario: Juan Perez`, never `Usuario: juan`."""
+        """The header reads `Usuario: Juan Perez`, never `Usuario: juan`."""
         token = create_access_token(user_id=juan.id, full_name=juan.full_name)
 
         response = await client.get(_ME, headers=_bearer(token))
@@ -177,7 +177,7 @@ class TestATokenThatIsGood:
     async def test_the_token_the_login_just_handed_out_opens_it(
         self, client: AsyncClient, juan: User
     ) -> None:
-        """RF-07 end to end: what the login answers is what the next screen travels with."""
+        """End to end: what the login answers is what the next screen travels with."""
         logged_in = await client.post(_LOGIN, json={"username": "juan", "password": PASSWORD})
 
         response = await client.get(_ME, headers=_bearer(logged_in.json()["access_token"]))
@@ -235,7 +235,7 @@ class TestATokenThatIsNot:
         assert response.status_code == 401
 
     async def test_an_expired_token_is_refused(self, client: AsyncClient, juan: User) -> None:
-        """RF-16 from the other side, and the case the frontend turns into its expiry notice."""
+        """From the other side, and the case the frontend turns into its expiry notice."""
         response = await client.get(_ME, headers=_bearer(_expired_token(juan.id, juan.full_name)))
 
         assert response.status_code == 401

@@ -1,4 +1,4 @@
-"""POST /api/favorites: adding a stock to my list (RF-15, RF-17, RF-18, TEST-04).
+"""POST /api/favorites: adding a stock to my list.
 
 Written before the route exists, so everything here answers 404 or 405 until task 12 mounts it.
 
@@ -7,11 +7,11 @@ Four claims, one class each, and the first one is the one the screen depends on:
 - **Adding twice does not duplicate and does not fail.** The composite key `(user_id, symbol)`
   makes the second row impossible; `ON CONFLICT DO NOTHING` is what turns that guarantee into a
   polite answer. **201 the first time, 200 the second, the same body both times** -- never a
-  409, because RF-18 asks for "it is already in your list", not for an error.
+  409, because what is asked for is "it is already in your list", not an error.
 - **The double click is the same claim under concurrency.** Two `POST` in flight at once, each
   in its own transaction: one inserts, the other finds the row already there. This is the only
   test in the file that commits, because a race that both halves see needs two transactions.
-- **The name and the currency come from the catalogue** (RF-17). `user_stocks` stores neither,
+- **The name and the currency come from the catalogue**. `user_stocks` stores neither,
   so a body that carries them proves the cross-module read happened before the write.
 - **An unknown symbol and a delisted one are both 404, and neither leaves a row.** The order
   inside `add_favorite` is what makes that true: the catalogue first, the `INSERT` second. The
@@ -105,7 +105,7 @@ def _bearer(user: User) -> dict[str, str]:
 
 
 async def _rows_of(session: AsyncSession, user_id: int, symbol: str) -> int:
-    """How many favourites that user has for that symbol: the whole of TEST-04 is this number."""
+    """How many favourites that user has for that symbol: idempotence is this number."""
     counted = await session.scalar(
         select(func.count())
         .select_from(UserStock)
@@ -116,7 +116,7 @@ async def _rows_of(session: AsyncSession, user_id: int, symbol: str) -> int:
 
 
 class TestAddingAStockThatIsNotThereYet:
-    r"""RF-15 and RF-17: it is created, and it is described by the catalogue.
+    r"""It is created, and it is described by the catalogue.
 
     **Corrected on 2026-09-14, by a human decision.** As first signed, the normalisation test
     posted `{"symbol": "  msft "}` and expected a 201 with `MSFT`. That could never pass: the
@@ -140,7 +140,7 @@ class TestAddingAStockThatIsNotThereYet:
     async def test_the_body_is_the_row_of_the_grid(
         self, client: AsyncClient, juan: User, catalogue: None
     ) -> None:
-        """RF-17: the name and the currency are read from `stocks`, which is where they live."""
+        """The name and the currency are read from `stocks`, which is where they live."""
         response = await client.post(_FAVORITES, json={"symbol": "MSFT"}, headers=_bearer(juan))
 
         assert response.json() == _MICROSOFT
@@ -187,14 +187,14 @@ class TestAddingAStockThatIsNotThereYet:
         assert await _rows_of(session, juan.id, "MSFT") == 0
 
     async def test_an_anonymous_call_is_refused(self, client: AsyncClient) -> None:
-        """PY-08: the route is protected, and it is not in `PUBLIC_ROUTES`."""
+        """The route is protected, and it is not in `PUBLIC_ROUTES`."""
         response = await client.post(_FAVORITES, json={"symbol": "MSFT"})
 
         assert response.status_code == 401
 
 
 class TestAddingAStockThatIsAlreadyThere:
-    """RF-18 and TEST-04: the second time is not an error, and it is not a second row."""
+    """The second time is not an error, and it is not a second row."""
 
     async def test_the_second_add_answers_200(
         self, client: AsyncClient, juan: User, catalogue: None
@@ -340,7 +340,7 @@ class TestASymbolThatCannotBeAdded:
     async def test_a_delisted_symbol_is_a_404_as_well(
         self, client: AsyncClient, juan: User, catalogue: None
     ) -> None:
-        """RF-12's counterpart: what the autocomplete does not offer cannot be added by hand.
+        """counterpart: what the autocomplete does not offer cannot be added by hand.
 
         The same message as the unknown one, on purpose: from outside, a symbol that stopped
         trading and one that never existed are the same answer.

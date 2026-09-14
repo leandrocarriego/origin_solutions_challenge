@@ -1,7 +1,7 @@
 /**
- * The session as a capacity: the guard (RF-09), and that it survives a reload (RF-07, RF-17).
+ * The session as a capacity: the guard, and that it survives a reload.
  *
- * RF-09 is written as an address pasted into a browser, so it is tested as one: the application is
+ * It is written as an address pasted into a browser, so it is tested as one: the application is
  * rendered at `/` with nothing stored, and what has to be on screen is the login. Like
  * `Login.test.tsx`, this fixes that the `Router` wraps `<App />` from `main.tsx` rather than living
  * inside `App` -- without that, there is no way to open a URL in a test.
@@ -19,15 +19,15 @@
  *
  * Three things have to be true after that remount, and each is a different way of getting it wrong:
  *
- * - The visitor is still inside, and the name is still painted (RF-07). The credential is never
+ * - The visitor is still inside, and the name is still painted. The credential is never
  *   asked for again.
- * - A session the API no longer accepts lands on the login **with its notice** (RF-17). Dropping
+ * - A session the API no longer accepts lands on the login **with its notice**. Dropping
  *   the visitor there in silence looks like a bug in the application.
  * - While `/api/auth/me` is still unanswered, the login is not on screen (the `loading` state of
  *   the plan). Without it the reload flashes the login for a frame and then leaves it, which reads
  *   as having been logged out and back in.
  *
- * **H3 adds the way out, and it is the same simulation read backwards** (RF-19, RF-20): log in,
+ * **H3 adds the way out, and it is the same simulation read backwards**: log in,
  * activate `Cerrar sesión`, and then mount the application again at the address of the inner
  * screen. The second mount is the half that matters -- ending a session in the React tree is easy
  * and is not the requirement; what has to be true is that nothing was left behind for the next page
@@ -51,7 +51,7 @@ const INGRESAR = 'Ingresar';
 const USUARIO = 'Usuario';
 const CLAVE = 'Clave';
 const MIS_ACCIONES = 'Mis Acciones';
-// Verbatim from the session table of docs/design/COPY.md (UI-02).
+// Verbatim from the session table of docs/design/COPY.md.
 const SESION_EXPIRADA = 'Tu sesión expiró. Volvé a ingresar.';
 
 const LOGIN_URL = '/api/auth/login';
@@ -217,7 +217,7 @@ describe('an inner screen opened with no session', () => {
 
 describe('a session that is still good, after a reload', () => {
   it('leaves the visitor where they were, without asking for the credential again', async () => {
-    // RF-07: navigating -- and reloading is navigating -- does not ask for a user or a password.
+    // navigating -- and reloading is navigating -- does not ask for a user or a password.
     stubTheApi(meAnswers);
 
     await logInAndReload();
@@ -237,7 +237,7 @@ describe('a session that is still good, after a reload', () => {
   });
 
   it('asks it with the token it was given, and not anonymously', async () => {
-    // Article III on this side: the identity travels in the credential, never as a parameter.
+    // On this side: the identity travels in the credential, never as a parameter.
     stubTheApi(meAnswers);
 
     await logInAndReload();
@@ -263,7 +263,7 @@ describe('a session the API no longer accepts, after a reload', () => {
   });
 
   it('says why they are there, word for word', async () => {
-    // RF-17. Landing on the login in silence reads as the application having lost the session by
+    // Landing on the login in silence reads as the application having lost the session by
     // mistake; the notice is what turns it into something that was supposed to happen.
     stubTheApi(meRefuses);
 
@@ -305,7 +305,7 @@ describe('a reload whose answer has not arrived yet', () => {
 });
 
 /*
- * H3 -- closing the session (RF-19, RF-20).
+ * H3 -- closing the session.
  *
  * The control is looked up as a button or as a link, and not by its text alone: `Cerrar sesión` is
  * an action, and an action a person can activate has to be reachable as one. A `<span onClick>`
@@ -315,7 +315,7 @@ describe('a reload whose answer has not arrived yet', () => {
  * passes.
  */
 
-// Verbatim from the session table of docs/design/COPY.md (UI-02).
+// Verbatim from the session table of docs/design/COPY.md.
 const CERRAR_SESION = 'Cerrar sesión';
 
 /** The control that ends the session, however the header chose to draw it. */
@@ -339,7 +339,7 @@ async function closeTheSession(): Promise<void> {
 
 describe('a session closed on purpose', () => {
   it('leaves the visitor looking at the login screen', async () => {
-    // RF-20. The screen that comes up is the one they would need to come back in through.
+    // The screen that comes up is the one they would need to come back in through.
     stubTheApi(meAnswers);
 
     await logInThroughTheScreen();
@@ -362,7 +362,7 @@ describe('a session closed on purpose', () => {
   });
 
   it('asks the server nothing, because there is nothing there to close', async () => {
-    // ADR-004: the token is signed and short-lived, and there is no revocation on the server.
+    // the token is signed and short-lived, and there is no revocation on the server.
     // Leaving is the client forgetting it, so a round trip here would be a call to an endpoint
     // this feature never agreed to build -- and one whose failure could strand the visitor inside.
     stubTheApi(meAnswers);
@@ -378,7 +378,7 @@ describe('a session closed on purpose', () => {
 
 describe('the address of the inner screen, after closing the session', () => {
   it('shows the login and not the screen that was there before', async () => {
-    // RF-19, written as it reads in the spec: going back to the address of `Mis Acciones` has to
+    // Written as it reads in the spec: going back to the address of `Mis Acciones` has to
     // leave the login on screen. The remount is what makes it that address and not this page.
     stubTheApi(meAnswers);
 
@@ -414,10 +414,10 @@ describe('the address of the inner screen, after closing the session', () => {
 });
 
 /**
- * `003` adds the third address the guard has to hold: the Detail of an action (RF-02).
+ * `003` adds the third address the guard has to hold: the Detail of an action.
  *
  * It is the same guard read at another door, and that is why it is here and not in
- * `ActionDetail.test.tsx` -- `tasks.md` puts RF-02 in this file on purpose: what is being fixed is
+ * `ActionDetail.test.tsx` -- `tasks.md` puts it in this file on purpose: what is being fixed is
  * the capacity, and a screen-by-screen copy of it would go stale the day a fourth address appears.
  *
  * It is green today -- with no route behind `/stocks/:symbol` the address already falls through to

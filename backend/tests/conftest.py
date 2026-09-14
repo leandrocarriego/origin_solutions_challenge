@@ -113,7 +113,7 @@ def sentry_configured(monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
 async def session() -> AsyncIterator[AsyncSession]:
     """A session against the real database, inside a transaction that is always rolled back.
 
-    Integration tests run against Postgres and not against a double (TEST-02), so they need the
+    Integration tests run against Postgres and not against a double, so they need the
     schema that `alembic upgrade head` creates. What they must not need is cleanup, and they
     must not need an empty database either: a developer who ran `make up` has the seed's rows in
     there, and a test that only passes on a pristine database fails later for a reason that

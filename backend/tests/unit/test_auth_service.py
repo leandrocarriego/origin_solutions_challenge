@@ -1,4 +1,4 @@
-"""What authenticating decides, before HTTP is involved (RF-06, RF-14, RF-15, RF-24).
+"""What authenticating decides, before HTTP is involved.
 
 The repository is stubbed here on purpose: what is under test is the decision, not the SQL. That
 the lookup is case-insensitive *in the database* is a different claim, and it is asserted against
@@ -8,11 +8,11 @@ apart from nobody.
 
 Three properties are the ones a well-meaning refactor breaks:
 
-- **An unknown user and a wrong password are the same event** (RF-06). Same exception, same
+- **An unknown user and a wrong password are the same event**. Same exception, same
   message. Saying "no such user" confirms which usernames are real.
 - **The unknown user is still checked against a hash.** Returning early would answer in a
   fraction of the time, and timing enumerates users just as well as a message does.
-- **The attempt limit is consulted before anything is verified** (RF-24). Argon2 is expensive by
+- **The attempt limit is consulted before anything is verified**. Argon2 is expensive by
   design, so a limit paid with a hash computation protects the wrong resource.
 """
 
@@ -100,7 +100,7 @@ def no_such_user() -> _Store:
 
 @pytest.fixture
 def password_check(monkeypatch: pytest.MonkeyPatch) -> _PasswordCheck:
-    """Count the calls to `verify_password`, which is the expensive step (RF-24)."""
+    """Count the calls to `verify_password`, which is the expensive step."""
     counted = _PasswordCheck()
     monkeypatch.setattr("app.modules.auth.service.verify_password", counted)
 
@@ -121,13 +121,13 @@ class TestACredentialThatIsGood:
     """What the router gets back, and nothing more than that."""
 
     async def test_it_returns_the_identity_the_screen_needs(self, repository: _Store) -> None:
-        """The id for the token's `sub` and the full name for the header (RF-08)."""
+        """The id for the token's `sub` and the full name for the header."""
         authenticated = await _attempt(repository)
 
         assert authenticated == AuthenticatedUser(id=1, full_name="Juan Perez")
 
     async def test_it_returns_no_trace_of_the_password(self, repository: _Store) -> None:
-        """RF-11 at the layer that is the only one in the project holding key material."""
+        """At the layer that is the only one in the project holding key material."""
         authenticated = await _attempt(repository)
 
         assert PASSWORD not in repr(authenticated)
@@ -135,7 +135,7 @@ class TestACredentialThatIsGood:
 
 
 class TestWhatTheUserNameMeans:
-    """Case folds on the username and never on the password (RF-14, RF-15)."""
+    """Case folds on the username and never on the password."""
 
     @pytest.mark.parametrize("typed", ["juan", "Juan", "JUAN", "jUaN"])
     async def test_the_username_reaches_the_repository_in_lower_case(
@@ -148,7 +148,7 @@ class TestWhatTheUserNameMeans:
 
     @pytest.mark.parametrize("typed", ["juan", "Juan", "JUAN", "jUaN"])
     async def test_any_case_of_the_username_gets_in(self, repository: _Store, typed: str) -> None:
-        """The four spellings are the same person (RF-14)."""
+        """The four spellings are the same person."""
         authenticated = await _attempt(repository, username=typed)
 
         assert authenticated.id == 1
@@ -167,7 +167,7 @@ class TestWhatTheUserNameMeans:
 
 
 class TestTheTwoFailuresAreOneFailure:
-    """RF-06: an unknown user and a wrong password are indistinguishable from outside."""
+    """An unknown user and a wrong password are indistinguishable from outside."""
 
     async def test_an_unknown_user_raises_the_authentication_error(
         self, no_such_user: _Store
@@ -204,7 +204,7 @@ class TestTheTwoFailuresAreOneFailure:
 
 
 class TestNothingWrittenDownCarriesThePassword:
-    """RF-10 and RF-11 where the only key material of the project passes through."""
+    """where the only key material of the project passes through."""
 
     async def test_a_failed_attempt_logs_the_attempt_and_not_the_password(
         self, repository: _Store, captured_logs: list[str]
@@ -226,10 +226,10 @@ class TestNothingWrittenDownCarriesThePassword:
 
 
 class TestTheAttemptLimit:
-    """RF-21 to RF-26, at the layer that owns the numbers."""
+    """at the layer that owns the numbers."""
 
     def test_the_policy_is_ten_attempts_in_five_minutes(self) -> None:
-        """The numbers belong to the module; the counting belongs to the kernel (SEC-04)."""
+        """The numbers belong to the module; the counting belongs to the kernel."""
         assert LOGIN_MAX_ATTEMPTS == 10
         assert LOGIN_WINDOW == timedelta(minutes=5)
 
@@ -243,7 +243,7 @@ class TestTheAttemptLimit:
             await _attempt(repository, password="otra-clave")
 
     async def test_even_the_right_password_is_refused(self, repository: _Store) -> None:
-        """RF-24: while the limit holds, what was typed does not matter."""
+        """While the limit holds, what was typed does not matter."""
         for _ in range(LOGIN_MAX_ATTEMPTS):
             with pytest.raises(AuthenticationError):
                 await _attempt(repository, password="otra-clave")
@@ -279,10 +279,10 @@ class TestTheAttemptLimit:
     async def test_a_username_that_does_not_exist_is_counted_too(
         self, no_such_user: _Store
     ) -> None:
-        """Counting only real users would enumerate them by behaviour, which is RF-06 again.
+        """Counting only real users would enumerate them by behaviour.
 
         Each attempt comes from a different address, so the count that fills is the one keyed on
-        the username and not the one keyed on the address (RF-22).
+        the username and not the one keyed on the address.
         """
         for attempt in range(LOGIN_MAX_ATTEMPTS):
             with pytest.raises(AuthenticationError):
