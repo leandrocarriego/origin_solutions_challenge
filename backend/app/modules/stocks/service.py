@@ -6,7 +6,6 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import SessionFactory
@@ -17,6 +16,11 @@ from app.modules.stocks.repository import (
     mark_absent_as_delisted,
     search_listed,
     upsert,
+)
+from app.modules.stocks.schemas import (
+    CatalogueReconciliation,
+    CatalogueRefresh,
+    StockInfo,
 )
 from app.observability import CATALOGUE_LAST_SUCCESS
 from app.providers import MarketDataProvider, ProviderError, StockRecord, get_market_data_provider
@@ -41,17 +45,6 @@ ROUTABLE_SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,8}$")
 # Narrower than Common-Stock-only on purpose: that would have thrown away 393 ADRs and 214 REITs
 # that collide with nothing and that somebody may search for.
 DERIVATIVE = "Warrant"
-
-
-class CatalogueReconciliation(BaseModel):
-    """What one reconciliation did, for the log line and the metric that follow it."""
-
-    model_config = ConfigDict(frozen=True)
-
-    exchange: str
-    listed: int
-    delisted: int
-    discarded: int
 
 
 def is_worth_ingesting(record: StockRecord) -> bool:
@@ -93,16 +86,6 @@ async def reconcile_catalogue(
         delisted=delisted,
         discarded=len(snapshot) - len(keeping),
     )
-
-
-class CatalogueRefresh(BaseModel):
-    """What one scheduled refresh did, including the markets that did not answer."""
-
-    model_config = ConfigDict(frozen=True)
-
-    reconciled: tuple[CatalogueReconciliation, ...]
-    failed: tuple[str, ...]
-    skipped: bool
 
 
 async def is_catalogue_stale(
@@ -201,29 +184,6 @@ async def keep_the_catalogue_fresh(every: timedelta = MAX_CATALOGUE_AGE) -> None
             await log.aexception("catalogue_refresh_crashed", reason=type(error).__name__)
 
         await asyncio.sleep(every.total_seconds())
-
-
-class StockInfo(BaseModel):
-    """What the catalogue tells another module about a symbol.
-
-    Four fields, and the fourth is the one that needs a reason. The first three are the grid of
-    `Mis Acciones`. `is_listed` exists because `favorites` has to do two opposite things
-    with the same lookup: **show** a favourite that stopped trading -- the business rule asks for
-    it expressly -- and **refuse** to add one that is no longer offered. Filtering the delisted
-    ones out here would take rows away from whoever saved them; saying nothing would let the add
-    accept what the autocomplete cannot suggest. A boolean is less surface than a second exported
-    function.
-
-    Frozen, and never a row of `stocks`: a contract that handed back the ORM would hand the
-    session and the table layout over with it, and the boundary would live only in the docs.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    symbol: str
-    name: str
-    currency: str
-    is_listed: bool
 
 
 async def get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[StockInfo]:

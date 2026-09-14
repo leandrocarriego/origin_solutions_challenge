@@ -8,12 +8,11 @@ The catalogue is entered through its package and in a single call: the grid of N
 one question and not N.
 """
 
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import UnknownSymbolError
 from app.modules.favorites.repository import add, follows, remove, symbols_of
-from app.modules.favorites.schemas import FavoriteStock
+from app.modules.favorites.schemas import FavoriteAddition, FavoriteStock
 from app.modules.stocks import get_stocks
 
 
@@ -37,20 +36,6 @@ async def list_favorites(session: AsyncSession, user_id: int) -> list[FavoriteSt
         for symbol in symbols
         if (info := described.get(symbol)) is not None
     ]
-
-
-class FavoriteAddition(BaseModel):
-    """What one add did: whether it created the row, and the row itself.
-
-    The boolean is the decision of the business and the status is its translation to the
-    transport, which is the router's job. A service that answered 201 would already be speaking
-    HTTP.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    created: bool
-    favorite: FavoriteStock
 
 
 async def add_favorite(session: AsyncSession, user_id: int, symbol: str) -> FavoriteAddition:

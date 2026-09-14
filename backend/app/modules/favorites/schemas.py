@@ -38,3 +38,17 @@ class AddFavoriteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     symbol: str = Field(min_length=1, max_length=12, pattern=r"^[A-Za-z0-9.\-]{1,12}$")
+
+
+class FavoriteAddition(BaseModel):
+    """What one add did: whether it created the row, and the row itself.
+
+    The boolean is the decision of the business and the status is its translation to the
+    transport, which is the router's job. A service that answered 201 would already be speaking
+    HTTP.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    created: bool
+    favorite: FavoriteStock

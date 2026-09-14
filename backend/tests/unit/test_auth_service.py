@@ -25,10 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import AuthenticationError, DomainError, RateLimitedError
 from app.modules.auth.models import User
+from app.modules.auth.schemas import AuthenticatedUser
 from app.modules.auth.service import (
     LOGIN_MAX_ATTEMPTS,
     LOGIN_WINDOW,
-    AuthenticatedUser,
     authenticate,
 )
 from app.ratelimit import SlidingWindowLimiter

@@ -7,9 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
-# The same number as the catalogue's, and a test says so: the three modules that store a
-# symbol declare it apart, because borrowing it would mean importing another module's
-# interior.
+# The same number as the catalogue's, and a test says so.
 SYMBOL_LENGTH = 12
 
 
@@ -17,8 +15,7 @@ class UserStock(Base):
     """One symbol a user follows.
 
     The composite primary key is what makes adding the same favourite twice impossible. It is a
-    constraint of the schema and not an `if` in a service, so it holds even for the second
-    request of a double click that the first one has not finished serving.
+    constraint of the schema.
 
     Neither the name nor the currency are copied here: they are persisted in `stocks`, once,
     where the ingestion keeps them current.
