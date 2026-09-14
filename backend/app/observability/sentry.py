@@ -1,36 +1,14 @@
-"""Error reporting, and the scrubber that keeps a credential from travelling with the report.
-
-Sending an exception to a third party is sending whatever the exception was carrying. The three
-defaults that would ship credentials are turned off here, and `scrub_secrets` is the second line:
-it walks the event and blanks out the values this process holds.
-"""
-
-import re
-from typing import Any
+"""Error reporting: what gets sent, and the scrubbing it goes through first."""
 
 import sentry_sdk
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.types import Event, Hint
 
+from app.observability.scrubbing import scrub
 from app.settings import get_settings
 
-# Matches the credential-carrying query parameters by shape, so an unknown or rotated value is
-# caught too. Value-based scrubbing alone only covers what Settings happens to know.
-_SECRET_PARAM = re.compile(
-    r"(?i)\b(apikey|api_key|token|password|secret|authorization)=([^&\s\"']+)"
-)
-
-# The password inside any connection string, whether or not this process configured it: a
-# traceback can carry a DSN for a database Settings never heard of.
-_DSN_PASSWORD = re.compile(r"(://[^:/@\s]+:)([^@\s]+)(@)")
-
-_REDACTED = "[redacted]"
-
-# Literal values shorter than this are not blanked out. The insecure default password is the
-# word "origin", which is also the user and the database name: redacting every occurrence would
-# turn a useful event into holes. Real credentials are far longer, and the two patterns above
-# catch the short ones by shape anyway.
+# Literal values shorter than this are not blanked out.
 _MIN_SECRET_LENGTH = 8
 
 
@@ -44,35 +22,16 @@ def _secret_values() -> tuple[str, ...]:
     )
 
 
-def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
-    """Walk any nested structure and blank out every secret it carries."""
-    if isinstance(value, str):
-        cleaned = _SECRET_PARAM.sub(rf"\1={_REDACTED}", value)
-        cleaned = _DSN_PASSWORD.sub(rf"\1{_REDACTED}\3", cleaned)
-        for secret in secrets:
-            cleaned = cleaned.replace(secret, _REDACTED)
-        return cleaned
-    if isinstance(value, dict):
-        return {key: _scrub(item, secrets) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_scrub(item, secrets) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_scrub(item, secrets) for item in value)
-    return value
-
-
 def scrub_secrets(event: Event, hint: Hint) -> Event | None:
-    """Remove every credential from a Sentry event before it leaves the process.
-
-    Never raises: an exception inside before_send makes Sentry drop the event silently, so the
-    failure that mattered disappears and nobody finds out.
-    """
+    """Remove every credential from a Sentry event before it leaves the process."""
     try:
-        cleaned: Event = _scrub(event, _secret_values())
+        cleaned: Event = scrub(event, _secret_values())
+
     except Exception:  # noqa: BLE001 -- see the docstring: dropping the event is worse
         # Something still reaches Sentry, so the failure is visible instead of silent, and it
         # carries nothing from the event that could not be cleaned.
         return Event(message="event dropped: scrubbing failed")
+
     return cleaned
 
 

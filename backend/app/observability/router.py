@@ -11,9 +11,5 @@ router = APIRouter()
 
 @router.get("/metrics", include_in_schema=False)
 async def metrics_endpoint() -> Response:
-    """Expose the registry in Prometheus text format.
-
-    A `Response` already built, which FastAPI hands back untouched: what Prometheus reads is a
-    text format of its own, and there is no model to serialise.
-    """
+    """Expose the registry in Prometheus text format."""
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)

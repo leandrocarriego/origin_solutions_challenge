@@ -29,8 +29,3 @@ def configure_logging(stream: TextIO | Any | None = None) -> None:
 def bind_request_id(request_id: str) -> None:
     """Attach an id to everything logged from here on in this context."""
     structlog.contextvars.bind_contextvars(request_id=request_id)
-
-
-def get_logger(name: str | None = None) -> Any:
-    """The structured logger, which is what anything logs through instead of print."""
-    return structlog.get_logger(name)
