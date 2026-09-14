@@ -67,13 +67,11 @@ backend/app/
     ├── auth/             login, emisión del token          → tabla users
     ├── stocks/           catálogo, ingesta, autocomplete   → tabla stocks
     ├── favorites/        CRUD de favoritas                 → tabla user_stocks
-    └── quotes/           ← EL NÚCLEO: huecos, TTL, status  → tabla quotes
+    └── quotes/           EL NÚCLEO: vigencia, compuerta, status  → tabla quotes
 ```
 
-Tres de los cuatro módulos ya responden HTTP: `auth` (`/api/auth`), `stocks` (`/api/stocks`) y
-`favorites` (`/api/favorites`). `quotes` hoy es sólo su tabla —su `__all__` está vacío y `main.py`
-no monta ningún router suyo—: la línea de arriba describe lo que va a ser cuando `003-quote-chart`
-lo llene, no lo que hay.
+Los cuatro módulos responden HTTP: `auth` (`/api/auth`), `stocks` (`/api/stocks`), `favorites`
+(`/api/favorites`) y, desde `003-quote-chart`, `quotes` (`/api/quotes`).
 
 Cuatro módulos porque hay cuatro capacidades con vocabulario propio.
 
@@ -96,10 +94,10 @@ modules/<modulo>/
 └── models.py        → models/         SQLAlchemy
 ```
 
-Hoy `auth`, `stocks` y `favorites` tienen los cinco archivos; `quotes` tiene sólo `models.py`,
-porque todavía es nada más que su tabla. Ninguno creció a carpeta: los cinco siguen siendo archivos.
+Los cuatro módulos tienen hoy los cinco archivos. Ninguno creció a carpeta: los cinco siguen
+siendo archivos.
 
-**`app/providers/` es infraestructura, y es a propósito.** El proveedor no es una capacidad del negocio: es la salida al mundo, y lo consume hoy `stocks` para la ingesta del catálogo; `quotes` lo va a consumir para las series.
+**`app/providers/` es infraestructura, y es a propósito.** El proveedor no es una capacidad del negocio: es la salida al mundo, y lo consumen `stocks` para la ingesta del catálogo y `quotes` para las series.
 
 ### La frontera, que es una sola regla con dos cláusulas
 
@@ -182,10 +180,10 @@ Las migraciones de Alembic son del proyecto, no de cada módulo: viven en `backe
 
 ## Las lecturas cruzadas
 
-Hoy hay **una sola**, y esa escasez es el dato: es el único lugar del sistema donde un módulo
+Hoy hay **dos**, y esa escasez es el dato: son los únicos lugares del sistema donde un módulo
 necesita algo de otro, y por eso es donde se ve si la frontera es real.
 
-Es la grilla de *Mis Acciones* (`002-favorite-stocks`):
+La primera es la grilla de *Mis Acciones* (`002-favorite-stocks`):
 
 ```
 favorites/service.py
@@ -196,6 +194,23 @@ stocks/__init__.py  →  __all__ = ["StockInfo", "get_stocks", "keep_the_catalog
     from app.modules.stocks import get_stocks
     get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[StockInfo]
 ```
+
+La segunda es el gráfico del Detalle (`003-quote-chart`):
+
+```
+quotes/service.py
+    │  el gráfico se sirve sólo para las acciones de quien pregunta (RF-35, Artículo III)
+    │  quotes es suyo; user_stocks no
+    ▼
+favorites/__init__.py  →  __all__ = ["is_favorite", "router"]
+    from app.modules.favorites import is_favorite
+    is_favorite(session: AsyncSession, user_id: int, symbol: str) -> bool
+```
+
+Un booleano, una consulta y un símbolo por request: no hay lista que recorrer, así que no hay N+1
+posible. El `user_id` sale de `get_current_user` y de ningún otro lado, y va como **primer
+argumento** y en el `WHERE`: no hay forma de hacer esta pregunta sobre la lista de otro. Que
+`quotes` mirara `user_stocks` por su cuenta es exactamente la frontera que el Artículo IV prohíbe.
 
 **La sesión va adelante, y no es un detalle de firma.** La transacción es de la request y la abre
 el router; una función que abriera la suya dejaría el alta de una favorita fuera de la transacción
@@ -212,33 +227,32 @@ llegan en mayúsculas**, porque normalizar ya tiene un dueño (`add_favorite`) y
 normalizan son dos lugares que un día lo hacen distinto. El porqué de cada una, en
 `docs/specs/002-favorite-stocks/plan.md`.
 
-De los otros tres `__all__`, dos son sólo el router y el tercero está vacío:
+De los otros tres `__all__`, dos son sólo el router y el tercero suma una pregunta:
 
 ```
 auth/__init__.py       →  __all__ = ["router"]
-favorites/__init__.py  →  __all__ = ["router"]
-quotes/__init__.py     →  __all__ = []            ← todavía es sólo su tabla
+favorites/__init__.py  →  __all__ = ["is_favorite", "router"]
+quotes/__init__.py     →  __all__ = ["router"]
 ```
 
-`favorites` terminó `002` exportando su router y nada más: la grilla, las decisiones que hay detrás
-y el acceso a `user_stocks` son interiores, porque ningún otro módulo tiene por qué leer la lista de
-nadie. `keep_the_catalogue_fresh` está en el `__all__` de `stocks` por la misma puerta y no por una
+`favorites` exporta su router y **una** pregunta, `is_favorite(session, user_id, symbol) -> bool`,
+que es la que `quotes` necesita para servir el gráfico sólo de las acciones de quien pregunta
+(`RF-35`, Artículo III). La grilla, las decisiones que hay detrás y el acceso a `user_stocks`
+siguen siendo interiores: lo que sale es un booleano, así que ningún otro módulo lee la fila de la
+lista de nadie. `keep_the_catalogue_fresh` está en el `__all__` de `stocks` por la misma puerta y no por una
 excepción: quien lo importa es `main.py`, que arranca la tarea de fondo en el `lifespan`, y el
 composition root entra por el paquete como todos.
 
-> **Anticipación, no estado actual.** El gráfico de `003-quote-chart` va a necesitar que `quotes`
-> pregunte si un símbolo es de quien lo pide, y la forma prevista es un `is_favorite(session,
-> user_id, symbol) -> bool` en el `__all__` de `favorites` —un booleano, una consulta, un símbolo
-> por request, sin lista que recorrer y por lo tanto sin N+1 posible, con el `user_id` saliendo del
-> token y de ningún otro lado (Artículo III)—. **Ese nombre no existe en el código todavía** y esta
-> página no lo cuenta como contrato vigente: lo decide el `plan.md` de `003`.
+`quotes` exporta su router y nada más: la serie, la regla de vigencia, la compuerta y los cuatro
+estados son interiores —ningún otro módulo necesita una serie de precios, y un nombre exportado
+para nadie es superficie que hay que sostener—.
 
-La lectura cruzada que sí existe no es una excepción a nada: se entra por el paquete, se pide lo que
+Las dos lecturas cruzadas no son una excepción a nada: se entra por el paquete, se pide lo que
 el `__all__` declara, y el que pregunta no toca la tabla del otro.
 
 Lo que **no** está en ningún `__all__` es igual de informativo: `search_stocks` —la consume sólo el
-router de su propio módulo—, `list_favorites`, `add_favorite`, `remove_favorite` y los schemas de
-los dos `io.py`. Son internos: visibles para sus hermanos, invisibles para el resto del sistema.
+router de su propio módulo—, `list_favorites`, `add_favorite`, `remove_favorite`, `get_series`,
+`QuoteSeries`, `MARKET_TIMEZONE`, `MAX_RANGE_DAYS`, la compuerta y los schemas de los `io.py`. Son internos: visibles para sus hermanos, invisibles para el resto del sistema.
 
 Y `auth` es además el módulo del que **nadie lee**: no exporta nada más que su router, y ningún
 módulo lo importa. Lo que los demás necesitan de la sesión —`get_current_user` y `CurrentUser`— no
@@ -248,8 +262,7 @@ poder autorizar, y la dependencia apuntaría justo al revés de lo que dice esta
 
 ## Por dónde pasa una cotización
 
-El camino que más importa entender, porque es donde vive el Artículo II. **Es el diseño de
-`003-quote-chart`, no código que exista hoy**: de `quotes` está sólo la tabla.
+El camino que más importa entender, porque es donde vive el Artículo II.
 
 ```
 navegador
@@ -260,11 +273,13 @@ quotes/router.py ──► quotes/service.py
                           │ 1. ¿qué tramos del rango ya están en `quotes`?
                           ├──► quotes/repository.py ──► PostgreSQL
                           │
-                          │ 2. ¿el hueco está vencido para su intervalo? (TTL = el intervalo)
-                          │      no ──► responde de la base                 ← el caso normal
-                          │      sí  ──► 3. app/providers/twelvedata.py ──► TwelveData
-                          │              4. persiste lo traído
-                          │              5. responde
+                          │ 2. ¿lo guardado sigue vigente para su intervalo? (TTL = el intervalo;
+                          │    un tramo cerrado en el pasado no vence nunca)
+                          │      sí ──► responde de la base                 ← el caso normal
+                          │      no ──► 3. la compuerta por (símbolo, intervalo): candado, y
+                          │                 adentro se vuelve a mirar la base
+                          │              4. app/providers/twelvedata.py ──► TwelveData
+                          │              5. persiste lo traído y responde de la base
                           ▼
                  { status: ok | stale | market_closed | no_data, series: [...] }
 ```
@@ -282,12 +297,16 @@ frontend/src/
 ├── pages/                Login · MyActions · ActionDetail  (una por wireframe)
 │                         + HealthPage, que no es del enunciado (ver abajo)
 ├── components/           Header · Autocomplete · StockGrid · ConfirmDialog
+│                         · QuoteChart (Highcharts) · Notice (el aviso de estado)
+├── quotes/               market.ts: las dos zonas horarias y los formateadores que
+│                         comparten la pantalla, el gráfico y los campos de fecha
 ├── api/                  cliente HTTP + tipos generados del OpenAPI
 │   ├── client.ts         la única puerta: `/api`, el token y el interceptor de 401
 │   ├── schema.d.ts       generado con `make types`; no se escribe a mano
 │   ├── auth.ts           login
 │   ├── stocks.ts         las sugerencias del autocomplete
 │   ├── favorites.ts      listar, agregar y quitar favoritas
+│   ├── quotes.ts         la serie que dibuja el gráfico
 │   └── health.ts         el estado del proceso
 ├── auth/                 contexto de sesión, su almacenamiento, interceptor de 401
 └── styles/tokens.css     Tailwind: el @theme con la paleta, y nada más
@@ -295,9 +314,15 @@ frontend/src/
 
 Tres páginas, tres wireframes: `docs/design/wireframes/` es la especificación de layout y `COPY.md` la de los textos. `HealthPage` es la excepción y no rompe la regla, porque no es una pantalla del producto: cuelga de su propia dirección y contesta "¿esto está vivo?".
 
-**`ActionDetail` es hoy una cáscara**: dibuja el `Header` con el símbolo de la URL y nada más. El
-gráfico, los intervalos y la cotización son `003-quote-chart`, y con ellos van a llegar los dos
-componentes que faltan de la lista de arriba —`QuoteChart` y `Notice`—, que todavía no existen.
+**`ActionDetail` es el wireframe 03 completo** desde `003-quote-chart`: los dos modos, el intervalo,
+`Graficar`, el gráfico y los avisos de estado.
+
+**`src/quotes/` es una carpeta y no un componente**, con el mismo lugar que `src/auth/`: lo que no es
+una pantalla, ni un componente, ni una llamada a la API, sino el poco dominio que las tres comparten
+—las dos zonas horarias, el rango por defecto y los formateadores—. Meterlo adentro de `QuoteChart`
+obligaría a la pantalla a importar del componente para llenar dos campos de fecha, que es la
+dependencia al revés; y afuera del componente es además lo único que hace testeable el huso, porque
+Highcharts dibuja adentro de un SVG que jsdom no mide.
 
 **Un endpoint nuevo no crea un archivo nuevo en cada pantalla.** Cada recurso de nuestra API tiene
 un módulo en `api/` y las pantallas lo llaman: ninguna hace `fetch` por su cuenta, y ninguna nombra

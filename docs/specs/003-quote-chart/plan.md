@@ -27,7 +27,7 @@
 | VI — Lo que no está tipado y testeado no está terminado | ✅ | Todo tipado (`PY-04`, `TS-01`). Los tests los escribe el `Tester` **antes** y se firman por historia (`/approve-tests`). La suite sigue corriendo sin red y sin API key: el proveedor se ejercita contra JSON fijado en `tests/fixtures/twelvedata/`, y los caminos de caché, `stale`, `market_closed` y `no_data` se prueban con dobles determinísticos (`TEST-03`). |
 | VII — El enunciado es el contrato, y sus ambigüedades se declaran | ✅ | Los textos son los literales de `COPY.md`, verbatim, faltas incluidas (`opcion`, `segun`), y la tercera aclaración del wireframe no se muestra. `A2` (tiempo real = polling según el intervalo), `A5` (última rueda con aviso), `A6` (rango por defecto y validación) y `A7` (cabecera) están resueltos en el brief y este plan los respeta. Los cinco textos que el enunciado no da ya están en `COPY.md` con su porqué. Nada que el enunciado no pida. **La enmienda del 2026-09-14 agrega dos textos más** —`Hora del mercado:` y `Hora de Argentina:`, las etiquetas del tooltip de `RF-38`, que el enunciado no escribe y sin las cuales dos horas seguidas no dicen cuál es cuál—: las eligió el cliente ese mismo día, sobre dos alternativas descartadas, y **ya están registradas en `COPY.md`** con su porqué. `UI-02` queda cerrado. |
 | VIII — Un idioma para cada audiencia | ✅ | Código, commits y docstrings en inglés; este artefacto en español; los strings de pantalla en español y verbatim de `COPY.md`. Los `status` y los `code` de error son identificadores técnicos en inglés y **nadie los muestra**: la pantalla decide qué se lee. |
-| IX — Las dependencias entran por la puerta | ✅ | **Dos dependencias nuevas, las dos justificadas abajo** (*Alternativas descartadas*): `highcharts` en el frontend, que es la que el enunciado nombra (`REQ-17`) y el brief fija en su *Stack*, y `tzdata` en el backend, para que `zoneinfo` tenga base de datos horaria adentro de una imagen `slim`. Entran con `npm install` y `uv add`, con su lockfile en el mismo commit. Ninguna otra. |
+| IX — Las dependencias entran por la puerta | ✅ | **Una dependencia nueva, justificada abajo** (*Alternativas descartadas*): `highcharts` en el frontend, que es la que el enunciado nombra (`REQ-17`) y el brief fija en su *Stack*. Entra con `npm install`, con su lockfile en el mismo commit. Ninguna otra. **El plan preveía una segunda, `tzdata` en el backend, y no hizo falta**: la imagen `python:3.13-slim` ya trae la base de datos horaria, así que `ZoneInfo("America/New_York")` resuelve sin ella —verificado el 2026-09-14 durante `/review-feature`, corriendo `ZoneInfo` adentro de la imagen—. Agregarla habría sido una dependencia que no compra nada. |
 | X — Las decisiones de arquitectura las toma un humano | ✅ | Este plan **no agrega ningún ADR** ni toca los que hay, y **no cita ninguno en `Propuesta`**: se apoya en `ADR-001`, `ADR-003` y `ADR-006`, y en `ADR-005`, que el humano firmó el 2026-09-13 y es el que define los cuatro `status`. `ADR-007` y `ADR-009` no se citan. **No agrega ninguna tabla**: las cuatro de `ADR-001` alcanzan, y una quinta la firmaría un humano. Las decisiones de alcance local —la compuerta, el TTL, la forma del endpoint, la zona horaria como constante— viven acá, que es su lugar. |
 
 **Excepciones solicitadas:** ninguna. **Enmienda del 2026-09-14** *(decidida por el humano, a pedido del `Tester`)*: se fijan las firmas de `src/quotes/market.ts`, que este plan nombraba sin declarar, para que `RF-15`, `RF-36` y `RF-38` tengan un test unitario posible. No cambia el alcance, no toca la spec y no agrega ningún ADR (Artículo X). El único artículo que roza es el VII, y queda anotado arriba.
@@ -327,6 +327,18 @@ crédito** —el proveedor cobra por request, no por vela— y trae de una vez l
 `ROADMAP` marca como riesgo de la demo. Los topes de `MAX_RANGE_DAYS` están elegidos para que
 ninguna consulta pase las 5.000 velas del `outputsize` máximo: 7 días a `1min` son ~2.730.
 
+> **La compuerta recuerda el intento cuando el proveedor contesta, y no cuando falla** *(decidido
+> por el humano, 2026-09-14, durante `/implement`)*. Una respuesta vacía es información —no hay
+> serie, y volver a preguntar dentro del TTL compra lo mismo con un crédito—; una falla no enseñó
+> nada sobre el dato, y el camino `stale` ya contesta desde la base. La consecuencia se asume: un
+> proveedor caído se reintenta en cada request. No gasta cuota real —un 429 no consume crédito— y
+> es además lo único compatible con los tests firmados de H4, que necesitan que la falla llegue al
+> proveedor sin depender de qué test corrió antes.
+>
+> **Y la compuerta se rehace cuando cambia el event loop.** Un `asyncio.Lock` pertenece al loop que
+> lo espera, así que una compuerta que sobrevive a su loop no es una compuerta: es un crash
+> latente. La aplicación tiene un solo loop en toda su vida y nunca lo ve.
+
 **Lo que se registra en cada llamada** (`ERR-07`): símbolo, intervalo, ventana, resultado y si fue
 cache hit. Y las métricas que ya existen en `app/observability.py` y que hasta hoy nadie
 incrementaba: `QUOTE_CACHE_HITS`, `QUOTE_CACHE_MISSES`, `PROVIDER_REQUESTS` (por símbolo,
@@ -359,7 +371,8 @@ src/
 ├── quotes/
 │   └── market.ts              MARKET_TIME_ZONE · LOCAL_TIME_ZONE · INTERVAL_MS ·
 │                              formatMarket() · formatLocal() · marketFieldValue() ·
-│                              defaultHistoricRange() · tooltipTimeLines()
+│                              marketClockValue() · defaultHistoricRange() ·
+│                              tooltipTimeLines()
 ├── components/
 │   ├── Header.tsx             EXISTE desde 001 — suma dos props opcionales, no se reescribe
 │   ├── QuoteChart.tsx         Highcharts: título, ejes, serie única, tooltip de dos horas
@@ -458,6 +471,17 @@ export function formatMarket(instant: Date): string;
 export function formatLocal(instant: Date): string;
 
 /**
+ * La hora sola del mercado, `HH:MM`, que es como el wireframe 03 rotula el eje horizontal
+ * (`13:10`, `13:11`, …) y la única lectura que ahí entra sin que las etiquetas se pisen.
+ *
+ * Es la misma lectura de reloj que `formatMarket`, sin la fecha: una rueda entra en un día, así
+ * que repetir `11/09/2026` en cada tick no agrega información y sí tapa el eje. La fecha del
+ * gráfico la dice la cabecera —`Horarios en hora del mercado.`— y el tooltip, que sí la lleva
+ * entera (`RF-38`).
+ */
+export function marketClockValue(instant: Date): string;
+
+/**
  * El mismo instante, en el formato que come un `<input type="datetime-local">` y que viaja tal cual
  * en `from`/`to`: `YYYY-MM-DDTHH:mm`, en hora del mercado y **sin zona** (`plan.md` → *Contratos*:
  * el backend es el que la localiza).
@@ -491,6 +515,7 @@ const instant = new Date('2026-09-11T19:55:00Z');
 formatMarket(instant);        // '11/09/2026 15:55'
 formatLocal(instant);         // '11/09/2026 16:55'
 marketFieldValue(instant);    // '2026-09-11T15:55'
+marketClockValue(instant);    // '15:55'
 
 defaultHistoricRange(instant);
 // { from: '2026-09-10T15:55', to: '2026-09-11T15:55' }
@@ -504,6 +529,7 @@ const winter = new Date('2026-01-15T19:55:00Z');
 
 formatMarket(winter);         // '15/01/2026 14:55'
 formatLocal(winter);          // '15/01/2026 16:55'
+marketClockValue(winter);     // '14:55'
 ```
 
 **El formateo es `Intl.DateTimeFormat` y se arma con `formatToParts`, no con `format`.** La zona la
@@ -575,6 +601,13 @@ de `Tiempo Real` es la rueda entera, los puntos que ya estaban siguen ahí (`RF-
 - Se limpia en el `unmount`, y cada pedido cancela al anterior con `AbortController`: al cambiar de
   intervalo, la respuesta vieja no puede pisar a la nueva.
 
+> **El 422 llega a la pantalla con su cuerpo, y para eso `ApiError` lo lleva** *(decidido por el
+> humano, 2026-09-14, durante `/implement`)*. `api/client.ts` —que entregó `001`— suma un
+> `detail: unknown` que se completa cuando la respuesta trae JSON. Sin eso, `{intervalo}` y `{N}`
+> de `RF-45` no se pueden rellenar desde el cuerpo: el cliente ya consumió la respuesta, así que
+> leerla de nuevo desde `api/quotes.ts` obligaría a clonar o a repetir el pedido. Es aditivo, no
+> cambia ningún call site de `001` ni de `002`, y `client.test.ts` sigue verde.
+
 **La validación está partida, y la partición tiene una regla.** Lo que es **presencia** lo resuelve
 la pantalla, porque sin eso no hay ni request que armar: sin intervalo elegido (`RF-39`) y con un
 campo de fecha vacío (`RF-40`). Lo que es **regla de negocio** —`desde < hasta` y el tope de días
@@ -586,12 +619,32 @@ En los cuatro casos no se toca `plotted`, así que el gráfico anterior queda co
 no hay ninguna llamada al proveedor (`RF-47`): un 422 no llega ni a mirar la base.
 
 **El gráfico** (`RF-14`, `RF-15`, `RF-38`): título `{símbolo}`, eje vertical `Cotización`, eje
-horizontal `Intervalo`, una sola serie de línea, eje horizontal de tipo `datetime` con
-`time.timezone = MARKET_TIME_ZONE` para que las etiquetas sean las del mercado (`RF-36`) y cada
+horizontal `Intervalo`, una sola serie de línea, eje horizontal de tipo `datetime` y cada
 punto en `[Date.parse(ts), Number(price)]`, que es dónde cae cada cotización (`RF-15`). El tooltip
 muestra el precio y las dos líneas que devuelve `tooltipTimeLines()` (`RF-38`), en mono tabular
 (`UI-04`). Sin zoom, sin selección de rango, sin exportar: la spec los deja fuera y Highcharts los
 trae encendidos, así que hay que **apagarlos explícitamente**.
+
+> **La hora del mercado en el eje la escribe `market.ts`, no Highcharts** *(decidido por el humano,
+> 2026-09-14, durante `/implement`)*. Este plan fijaba `time.timezone = MARKET_TIME_ZONE`, y no se
+> puede sostener: con esa opción **cada redraw** levanta `RangeError: Invalid time value` bajo
+> jsdom —los ticks salen no finitos porque no hay layout, y la aritmética de husos de Highcharts no
+> los tolera—, y el refresco de `RF-19` **es** un redraw. Con el plan literal, los tests firmados de
+> H2 no pueden pasar.
+>
+> En su lugar el eje trabaja en UTC y cada etiqueta la escribe `formatMarket()`: `RF-36` se cumple
+> en lo que la persona lee, que es donde el requisito se puede verificar, y el cálculo queda en el
+> módulo puro que el `Tester` ya cubre. Lo que se pierde es dónde caen los ticks —bordes UTC en vez
+> de bordes de hora de mercado—, que es cosmético y no cambia ningún valor.
+>
+> El `formatter` del eje devuelve `''` para un tick que no es un instante finito: un eje se mide
+> antes de tener qué medir, y un gráfico que explota mientras se mide no dibuja nada.
+>
+> **Y lo que el eje escribe es la hora sola** *(enmienda del 2026-09-14, después de que `/converge`
+> lo levantara como hallazgo H-01)*. La primera versión rotulaba cada tick con `formatMarket()` —la
+> fecha completa— y el wireframe 03 escribe `13:10  13:11  13:12`. Por eso `market.ts` suma
+> `marketClockValue()`: la misma lectura de reloj, sin la fecha, en el módulo puro donde se puede
+> testear y no en el componente.
 
 **Los textos**, todos verbatim de `COPY.md` (`UI-02`): `Tiempo Real`,
 `( utiliza la fecha actual, al graficar esta opcion, se debe actualizar el gráfico en forma
@@ -685,7 +738,7 @@ media rueda o de un pre-market.
 | **`002` tiene que estar entregada**: `UnknownSymbolError`, `GET /api/favorites`, el `Bearer` de `client.ts` y la ruta `/stocks/:symbol` | Alto: sin eso esta pantalla no tiene ni cabecera ni autorización | Es la dependencia que el `ROADMAP` ya declara. No se adelanta nada de `002` acá |
 | **La cabecera es de `001` y esta feature le agrega props**: `components/Header.tsx` existe desde su tarea 11, y su tarea 14 —`Cerrar sesión`— es la única que `001` todavía puede deber | Bajo: la mitad derecha de la barra está explícitamente fuera de alcance de esta spec, y las props nuevas son **opcionales** | El Detalle **reusa** el `Header` y le pasa `back` y `note`; no dibuja una barra propia, que es lo que duplicaría `Usuario: {nombre completo}`. `Mis Acciones` no cambia y `Header.test.tsx` —firmado en `001`— tiene que seguir verde: si esta feature lo pone en rojo, la que está mal es esta feature |
 | **Highcharts trae encendido lo que la spec deja fuera**: zoom, selección de rango, menú de exportar, el crédito del pie | Medio, y es `UI-01` Blocker: la pantalla haría cosas que nadie pidió | Se apagan explícitamente en las opciones del gráfico, y el test de estructura de la pantalla lo fija |
-| **`zoneinfo` sin base de datos horaria** adentro de la imagen `slim` | Alto si pasa: `ZoneInfo("America/New_York")` levanta `ZoneInfoNotFoundError` al primer request | Entra `tzdata` como dependencia del backend, que es la base de datos horaria empaquetada y lo que `zoneinfo` usa cuando el sistema no la trae |
+| **`zoneinfo` sin base de datos horaria** adentro de la imagen `slim` | Alto si pasara: `ZoneInfo("America/New_York")` levanta `ZoneInfoNotFoundError` al primer request, y la constante se evalúa al importar el módulo, así que sería un arranque roto y no un request roto | **No se materializó, y por eso no entró `tzdata`.** `python:3.13-slim` trae la base horaria del sistema: se verificó corriendo `ZoneInfo("America/New_York")` adentro de la imagen (2026-09-14). Si alguna vez se cambia de imagen base, éste es el primer lugar para mirar, y la corrección es `uv add tzdata` |
 | **La zona del mercado queda escrita de los dos lados** (`quotes/service.py` y `quotes/market.ts`) | Bajo hoy, medio si entra un mercado no estadounidense | Cada lado la usa para algo distinto —el backend para decidir qué día es hoy, el frontend para rotular— y las dos apuntan al mismo hecho de `A4`. La corrección, si el catálogo crece, es la columna en `stocks` |
 | **El gráfico se remonta en cada refresco** si la `key` se arma mal | Medio: rompe `RF-19` de la peor manera, porque "anda" y parpadea | La `key` sólo cambia al graficar; hay un test que refresca y verifica que el nodo del gráfico sea el mismo |
 | Alguien "corrige" un texto de `COPY.md` al escribir la pantalla | Medio, `UI-02` es Blocker | `frontend/tests/copy.test.ts` suma las filas de esta pantalla y rompe el build |
@@ -718,6 +771,13 @@ Adentro de `quotes` los archivos se importan **por ruta completa**
 (`from app.modules.quotes.repository import candles_in`), nunca por `app.modules.quotes`. Hacia
 `favorites`, al revés: `from app.modules.favorites import is_favorite`, el paquete, nunca
 `app.modules.favorites.service`.
+
+**`app/providers/registry.py` sí se tocó, y con una razón** *(decidido por el humano, 2026-09-14,
+durante `/implement`)*. `get_market_data_provider(name)` entra como dependencia de FastAPI, que
+leía `name` del query string: `GET /api/quotes/TSLA?interval=1min&name=fake` habría servido precios
+inventados y los habría guardado en la caché. El parámetro quedó anotado con un `Depends` que lo
+resuelve siempre en `None`, así que sigue siendo argumento del wiring y de sus tests y nunca un
+parámetro del request. Ninguna llamada existente cambia.
 
 Lo que **no** se toca: `quotes/models.py` (no hay migración en esta feature), `providers/base.py`
 (el contrato de `ADR-006` alcanza), `providers/fake.py`, `app/security.py`, `app/settings.py`,
@@ -815,5 +875,5 @@ Ningún test sale a la red ni necesita API key (`TEST-03`).
 6. **`PY-10`**: `MARKET_TIMEZONE` y `MAX_RANGE_DAYS` en mayúsculas; guión bajo para lo privado del
    archivo (`_GATES`); y que lo único agregado a un `__all__` sea `is_favorite` en `favorites` y
    `router` en `quotes`.
-7. **`DEP-01` a `DEP-04`**: `highcharts` y `tzdata` entraron con su gestor y con el lockfile en el
+7. **`DEP-01` a `DEP-04`**: `highcharts` entró con su gestor y con el lockfile en el
    mismo commit, y no entró ninguna otra.

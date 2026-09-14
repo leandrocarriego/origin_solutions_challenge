@@ -82,6 +82,30 @@ arriba del gráfico (`UI-05`):
 | `no_data` | `No hay cotizaciones para {símbolo} en el rango e intervalo seleccionados.` |
 | `ok` | *(sin aviso)* |
 
+**El aviso de `stale` se muestra también cuando falla el refresco automático**, y no sólo cuando el
+backend manda ese estado. *(Decidido por el cliente el 2026-09-14, al cerrar el `/review-feature`.)*
+Hasta entonces el refresco de `Tiempo Real` se tragaba su error en silencio: un gráfico que había
+dejado de actualizarse media hora antes se veía idéntico a uno al día, que es exactamente la
+lectura equivocada que estos avisos existen para evitar.
+
+Tiene **precedencia sobre el estado de la serie**, por la misma razón que la tiene en el backend:
+después de una falla lo que hay en pantalla es lo último que se supo, y nombrar cualquier otro
+estado describiría un momento que ya pasó. El gráfico se queda —sacárselo a quien lo está leyendo
+castigaría a la persona por una red que no maneja— y el aviso dice qué es.
+
+**La salvedad, para que esté escrita:** el texto dice `no se pudo consultar el proveedor.` y en este
+caso quien no contestó fue **nuestra** API. Se eligió igual sobre redactar un quinto aviso, porque
+el hecho que la persona necesita —lo que está viendo no es lo último— es el mismo, y una segunda
+redacción para el mismo hecho es una que un día se va a separar de ésta. Si alguna vez se quiere
+distinguir las dos fallas, es un texto nuevo y lo decide el cliente.
+
+**Este aviso y el de `No se pudo conectar` pueden aparecer los dos a la vez, y está bien así.**
+*(Decidido por el cliente el 2026-09-14.)* Pasa cuando un refresco falla y después la persona
+aprieta `Graficar` y esa consulta también falla. No se le dio precedencia a ninguno porque **no
+dicen lo mismo**: uno dice que la consulta que se acaba de pedir no salió, el otro que lo que está
+dibujado quedó viejo. Tapar el segundo con el primero dejaría a alguien reintentando contra un
+gráfico viejo sin saber que lo es, que es justo lo que este aviso vino a arreglar.
+
 ## Lista de favoritas — no están en el enunciado
 
 Los cinco textos que `002-favorite-stocks` obliga a inventar. No salen del enunciado ni de sus
@@ -129,6 +153,19 @@ la spec y el `Horarios en hora del mercado.` que la cabecera ya muestra.
 El aviso de **campo vacío** del Detalle es el mismo de la pantalla de ingreso —`Completá este
 campo.`, en *Sesión y validación*—: un campo en blanco es el mismo olvido en las dos pantallas, y
 dos textos distintos para lo mismo sólo agregan superficie que mantener.
+
+Por la misma razón, el aviso de **no se pudo conectar** del Detalle también es el de la pantalla de
+ingreso —`No pudimos conectarnos con el servidor. Intentá de nuevo en unos minutos.`, en *Sesión y
+validación*—. Aparece en dos lugares: cuando no se pudo traer la lista de favoritas y por lo tanto
+no se sabe de quién es la acción, y cuando `Graficar` no consiguió la serie por algo que no es
+ninguna de las dos fallas de rango. En los dos casos el hecho es el mismo que en el login —no se
+logró comunicar con el servidor—, y el gráfico que ya estaba en pantalla se queda como está.
+
+**El reuso lo confirmó el cliente el 2026-09-14**, al cerrar el `/review-feature` de
+`003-quote-chart`. La alternativa descartada era un texto propio del Detalle: se descartó porque
+el hecho que comunica es idéntico al del login y dos redacciones para el mismo hecho se separan
+sola el día que alguien toca una. No es un texto nuevo, así que no abre fila propia en ninguna
+tabla: es esta fila de *Sesión y validación* dicha en dos pantallas más.
 
 Las fechas y horas de la pantalla están en la hora del mercado donde cotiza la acción; al apoyar
 el puntero sobre un punto del gráfico se muestran las dos, la del mercado y la de Argentina.
