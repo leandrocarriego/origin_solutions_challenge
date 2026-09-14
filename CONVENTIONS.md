@@ -770,6 +770,18 @@ Tipos permitidos: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `b
 
 Lo verifica el hook `conventional-pre-commit` en `commit-msg`: un mensaje fuera de convención no llega a commitearse.
 
+**El título del Pull Request también es un mensaje de commit**: el del merge. Va en **inglés** y con el mismo formato Conventional, y lo natural es que sea el asunto del commit que el PR publica.
+
+Porque GitHub copia el título del PR al cuerpo del merge commit, así que un título en castellano mete castellano en la historia de `main` — donde ya entró `feat(auth): autenticación y sesión (001-authentication)`, que se queda como está: la historia de `main` no se reescribe.
+
+El **cuerpo** del PR sigue en español, porque no es un mensaje de commit: es documentación, y la lee quien evalúa el proyecto (Artículo VIII).
+
+Ningún hook ve el título de un PR — `commit-msg` corre en la máquina que commitea, y el merge lo arma GitHub. Lo sostiene quien abre el PR, y se verifica antes de mergear:
+
+```
+gh pr view <n> --json title --jq .title
+```
+
 ### `GIT-04` - Minor: Higiene de archivos.
 
 Sin whitespace al final, con newline al final del archivo, sin conflictos de merge sin resolver y sin archivos de más de 1 MB. Todo lo verifica pre-commit.
@@ -809,7 +821,7 @@ Si una convención está marcada Blocker y no aparece en esta tabla, la tabla es
 | 17 | Endpoint nuevo cuyo `plan.md` no recorrió la OWASP API Top 10 | `SEC-07` |
 | 18 | `except` a ciegas que no loguea, no re-lanza y no decide, o un `noqa: BLE001` sin razón escrita | `ERR-01` |
 | 19 | Tests que salen a la red en vez de usar JSON fijado | `TEST-03` |
-| 20 | Commit directo a `main`, o mensaje fuera de Conventional Commits | `GIT-01`, `GIT-03` |
+| 20 | Commit directo a `main`, o mensaje fuera de Conventional Commits — el título de un PR incluido, porque es el del merge commit | `GIT-01`, `GIT-03` |
 | 21 | Pantalla que se aparta del wireframe, o texto cambiado respecto del enunciado | `UI-01`, `UI-02` |
 | 22 | CSS propio en vez de utilidades: una hoja por componente, `style={{ }}` inline, o una clase armada por interpolación que Tailwind nunca genera | `UI-03`, `UI-07` |
 
