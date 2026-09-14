@@ -30,6 +30,7 @@ from app.settings import get_settings
 
 __all__ = [
     "CATALOGUE_LAST_SUCCESS",
+    "LOGIN_ATTEMPTS",
     "PROVIDER_QUOTA_REMAINING",
     "PROVIDER_REQUESTS",
     "QUOTE_CACHE_HITS",
@@ -75,6 +76,16 @@ PROVIDER_QUOTA_REMAINING = Gauge(
 CATALOGUE_LAST_SUCCESS = Gauge(
     "catalogue_last_success_timestamp_seconds",
     "When the catalogue was last reconciled against the provider, as a unix timestamp.",
+)
+
+# OWASP A09, and ERR-03 in numbers. Without it a brute-force attempt is indistinguishable from
+# silence: the request counter below sees ten 401s on a route and cannot say whether somebody is
+# guessing. The label is the outcome and nothing else -- no username, no address, and above all
+# no credential, because a metric label becomes a time series that is kept for weeks.
+LOGIN_ATTEMPTS = Counter(
+    "login_attempts_total",
+    "Login attempts, by outcome: succeeded, failed or rate_limited.",
+    ["outcome"],
 )
 
 HTTP_REQUESTS = Counter(

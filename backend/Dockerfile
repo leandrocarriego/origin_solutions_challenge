@@ -54,4 +54,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+# forwarded-allow-ips lists the private networks the proxy can live in, never "*". uvicorn walks
+# X-Forwarded-For from right to left and stops at the first address it does not trust; with "*"
+# it trusts everything and stops at the leftmost element, which is the one the client writes --
+# so any caller could pick its own address. Only the proxy's hop is trusted here.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "127.0.0.1,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"]

@@ -23,9 +23,8 @@ from typing import Any
 
 import pytest
 from fastapi import Depends, FastAPI
-from fastapi.routing import APIRoute
+from fastapi.routing import RouteContext, iter_route_contexts
 from httpx import ASGITransport, AsyncClient
-from starlette.routing import Route
 
 from app.main import app
 
@@ -53,6 +52,11 @@ PUBLIC_ROUTES: dict[str, str] = {
         "session to authenticate. It answers three fields and none of them come from "
         "configuration (Article I)."
     ),
+    "POST /api/auth/login": (
+        "It is the route the credential is obtained from, and requiring one in order to ask for "
+        "one does not close. What protects it is not a token: the same 401 for an unknown user "
+        "and for a wrong password (RF-06), and the attempt limit of RF-21 and RF-22."
+    ),
     "GET /metrics": (
         "Prometheus scrapes it and has no credentials to offer. It is never published through "
         "Traefik: it stays on the internal Docker network, because it names observed symbols "
@@ -71,12 +75,20 @@ IDENTITY_PARAMETERS = frozenset({"user_id", "userid", "owner_id", "account_id", 
 IGNORED_METHODS = frozenset({"HEAD", "OPTIONS"})
 
 
-def _routes(application: FastAPI) -> list[tuple[str, Route | APIRoute]]:
-    """Every mounted route as "METHOD /path", one entry per method that is a decision."""
-    mounted: list[tuple[str, Route | APIRoute]] = []
+def _routes(application: FastAPI) -> list[tuple[str, RouteContext]]:
+    """Every mounted route as "METHOD /path", one entry per method that is a decision.
 
-    for route in application.routes:
-        if not isinstance(route, Route | APIRoute):
+    It goes through `iter_route_contexts`, which is what FastAPI itself uses to build the OpenAPI
+    document, and not through `application.routes` directly. Since 0.120 a router mounted with
+    `include_router` is one opaque entry in that list, and the routes inside it -- with the
+    prefix applied -- only appear through this. Walking the list by hand looked like it worked:
+    it found the endpoints declared on `app` and silently skipped every module's, so the checks
+    below would have been vacuous for exactly the routes they exist to cover.
+    """
+    mounted: list[tuple[str, RouteContext]] = []
+
+    for route in iter_route_contexts(application.routes):
+        if route.path is None:
             continue
         for method in sorted((route.methods or set()) - IGNORED_METHODS):
             mounted.append((f"{method} {route.path}", route))
@@ -92,7 +104,7 @@ def _dependency_calls(dependant: Any) -> Iterator[Any]:
         yield from _dependency_calls(sub)
 
 
-def _declares_authorization(route: Route | APIRoute) -> bool:
+def _declares_authorization(route: RouteContext) -> bool:
     """Whether anything in the route's dependency tree comes from `app.security`.
 
     By module and not by name, because `require_roles("admin")` returns a closure whose name is
@@ -107,7 +119,7 @@ def _declares_authorization(route: Route | APIRoute) -> bool:
     )
 
 
-def _request_parameters(route: Route | APIRoute) -> set[str]:
+def _request_parameters(route: RouteContext) -> set[str]:
     """Every name the route accepts from the path, the query string, the body or a header."""
     dependant = getattr(route, "dependant", None)
     if dependant is None:
@@ -126,7 +138,7 @@ def _request_parameters(route: Route | APIRoute) -> set[str]:
 
 def _protected_routes(
     application: FastAPI, public: dict[str, str]
-) -> list[tuple[str, Route | APIRoute]]:
+) -> list[tuple[str, RouteContext]]:
     """The routes that are supposed to ask who is calling."""
     return [(name, route) for name, route in _routes(application) if name not in public]
 
@@ -181,10 +193,27 @@ class TestRoutesDeclareAuthorization:
 class TestRoutesEnforceAuthorization:
     """The declared dependency is actually reached when a request arrives without credentials.
 
-    Vacuous today, and it has to be said: phase 0 has no protected route, so this loop runs
-    over an empty list. It stops being vacuous with the first endpoint of `001-authentication`,
-    which is the point of having it written before that endpoint exists.
+    The loop below runs over the protected routes, so with none mounted it passes over an empty
+    list -- which is how it read through all of phase 0, and it was written that way on purpose,
+    before there was an endpoint for it to cover. What was missing was the guard: a check that
+    cannot fail is indistinguishable from a check that is satisfied, and the difference only
+    shows the day somebody drops a router and the suite stays green.
+
+    So `test_there_is_at_least_one_protected_route_to_call` is the other half. From
+    `001-authentication` on there is always at least one route that has to ask who is calling,
+    and if the discovery ever finds none, the answer is that something is wrong with the
+    discovery or with the application -- never that everything is fine.
     """
+
+    def test_there_is_at_least_one_protected_route_to_call(self) -> None:
+        """A loop over nothing proves nothing, however green it comes out."""
+        protected = [name for name, _ in _protected_routes(app, PUBLIC_ROUTES)]
+
+        assert protected != [], (
+            "no route outside PUBLIC_ROUTES was discovered, so the check below ran over an "
+            "empty list: either the application mounts no protected route, or the discovery "
+            "stopped seeing them"
+        )
 
     async def test_a_protected_route_answers_401_or_403_without_a_token(self) -> None:
         """A dependency that is declared and never reached protects nothing."""

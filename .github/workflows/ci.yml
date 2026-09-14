@@ -50,6 +50,11 @@ jobs:
       TWELVEDATA_API_KEY: ""
       # With no DSN, Sentry never initialises: no events and no network from CI.
       SENTRY_DSN: ""
+      # A signing secret for the suite, long enough to be accepted (32 characters minimum). It
+      # is not a credential: nothing it signs outlives the job, and the tests that care about
+      # the secret set their own with monkeypatch. What it buys is that a test which forgets to
+      # is a clear failure and not a RuntimeError from the kernel.
+      JWT_SECRET: "ci-signing-secret-not-a-credential-000"
 
     defaults:
       run:

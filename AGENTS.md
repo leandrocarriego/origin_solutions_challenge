@@ -89,7 +89,7 @@ comando, en `CONVENTIONS.md` (`GEN-02`, `GEN-03`, `GEN-05`, `GEN-08`, `PY-06`, `
 ### Dónde va el código
 
 - el cliente de TwelveData y su protocolo → `app/providers/` (infraestructura: lo consumen `quotes` para las series y `stocks` para la ingesta del catálogo)
-- transversal sin dominio (engine y sesión, `DomainError`, Argon2, JWT, `get_current_user`) → `app/` (`db.py` · `errors.py` · `security.py`)
+- transversal sin dominio (engine y sesión, `DomainError`, el límite de intentos, Argon2, JWT, `get_current_user`) → `app/` (`db.py` · `errors.py` · `ratelimit.py` · `security.py`)
 - composición HTTP (registro de routers, handlers de error) → `app/main.py`
 
 Y adentro del módulo: HTTP → `router.py` · schemas de entrada y salida → `io.py` · decisiones del

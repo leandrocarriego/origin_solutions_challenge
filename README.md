@@ -89,6 +89,7 @@ publicarla son la misma operación.
 | `make test` | Suite completa con cobertura |
 | `make test-fast` | Sólo unidad y arquitectura: lo que corre el pre-commit |
 | `make format` | Reescribe el código con el formateador de cada proyecto |
+| `make types` | Regenera los tipos del frontend desde el OpenAPI del backend |
 | `make up` / `make down` / `make logs` | Infraestructura local |
 | `make deploy` | Despliega al VPS |
 

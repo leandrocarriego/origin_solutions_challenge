@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Article I: this never leaves the backend, and never reaches a VITE_* variable.
     twelvedata_api_key: str = ""
 
+    # ADR-004: what session tokens are signed with. The empty value is not a default, it is a
+    # refusal -- app/security.py raises rather than signing with something that is not a secret,
+    # and it does so at use and not at import, so `import app.main` works without one (SEC-05).
+    jwt_secret: str = ""
+
     # Which module under app/providers/ serves market data. It lives here because GEN-08 keeps
     # the provider's name to one file plus this one: a composition root that imported the class
     # to wire it would have written the name in a third. Set it to "fake" and nothing reaches
@@ -56,7 +61,11 @@ class Settings(BaseSettings):
 
         return tuple(
             value
-            for value in (self.twelvedata_api_key, password.group(1) if password else "")
+            for value in (
+                self.twelvedata_api_key,
+                self.jwt_secret,
+                password.group(1) if password else "",
+            )
             if value
         )
 

@@ -53,8 +53,9 @@ backend/app/
 │                         y traduce las excepciones de dominio a HTTP
 ├── settings.py           Pydantic Settings — las apikeys y secrets viven acá y sólo acá
 │                         dentro de backend/app/ esta el kernel: lo que cualquier módulo puede importar
-├── db.py                 engine async, Base declarativa, get_session
+├── db.py                 engine async, Base declarativa, get_session · SessionDep
 ├── errors.py             DomainError, la base que main.py traduce
+├── ratelimit.py          SlidingWindowLimiter — cuenta intentos y no sabe de qué
 ├── security.py           Argon2 · JWT · get_current_user · CurrentUser
 ├── providers/            infraestructura de servicios externos
 │   ├── base.py           MarketDataProvider (Protocol) · ProviderSymbol · ProviderCandle
@@ -249,7 +250,7 @@ frontend/src/
 ├── pages/                Login · MyActions · ActionDetail  (una por wireframe)
 ├── components/           Header · Autocomplete · StockGrid · QuoteChart · Notice
 ├── api/                  cliente HTTP + tipos generados del OpenAPI
-├── auth/                 contexto de sesión, interceptor de 401
+├── auth/                 contexto de sesión, su almacenamiento, interceptor de 401
 └── styles/tokens.css     Tailwind: el @theme con la paleta, y nada más
 ```
 
