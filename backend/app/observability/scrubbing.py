@@ -23,23 +23,34 @@ DSN_PASSWORD = re.compile(r"(://[^:/@\s]+:)([^@\s]+)(@)")
 
 
 def scrub(value: Any, secrets: tuple[str, ...]) -> Any:
-    """Walk any nested structure and blank out every secret it carries."""
-    if isinstance(value, str):
-        cleaned = SECRET_PARAM.sub(rf"\1={REDACTED}", value)
-        cleaned = DSN_PASSWORD.sub(rf"\1{REDACTED}\3", cleaned)
+    """Walk any nested structure and blank out every secret it carries.
 
-        for secret in secrets:
-            cleaned = cleaned.replace(secret, REDACTED)
+    `str` is matched before the containers, and the order is load-bearing: a string is a
+    sequence, so a case that caught sequences first would take it apart character by character.
+    """
+    match value:
+        case str():
+            return _blank_out(value, secrets)
 
-        return cleaned
+        case dict():
+            return {key: scrub(item, secrets) for key, item in value.items()}
 
-    if isinstance(value, dict):
-        return {key: scrub(item, secrets) for key, item in value.items()}
+        case list():
+            return [scrub(item, secrets) for item in value]
 
-    if isinstance(value, list):
-        return [scrub(item, secrets) for item in value]
+        case tuple():
+            return tuple(scrub(item, secrets) for item in value)
 
-    if isinstance(value, tuple):
-        return tuple(scrub(item, secrets) for item in value)
+        case _:
+            return value
 
-    return value
+
+def _blank_out(text: str, secrets: tuple[str, ...]) -> str:
+    """The three passes, over one string."""
+    cleaned = SECRET_PARAM.sub(rf"\1={REDACTED}", text)
+    cleaned = DSN_PASSWORD.sub(rf"\1{REDACTED}\3", cleaned)
+
+    for secret in secrets:
+        cleaned = cleaned.replace(secret, REDACTED)
+
+    return cleaned

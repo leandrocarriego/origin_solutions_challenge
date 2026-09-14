@@ -1,18 +1,10 @@
-"""The data structures of `stocks`: what comes in, what goes out, and what the module decides.
-
-Internal to the module. What travels to other modules is what the `__init__` declares.
-"""
+"""The data schemas of `stocks`."""
 
 from pydantic import BaseModel, ConfigDict
 
 
 class StockSuggestion(BaseModel):
-    """One line of the dropdown of the `Símbolo` field.
-
-    Three fields and not the four of `StockInfo`: `is_listed` is always true on this route, since
-    the search excludes what stopped trading, and a constant in a contract is a field the
-    frontend has to type for no reason.
-    """
+    """A symbol, name and currency that the catalogue suggests for what somebody is typing."""
 
     symbol: str
     name: str
@@ -41,19 +33,7 @@ class CatalogueRefresh(BaseModel):
 
 
 class StockInfo(BaseModel):
-    """What the catalogue tells another module about a symbol.
-
-    Four fields, and the fourth is the one that needs a reason. The first three are the grid of
-    `Mis Acciones`. `is_listed` exists because `favorites` has to do two opposite things
-    with the same lookup: **show** a favourite that stopped trading -- the business rule asks for
-    it expressly -- and **refuse** to add one that is no longer offered. Filtering the delisted
-    ones out here would take rows away from whoever saved them; saying nothing would let the add
-    accept what the autocomplete cannot suggest. A boolean is less surface than a second exported
-    function.
-
-    Frozen, and never a row of `stocks`: a contract that handed back the ORM would hand the
-    session and the table layout over with it, and the boundary would live only in the docs.
-    """
+    """The catalogue row for one symbol, as the autocomplete returns it."""
 
     model_config = ConfigDict(frozen=True)
 

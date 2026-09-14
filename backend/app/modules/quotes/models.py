@@ -17,9 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
-# The same number as the catalogue's, and a test says so: the three modules that store a
-# symbol declare it apart, because borrowing it would mean importing another module's
-# interior.
+# The same number as the catalogue's.
 SYMBOL_LENGTH = 12
 
 # Money, and therefore never a float: 18 digits with 6 decimals covers every price the provider
@@ -39,14 +37,12 @@ _ALLOWED_INTERVALS = ", ".join(f"'{interval}'" for interval in QuoteInterval)
 
 
 class Quote(Base):
-    """One candle: a symbol, an interval and an instant.
+    """
+    One candle: a symbol, an interval and an instant.
 
     The composite primary key is the cache: fetching the same point twice writes one row, so a
     re-fetch cannot duplicate the series, and the gap detection can ask the database what it
     already has instead of trusting a bookkeeping table.
-
-    `interval` is a String with a CHECK and not a native enum: adding a value to a Postgres enum
-    is an awkward migration and removing one is worse, while a CHECK is altered in one line.
     """
 
     __tablename__ = "quotes"

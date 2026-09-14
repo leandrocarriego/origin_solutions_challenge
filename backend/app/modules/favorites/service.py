@@ -1,31 +1,67 @@
-"""What the favourites decide, before HTTP and before SQL.
+"""What the favourites decide, before HTTP and before SQL."""
 
-The grid is painted from two sources: `user_stocks` says *which* symbols somebody follows, and
-the catalogue says what each is called and in what currency it trades. The favourites table
-stores neither on purpose -- they live in `stocks`, once, where the ingestion keeps them current.
-
-The catalogue is entered through its package and in a single call: the grid of N favourites is
-one question and not N.
-"""
+from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db import SessionDep
 from app.errors import UnknownSymbolError
-from app.modules.favorites.repository import add, follows, remove, symbols_of
+from app.modules.favorites.repository import FavoritesRepository
 from app.modules.favorites.schemas import FavoriteAddition, FavoriteStock
-from app.modules.stocks import get_stocks
+from app.modules.stocks import StockInfo, get_stocks
 
 
-async def list_favorites(session: AsyncSession, user_id: int) -> list[FavoriteStock]:
-    """The grid of that user, in the order the repository already decided.
+class FavoritesStore(Protocol):
+    """What this module needs from whatever holds a list of favourites.
 
-    The catalogue answers a *set*: `get_stocks` promises a batch lookup and nothing about the
-    sequence of what comes back. So the order is decided here, by walking the symbols as they
-    were asked for -- forwarding the catalogue's answer would paint the grid wrong while every
-    test that only checks membership stayed green.
+    Declared here and not next to the implementation on purpose: the abstraction belongs to
+    whoever depends on it, so the service names what it needs and the repository is one way of
+    answering it. A test passes another, and patches nothing.
     """
-    symbols = await symbols_of(session, user_id)
-    described = {info.symbol: info for info in await get_stocks(session, symbols)}
+
+    async def symbols_of(self, user_id: int) -> list[str]:
+        """The symbols that user follows, most recently added first."""
+        ...
+
+    async def add(self, user_id: int, symbol: str) -> bool:
+        """Make that user follow that symbol, and say whether the row was created."""
+        ...
+
+    async def remove(self, user_id: int, symbol: str) -> None:
+        """Stop that user following that symbol, if they were."""
+        ...
+
+    async def follows(self, user_id: int, symbol: str) -> bool:
+        """Whether that user follows that symbol."""
+        ...
+
+
+# The one question this module asks the catalogue, with the session already bound so nothing
+# below the router has to carry one.
+Catalogue = Callable[[list[str]], Awaitable[list[StockInfo]]]
+
+
+def favorites_store(session: SessionDep) -> FavoritesStore:
+    """The store a route is served with."""
+    return FavoritesRepository(session)
+
+
+def catalogue(session: SessionDep) -> Catalogue:
+    """The catalogue lookup a route is served with, bound to its session."""
+
+    async def look_up(symbols: list[str]) -> list[StockInfo]:
+        return await get_stocks(session, symbols)
+
+    return look_up
+
+
+async def list_favorites(
+    store: FavoritesStore, described_by: Catalogue, user_id: int
+) -> list[FavoriteStock]:
+    """List the symbols that user follows, with their name and currency."""
+    symbols = await store.symbols_of(user_id)
+    described = {info.symbol: info for info in await described_by(symbols)}
 
     return [
         FavoriteStock(
@@ -38,29 +74,20 @@ async def list_favorites(session: AsyncSession, user_id: int) -> list[FavoriteSt
     ]
 
 
-async def add_favorite(session: AsyncSession, user_id: int, symbol: str) -> FavoriteAddition:
-    """Add that symbol to that user's list, or say it cannot be added.
-
-    **The catalogue is asked before anything is written**, and the order matters: the other way
-    round, the foreign key would refuse an unknown symbol with an `IntegrityError` that somebody
-    has to translate, and a delisted one would be written happily -- it is a perfectly good row
-    of `stocks`.
-
-    Normalising lives here, in one place, for the same rule to hold for the add and for the
-    delete: `strip().upper()` before looking, because the catalogue stores upper case and
-    `get_stocks` does not normalise on purpose.
-
-    Absent and delisted are the same refusal (`UnknownSymbolError`): the person could only have
-    chosen from what the autocomplete suggested, so both mean "that is not on offer".
-    """
+async def add_favorite(
+    store: FavoritesStore, described_by: Catalogue, user_id: int, symbol: str
+) -> FavoriteAddition:
+    """Add that symbol to that user's list, or say it cannot be added."""
     wanted = symbol.strip().upper()
 
-    described = await get_stocks(session, [wanted])
+    described = await described_by([wanted])
+
     offered = next((info for info in described if info.is_listed), None)
+
     if offered is None:
         raise UnknownSymbolError
 
-    created = await add(session, user_id, wanted)
+    created = await store.add(user_id, wanted)
 
     return FavoriteAddition(
         created=created,
@@ -68,30 +95,15 @@ async def add_favorite(session: AsyncSession, user_id: int, symbol: str) -> Favo
     )
 
 
-async def remove_favorite(session: AsyncSession, user_id: int, symbol: str) -> None:
-    """Stop following that symbol, whether or not it was on the list.
-
-    **It cannot fail**, and that is the decision: somebody who removes twice wants the same thing
-    both times, so there is no exception here and no 404 to translate. A refusal would also leak
-    something -- it would tell a caller whether a symbol was on *somebody's* list -- and the
-    filter by user already covers that.
-
-    The same normalisation as the add, for the same reason it lives here: one rule, one place.
-    The catalogue is not consulted at all -- removing is about this user's list, and the symbol
-    stays in `stocks` to be suggested again.
-    """
-    await remove(session, user_id, symbol.strip().upper())
+async def remove_favorite(store: FavoritesStore, user_id: int, symbol: str) -> None:
+    """Stop following that symbol, whether or not it was on the list."""
+    await store.remove(user_id, symbol.strip().upper())
 
 
 async def is_favorite(session: AsyncSession, user_id: int, symbol: str) -> bool:
     """Whether that symbol is on that user's list.
 
-    The one thing this module answers to another one, and it answers a boolean: who follows what
-    is `favorites`' to know, and a chart is served only for the acciones of whoever is asking.
-    Letting `quotes` read `user_stocks` itself would put the filter by user in a module that does
-    not own the table.
-
-    The same normalisation as the add and the remove, and for the same reason: one rule in one
-    place, so a symbol that could be added cannot fail to be recognised later.
+    The one entry another module uses, so it takes a session and builds its own store: what holds
+    a favourite is this module's business and nobody else's.
     """
-    return await follows(session, user_id, symbol.strip().upper())
+    return await FavoritesRepository(session).follows(user_id, symbol.strip().upper())

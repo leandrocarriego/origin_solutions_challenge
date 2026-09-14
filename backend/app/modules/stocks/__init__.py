@@ -1,9 +1,4 @@
-"""The catalogue: ingestion, search and everything that describes a symbol.
-
-The contract is the background refresh the composition root starts, the router it mounts, and
-the batch lookup `favorites` paints its grid with. Everything else is interior: `search_stocks`
-in particular is not exported, because only this module's own router consumes it.
-"""
+"""The catalogue: ingestion, search and everything that describes a symbol."""
 
 from app.modules.stocks.router import router
 from app.modules.stocks.schemas import StockInfo

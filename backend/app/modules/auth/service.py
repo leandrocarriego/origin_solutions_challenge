@@ -2,12 +2,14 @@
 
 import secrets
 from datetime import timedelta
+from typing import Protocol
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db import SessionDep
 from app.errors import AuthenticationError, RateLimitedError
-from app.modules.auth.repository import find_by_username
+from app.modules.auth.models import User
+from app.modules.auth.repository import UserRepository
 from app.modules.auth.schemas import AuthenticatedUser
 from app.observability import LOGIN_ATTEMPTS
 from app.ratelimit import SlidingWindowLimiter
@@ -29,8 +31,21 @@ _ABSENT_USER_HASH = hash_password(secrets.token_urlsafe(32))
 _log = structlog.get_logger()
 
 
+class UserStore(Protocol):
+    """What this module needs from whatever holds the users it checks a credential against."""
+
+    async def find_by_username(self, username: str) -> User | None:
+        """The user who answers to that name, matched without regard to case."""
+        ...
+
+
+def user_store(session: SessionDep) -> UserStore:
+    """The store a route is served with."""
+    return UserRepository(session)
+
+
 async def authenticate(
-    session: AsyncSession, username: str, password: str, client_ip: str
+    store: UserStore, username: str, password: str, client_ip: str
 ) -> AuthenticatedUser:
     """Check a credential and say who it belongs to."""
     typed = username.lower()
@@ -47,7 +62,7 @@ async def authenticate(
 
         raise RateLimitedError(retry_after_seconds=max(waits))
 
-    user = await find_by_username(session, typed)
+    user = await store.find_by_username(typed)
     stored = user.password_hash if user is not None else _ABSENT_USER_HASH
 
     # Always verified, even with no row: see `_ABSENT_USER_HASH`.

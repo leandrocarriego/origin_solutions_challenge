@@ -18,19 +18,15 @@ The repository is stubbed: what is under test is the conversion and the shape of
 the SQL, which is asserted against a real table in `tests/integration/`.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import cast
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.stocks import StockInfo, get_stocks
+from app.modules.stocks import StockInfo
 from app.modules.stocks.models import Stock
-
-# The repository is replaced in every test, so the session is never touched. It is passed anyway
-# because the signature takes one: the service is the layer that has no business opening it.
-_UNUSED_SESSION = cast(AsyncSession, object())
+from app.modules.stocks.service import describe
 
 _SEEN_AT = datetime(2026, 9, 13, 12, 0, tzinfo=UTC)
 _DELISTED_AT = datetime(2026, 8, 1, tzinfo=UTC)
@@ -52,14 +48,14 @@ def _row(symbol: str, name: str, currency: str = "USD", delisted: bool = False) 
 
 
 class _Catalogue:
-    """Stand-in for `find_many`, which remembers every call it was asked to serve."""
+    """A `CatalogueStore` that remembers every call it was asked to serve."""
 
     def __init__(self, rows: list[Stock]) -> None:
         """Answer with those rows, whatever is asked, and keep the questions."""
         self.rows = rows
         self.asked_for: list[list[str]] = []
 
-    async def find_many(self, session: AsyncSession, symbols: list[str]) -> list[Stock]:
+    async def find_many(self, symbols: Sequence[str]) -> list[Stock]:
         """Record the batch the service asked for, then answer with the fixed rows."""
         self.asked_for.append(list(symbols))
 
@@ -67,18 +63,15 @@ class _Catalogue:
 
 
 @pytest.fixture
-def catalogue(monkeypatch: pytest.MonkeyPatch) -> _Catalogue:
-    """A catalogue holding the three symbols of the wireframe, wired where the service reads it."""
-    stub = _Catalogue(
+def catalogue() -> _Catalogue:
+    """A catalogue holding the three symbols of the wireframe."""
+    return _Catalogue(
         [
             _row("TSLA", "Tesla Inc"),
             _row("AAPL", "Apple Inc"),
             _row("NFLX", "Netflix Inc"),
         ]
     )
-    monkeypatch.setattr("app.modules.stocks.service.find_many", stub.find_many)
-
-    return stub
 
 
 class TestWhatItReturns:
@@ -86,7 +79,7 @@ class TestWhatItReturns:
 
     async def test_it_returns_stock_info_and_not_the_model(self, catalogue: _Catalogue) -> None:
         """Article IV: the row stays inside the module that owns the table."""
-        described = await get_stocks(_UNUSED_SESSION, ["TSLA"])
+        described = await describe(catalogue, ["TSLA"])
 
         assert [type(info) for info in described] == [StockInfo]
 
@@ -96,7 +89,7 @@ class TestWhatItReturns:
         `_sa_instance_state` is what an ORM object carries and a dataclass does not, and
         `exchange` is a column the contract deliberately does not publish.
         """
-        info = (await get_stocks(_UNUSED_SESSION, ["TSLA"]))[0]
+        info = (await describe(catalogue, ["TSLA"]))[0]
 
         assert not hasattr(info, "_sa_instance_state")
         assert not hasattr(info, "exchange")
@@ -105,7 +98,7 @@ class TestWhatItReturns:
         self, catalogue: _Catalogue
     ) -> None:
         """RF-03: the three columns of the grid, which is what the caller came for."""
-        info = (await get_stocks(_UNUSED_SESSION, ["TSLA"]))[0]
+        info = (await describe(catalogue, ["TSLA"]))[0]
 
         assert (info.symbol, info.name, info.currency) == ("TSLA", "Tesla Inc", "USD")
 
@@ -120,7 +113,7 @@ class TestWhatItReturns:
         `StockInfo` is a frozen Pydantic model today and was a frozen dataclass before, and the
         contract -- whoever receives a description cannot rewrite it -- did not change with it.
         """
-        info = (await get_stocks(_UNUSED_SESSION, ["TSLA"]))[0]
+        info = (await describe(catalogue, ["TSLA"]))[0]
         field = "name"
 
         with pytest.raises(ValidationError):
@@ -128,7 +121,7 @@ class TestWhatItReturns:
 
     async def test_it_describes_every_symbol_the_catalogue_had(self, catalogue: _Catalogue) -> None:
         """One description per row found, so the grid can be painted from the answer alone."""
-        described = await get_stocks(_UNUSED_SESSION, ["TSLA", "AAPL", "NFLX"])
+        described = await describe(catalogue, ["TSLA", "AAPL", "NFLX"])
 
         assert {info.symbol for info in described} == {"TSLA", "AAPL", "NFLX"}
 
@@ -136,7 +129,7 @@ class TestWhatItReturns:
         self, catalogue: _Catalogue
     ) -> None:
         """Not an error: asking about something unknown is answered by not describing it."""
-        described = await get_stocks(_UNUSED_SESSION, ["TSLA", "ZZZZ"])
+        described = await describe(catalogue, ["TSLA", "ZZZZ"])
 
         assert {info.symbol for info in described} == {"TSLA"}
 
@@ -151,7 +144,7 @@ class TestWhatItReturns:
         makes a repeat impossible -- so this fixes the answer before a second caller builds the
         list some other way and discovers it by accident.
         """
-        described = await get_stocks(_UNUSED_SESSION, ["TSLA", "TSLA"])
+        described = await describe(catalogue, ["TSLA", "TSLA"])
 
         assert [info.symbol for info in described] == ["TSLA"]
 
@@ -175,9 +168,9 @@ class TestTheSymbolsArriveInUpperCase:
         symbol the catalogue never had. Paired with the same symbol in upper case returning its
         row, it can only be read as the precondition.
         """
-        assert [info.symbol for info in await get_stocks(_UNUSED_SESSION, ["TSLA"])] == ["TSLA"]
+        assert [info.symbol for info in await describe(catalogue, ["TSLA"])] == ["TSLA"]
 
-        assert await get_stocks(_UNUSED_SESSION, ["tsla"]) == []
+        assert await describe(catalogue, ["tsla"]) == []
 
 
 class TestWhetherItIsStillListed:
@@ -185,18 +178,15 @@ class TestWhetherItIsStillListed:
 
     async def test_a_listed_symbol_is_listed(self, catalogue: _Catalogue) -> None:
         """`delisted_at` null means it still trades, which is the ordinary case."""
-        info = (await get_stocks(_UNUSED_SESSION, ["TSLA"]))[0]
+        info = (await describe(catalogue, ["TSLA"]))[0]
 
         assert info.is_listed is True
 
-    async def test_a_delisted_symbol_is_described_and_marked(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_a_delisted_symbol_is_described_and_marked(self) -> None:
         """It is described and not filtered out: the grid of whoever had it must not lose a row."""
-        stub = _Catalogue([_row("ZZZZ", "Zombie Holdings", delisted=True)])
-        monkeypatch.setattr("app.modules.stocks.service.find_many", stub.find_many)
+        zombie = _Catalogue([_row("ZZZZ", "Zombie Holdings", delisted=True)])
 
-        described = await get_stocks(_UNUSED_SESSION, ["ZZZZ"])
+        described = await describe(zombie, ["ZZZZ"])
 
         assert [(info.symbol, info.is_listed) for info in described] == [("ZZZZ", False)]
 
@@ -208,7 +198,7 @@ class TestItAnswersInOneCall:
         self, catalogue: _Catalogue
     ) -> None:
         """Three favourites are one question. A loop here costs a query per row of the grid."""
-        await get_stocks(_UNUSED_SESSION, ["TSLA", "AAPL", "NFLX"])
+        await describe(catalogue, ["TSLA", "AAPL", "NFLX"])
 
         assert catalogue.asked_for == [["TSLA", "AAPL", "NFLX"]]
 
@@ -223,7 +213,7 @@ class TestItAnswersInOneCall:
         repository (`PY-06`). `asked_for` staying empty is what tells "it was never called"
         apart from "it was called with an empty list", which is the whole point.
         """
-        described = await get_stocks(_UNUSED_SESSION, [])
+        described = await describe(catalogue, [])
 
         assert described == []
         assert catalogue.asked_for == []

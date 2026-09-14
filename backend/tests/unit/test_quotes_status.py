@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.quotes.models import Quote, QuoteInterval
 from app.modules.quotes.schemas import QuoteSeries
-from app.modules.quotes.service import get_series
+from app.modules.quotes.service import FavoriteCheck, get_series
 from app.providers import (
     MarketDataProvider,
     ProviderError,
@@ -117,7 +117,7 @@ def _an_earlier_session() -> list[Quote]:
     return [_candle(opened.astimezone(UTC) + timedelta(minutes=minute)) for minute in range(3)]
 
 
-class _Repository:
+class _Store:
     """Stand-in for `quotes/repository.py`, backed by rows instead of by a script."""
 
     def __init__(self, stored: Sequence[Quote] = ()) -> None:
@@ -127,7 +127,7 @@ class _Repository:
         }
 
     async def candles_in(
-        self, session: AsyncSession, symbol: str, interval: str, start: datetime, end: datetime
+        self, symbol: str, interval: str, start: datetime, end: datetime
     ) -> list[Quote]:
         """The candles of that window, oldest first, which is what the chart reads."""
         return sorted(
@@ -139,15 +139,13 @@ class _Repository:
             key=lambda row: row.ts,
         )
 
-    async def newest_ts(self, session: AsyncSession, symbol: str, interval: str) -> datetime | None:
+    async def newest_ts(self, symbol: str, interval: str) -> datetime | None:
         """The instant of the newest candle there is, or nothing if there is none."""
         instants = [key[2] for key in self.rows if key[0] == symbol and key[1] == interval]
 
         return max(instants) if instants else None
 
-    async def save(
-        self, session: AsyncSession, symbol: str, interval: str, points: Sequence[QuotePoint]
-    ) -> int:
+    async def save(self, symbol: str, interval: str, points: Sequence[QuotePoint]) -> int:
         """Upsert what the provider returned, the way the composite key makes it an upsert."""
         for point in points:
             self.rows[(symbol, interval, point.ts)] = _candle(
@@ -206,43 +204,32 @@ def a_gate_that_remembers_nothing() -> Iterator[None]:
         clear()
 
 
-@pytest.fixture(autouse=True)
-def the_symbol_is_the_users(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`favorites` says yes: authorization is H1's business, and this file is about H4."""
-
-    async def _yes(session: AsyncSession, user_id: int, symbol: str) -> bool:
-        """Whoever is asking follows the symbol."""
-        return True
-
-    monkeypatch.setattr(f"{_SERVICE}.is_favorite", _yes)
+async def _its_theirs(user_id: int, symbol: str) -> bool:
+    """The default `FavoriteCheck`: whoever is asking follows the symbol."""
+    return True
 
 
 @pytest.fixture
-def empty_cache(monkeypatch: pytest.MonkeyPatch) -> _Repository:
-    """A cache with nothing in it, wired where the service consumes its repository."""
-    return _wire(monkeypatch, _Repository())
+def empty_cache() -> _Store:
+    """A cache with nothing in it, handed to the service instead of patched into it."""
+    return _Store()
 
 
-def _wire(monkeypatch: pytest.MonkeyPatch, double: _Repository) -> _Repository:
-    """Patch the three repository names in the service's namespace."""
-    monkeypatch.setattr(f"{_SERVICE}.candles_in", double.candles_in)
-    monkeypatch.setattr(f"{_SERVICE}.newest_ts", double.newest_ts)
-    monkeypatch.setattr(f"{_SERVICE}.save", double.save)
-
-    return double
-
-
-def _cached(monkeypatch: pytest.MonkeyPatch, *candles: Quote) -> _Repository:
+def _cached(*candles: Quote) -> _Store:
     """A cache that already holds those candles."""
-    return _wire(monkeypatch, _Repository(candles))
+    return _Store(candles)
 
 
 async def _ask(
-    provider: MarketDataProvider, interval: QuoteInterval = QuoteInterval.ONE_MINUTE
+    provider: MarketDataProvider,
+    store: _Store,
+    follows: FavoriteCheck = _its_theirs,
+    interval: QuoteInterval = QuoteInterval.ONE_MINUTE,
 ) -> QuoteSeries:
     """One `Tiempo Real` call to the service, with the arguments `plan.md` fixes for it."""
     return await get_series(
-        _UNUSED_SESSION,
+        store,
+        follows,
         provider,
         symbol=_TSLA,
         interval=interval,
@@ -257,25 +244,25 @@ class TestDataThatIsUpToDate:
 
     async def test_fresh_data_is_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The TTL is the interval, so a candle ten seconds old is still current (ADR-003)."""
-        _cached(monkeypatch, _candle(_now() - timedelta(seconds=10)))
+        store = _cached(_candle(_now() - timedelta(seconds=10)))
 
-        series = await _ask(_Provider())
+        series = await _ask(_Provider(), store)
 
         assert series.status == "ok"
 
     async def test_ok_carries_no_session_date(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """`session_date` is the `{fecha}` of RF-28 and travels only with `market_closed`."""
-        _cached(monkeypatch, _candle(_now() - timedelta(seconds=10)))
+        store = _cached(_candle(_now() - timedelta(seconds=10)))
 
-        series = await _ask(_Provider())
+        series = await _ask(_Provider(), store)
 
         assert series.session_date is None
 
     async def test_ok_still_carries_the_points(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """RF-33 from the happy side: there is always a chart, a notice, or both."""
-        _cached(monkeypatch, _candle(_now() - timedelta(seconds=10)))
+        store = _cached(_candle(_now() - timedelta(seconds=10)))
 
-        series = await _ask(_Provider())
+        series = await _ask(_Provider(), store)
 
         assert series.points
 
@@ -287,9 +274,9 @@ class TestAProviderThatFailedIsStale:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """RF-30: what is charted could not be refreshed, and that is what is said."""
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        series = await _ask(_Provider(failure=ProviderQuotaExceeded("spent")))
+        series = await _ask(_Provider(failure=ProviderQuotaExceeded("spent")), store)
 
         assert series.status == "stale"
 
@@ -302,9 +289,9 @@ class TestAProviderThatFailedIsStale:
         and only one of the two answers is honest: we do not know whether the market is closed
         or whether the provider is down, and saying the first would be inventing it.
         """
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        series = await _ask(_Provider(failure=ProviderQuotaExceeded("spent")))
+        series = await _ask(_Provider(failure=ProviderQuotaExceeded("spent")), store)
 
         assert series.status != "market_closed"
 
@@ -313,17 +300,17 @@ class TestAProviderThatFailedIsStale:
     ) -> None:
         """RF-29: the chart is drawn anyway, which is the whole point of the notice."""
         stored = _an_earlier_session()
-        _cached(monkeypatch, *stored)
+        store = _cached(*stored)
 
-        series = await _ask(_Provider(failure=ProviderUnavailable("no answer")))
+        series = await _ask(_Provider(failure=ProviderUnavailable("no answer")), store)
 
         assert [point.ts for point in series.points] == [candle.ts for candle in stored]
 
     async def test_stale_carries_no_session_date(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The date belongs to the `market_closed` text and to no other (plan.md)."""
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        series = await _ask(_Provider(failure=ProviderUnavailable("no answer")))
+        series = await _ask(_Provider(failure=ProviderUnavailable("no answer")), store)
 
         assert series.session_date is None
 
@@ -335,9 +322,9 @@ class TestADayWithNoSessionShowsTheLastOne:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The Saturday case: the provider has nothing for today because nothing traded."""
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), store)
 
         assert series.status == "market_closed"
 
@@ -346,9 +333,9 @@ class TestADayWithNoSessionShowsTheLastOne:
     ) -> None:
         """RF-27: the last session there was, and not a blank screen."""
         stored = _an_earlier_session()
-        _cached(monkeypatch, *stored)
+        store = _cached(*stored)
 
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), store)
 
         assert [point.ts for point in series.points] == [candle.ts for candle in stored]
 
@@ -357,9 +344,9 @@ class TestADayWithNoSessionShowsTheLastOne:
     ) -> None:
         """RF-28: `session_date` is the `{fecha}` the notice puts in front of the user."""
         stored = _an_earlier_session()
-        _cached(monkeypatch, *stored)
+        store = _cached(*stored)
 
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), store)
 
         assert series.session_date == stored[0].ts.astimezone(_MARKET).date()
 
@@ -376,9 +363,9 @@ class TestADayWithNoSessionShowsTheLastOne:
         late = datetime(
             traded_on.year, traded_on.month, traded_on.day, 21, 30, tzinfo=_MARKET
         ).astimezone(UTC)
-        _cached(monkeypatch, _candle(late))
+        store = _cached(_candle(late))
 
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), store)
 
         assert series.session_date == traded_on
 
@@ -387,22 +374,22 @@ class TestNothingAnywhereIsNoData:
     """RF-31: the symbol has no series for that interval, and it is said plainly."""
 
     async def test_an_empty_cache_and_an_empty_provider_is_no_data(
-        self, empty_cache: _Repository
+        self, empty_cache: _Store
     ) -> None:
         """Neither the cache nor the world has anything, which is a different thing from closed."""
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), empty_cache)
 
         assert series.status == "no_data"
 
-    async def test_no_data_carries_no_points(self, empty_cache: _Repository) -> None:
+    async def test_no_data_carries_no_points(self, empty_cache: _Store) -> None:
         """The screen has to tell an empty chart from a chart it never drew (RF-33)."""
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), empty_cache)
 
         assert series.points == ()
 
-    async def test_no_data_carries_no_session_date(self, empty_cache: _Repository) -> None:
+    async def test_no_data_carries_no_session_date(self, empty_cache: _Store) -> None:
         """There is no session to name, so no date is offered."""
-        series = await _ask(_Provider(points=[]))
+        series = await _ask(_Provider(points=[]), empty_cache)
 
         assert series.session_date is None
 
@@ -415,18 +402,18 @@ class TestNoProviderFailureEscapes:
         self, monkeypatch: pytest.MonkeyPatch, failure: ProviderError
     ) -> None:
         """A failure upstream is not a failure of the endpoint (plan.md)."""
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        series = await _ask(_Provider(failure=failure))
+        series = await _ask(_Provider(failure=failure), store)
 
         assert series.status in _STATES
 
     @pytest.mark.parametrize("failure", _FAILURES, ids=_FAILURE_IDS)
     async def test_it_answers_even_with_nothing_cached(
-        self, empty_cache: _Repository, failure: ProviderError
+        self, empty_cache: _Store, failure: ProviderError
     ) -> None:
         """The harder half: nothing to fall back on, and still an answer and not an exception."""
-        series = await _ask(_Provider(failure=failure))
+        series = await _ask(_Provider(failure=failure), empty_cache)
 
         assert series.status in _STATES
 
@@ -442,9 +429,9 @@ class TestNoProviderFailureEscapes:
         A swallowed failure is the one that costs most later: the screen says `stale`, the chart
         looks plausible, and there is nothing anywhere saying why the data stopped moving.
         """
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        await _ask(_Provider(failure=failure))
+        await _ask(_Provider(failure=failure), store)
 
         assert captured_logs
 
@@ -457,9 +444,9 @@ class TestTheProviderIsNeverNamed:
         self, monkeypatch: pytest.MonkeyPatch, failure: ProviderError
     ) -> None:
         """The status says what happened, never who failed."""
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        series = await _ask(_Provider(failure=failure))
+        series = await _ask(_Provider(failure=failure), store)
 
         assert "twelvedata" not in repr(series).lower()
 
@@ -471,8 +458,8 @@ class TestTheProviderIsNeverNamed:
         failure: ProviderError,
     ) -> None:
         """A log line ends up in a dashboard and in a screenshot; Article I covers both."""
-        _cached(monkeypatch, *_an_earlier_session())
+        store = _cached(*_an_earlier_session())
 
-        await _ask(_Provider(failure=failure))
+        await _ask(_Provider(failure=failure), store)
 
         assert not any("twelvedata" in line.lower() for line in captured_logs)

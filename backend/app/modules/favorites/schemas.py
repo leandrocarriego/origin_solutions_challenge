@@ -1,18 +1,11 @@
-"""The data structures of `favorites`: what comes in, what goes out, and what the module decides.
-
-Internal to the module. `FavoriteStock` is the row of the grid *and* what `list_favorites`
-answers, and writing it twice bought nothing but two places to keep in step.
-"""
+"""The data schemas of `favorites`."""
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class FavoriteStock(BaseModel):
-    """One row of `Mis Acciones`: what the service decides, and what the grid reads.
-
-    Three fields, because the screen draws a symbol, a name and a currency. This is the risk the
-    model carries by being the two things at once -- a field added here for the service is a
-    field the API starts answering -- so nothing goes in that the grid does not draw.
+    """
+    One row of `Mis Acciones`.
 
     Frozen, because it is a value and not a record somebody edits on the way out.
     """
@@ -25,15 +18,7 @@ class FavoriteStock(BaseModel):
 
 
 class AddFavoriteRequest(BaseModel):
-    """The symbol somebody asks to follow.
-
-    `extra="forbid"`: a body carrying fields nobody declared is a body that will eventually carry
-    one somebody forgot to ignore -- a `user_id`, for instance, which never arrives from the
-    request.
-
-    The pattern is the one of a symbol and not a general string: what cannot be a segment of a
-    path cannot be a symbol, because this same value travels in the URL of the delete.
-    """
+    """The symbol somebody asks to follow."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -41,12 +26,7 @@ class AddFavoriteRequest(BaseModel):
 
 
 class FavoriteAddition(BaseModel):
-    """What one add did: whether it created the row, and the row itself.
-
-    The boolean is the decision of the business and the status is its translation to the
-    transport, which is the router's job. A service that answered 201 would already be speaking
-    HTTP.
-    """
+    """What one add did: whether it created the row, and the row itself."""
 
     model_config = ConfigDict(frozen=True)
 

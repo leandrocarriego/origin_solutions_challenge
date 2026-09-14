@@ -34,7 +34,7 @@ from app.db import get_session
 from app.main import app
 from app.modules.auth.models import User
 from app.modules.quotes.models import Quote
-from app.modules.quotes.repository import save
+from app.modules.quotes.repository import QuoteRepository
 from app.providers import (
     MarketDataProvider,
     ProviderQuotaExceeded,
@@ -265,7 +265,7 @@ class TestTheCacheKeepsOneRowPerInstant:
         """The composite key is the cache: a refresh cannot duplicate the series (ADR-001)."""
         await QuoteFactory.create(session, ts=_TRADED_ON, close=Decimal("100.00"))
 
-        await save(session, "TSLA", "1min", [_forming(close="101.00")])
+        await QuoteRepository(session).save("TSLA", "1min", [_forming(close="101.00")])
 
         rows = await session.scalar(
             select(func.count()).select_from(Quote).where(Quote.ts == _TRADED_ON)
@@ -280,7 +280,7 @@ class TestTheCacheKeepsOneRowPerInstant:
         """
         await QuoteFactory.create(session, ts=_TRADED_ON, close=Decimal("100.00"))
 
-        await save(session, "TSLA", "1min", [_forming(close="101.00")])
+        await QuoteRepository(session).save("TSLA", "1min", [_forming(close="101.00")])
 
         stored = await session.get(Quote, ("TSLA", "1min", _TRADED_ON))
         assert stored is not None

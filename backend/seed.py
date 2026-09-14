@@ -1,18 +1,4 @@
-"""Loads the minimum dataset needed to exercise the application.
-
-Without it there is nothing to develop against, and whoever clones the repository has no way in.
-
-It runs from the container entrypoint when SEED_ON_START is true, which only the local compose
-sets. It is never a default, and it refuses outright when the environment says production: the
-passwords it writes live in this repository, so a seeded production database is a production
-database with known credentials. Two mistakes rather than one.
-
-Idempotent by construction. It runs on every `make up`, and a seed that fails the second time is
-a seed nobody runs.
-
-Like `alembic/env.py`, this reaches into the modules: it is a composition root, for the data
-rather than for the schema or the routes.
-"""
+"""Loads the minimum dataset needed to exercise the application."""
 
 import asyncio
 import sys
@@ -50,8 +36,8 @@ class DemoUser:
 # them to whoever evaluates the project, and the seed refuses to run in production precisely
 # because of them. That is what `noqa: S106` is saying, and it is the only place it is said.
 DEMO_USERS = (
-    DemoUser(username="juan", full_name="Juan Perez", password="origin-demo-juan"),  # noqa: S106
-    DemoUser(username="ana", full_name="Ana Gomez", password="origin-demo-ana"),  # noqa: S106
+    DemoUser(username="juan", full_name="Juan Perez", password="Demo1234*"),  # noqa: S106
+    DemoUser(username="ana", full_name="Ana Gomez", password="Demo1234*"),  # noqa: S106
 )
 
 # The three of the brief's own grid, so its screen is reproducible on the first run.
@@ -82,6 +68,7 @@ async def seed(session: AsyncSession) -> None:
     the worst of both.
     """
     refusal = refuses_to_run()
+
     if refusal is not None:
         raise SeedRefused(refusal)
 
@@ -143,14 +130,17 @@ async def _seed_favourites(session: AsyncSession) -> None:
 async def main() -> int:
     """Run the seed against the configured database, reporting what happened."""
     refusal = refuses_to_run()
+
     if refusal is not None:
         print(f"seed: no corre porque {refusal}")
+
         return 0
 
     async with SessionFactory() as session:
         await seed(session)
 
     print("seed: listo")
+
     return 0
 
 

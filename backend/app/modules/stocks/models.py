@@ -7,9 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
-# The ingestion filter accepts at most nine characters; the column has room to spare so a longer
-# symbol fails the filter where the reason is written, not on an INSERT. `favorites` and `quotes`
-# declare the same number on their own, and a test keeps the three from drifting apart.
+# The ingestion filter accepts at most nine characters.
 SYMBOL_LENGTH = 12
 
 
@@ -36,20 +34,10 @@ class Stock(Base):
     # The provider's catalogue is a snapshot with no status field, so the only signal that a
     # symbol stopped trading is that it no longer comes back.
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    # Null means listed. A delisted symbol is marked, never deleted: `user_stocks` and `quotes`
-    # reference it, and removing the row would take away somebody's favourite or its history.
+    # Null means listed. A delisted symbol is marked, never deleted.
     delisted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-# The autocomplete searches `ILIKE '%text%'` over both columns, and a leading wildcard rules a
-# B-tree out entirely: trigrams are the only thing that can index that pattern. They are declared
-# here as well as in the migration because a table the model does not describe is a table
-# `alembic check` reports as drifted forever.
-#
-# Two caveats worth knowing before reading a slow query plan: the index only comes into play from
-# the third character on -- a two-letter pattern has no complete trigram to look up -- so the
-# two-character minimum stays a sequential scan of ~7.200 rows, which is milliseconds and why it
-# is enough.
 Index(
     "ix_stocks_symbol_trgm",
     Stock.symbol,
