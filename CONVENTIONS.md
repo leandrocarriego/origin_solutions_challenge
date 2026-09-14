@@ -275,12 +275,17 @@ Los que este proyecto ya usa:
 
 | Patrón | Dónde | Qué resuelve |
 |---|---|---|
-| **Strategy** (`Protocol`) | `MarketDataProvider` | Habilita el `FakeProvider` que hace correr la suite sin red (`TEST-03`) y deja el proveedor reemplazable (`NFR-07`) |
+| **Strategy** (`ABC`) | `MarketDataProvider`, con `TwelveDataProvider` y `FakeProvider` | Habilita el `FakeProvider` que hace correr la suite sin red (`TEST-03`) y deja el proveedor reemplazable (`NFR-07`) |
+| **Adapter** | `TwelveDataProvider` | Traduce el JSON del proveedor a `StockRecord` y `QuotePoint`, que son tipos nuestros: el formato del vendor no entra al dominio |
+| **Registry + Factory** | `app/providers/registry.py` | Resuelve el proveedor **por nombre en runtime**, así agregar uno es un archivo en `providers/` y una variable de entorno, sin tocar el composition root (`GEN-08`) |
 | **Repository** | `repository.py` de cada módulo | Aísla SQLAlchemy del service, que así se testea sin base |
+| **Dependency Injection** | `Depends` en los routers, y el provider que llega como argumento al service | El service no construye lo que usa, y por eso el test le pasa un doble sin parchear nada |
 | **Composition Root** | `app/main.py` · `app/tasks.py` | Un solo lugar donde se arma el grafo de dependencias: el HTTP y lo que corre de fondo |
+| **Exception translation layer** | `app/errors.py` → `app/error_handlers.py` | El service comunica fallas con excepciones de dominio y no conoce HTTP (`PY-06`); el tipo *es* el status code |
+| **Single-flight** (stampede guard) | `_Gate` y `_Gatekeeper` en `quotes/service.py` | Diez lectores simultáneos del mismo `(símbolo, intervalo)` gastan **un** crédito, que es el Artículo II donde un TTL solo no alcanza (`RF-25`) |
 | **Test Double** | `FakeProvider` | Determinístico y sin gastar cuota (Artículo II) |
 
-Y los que **no**, porque acá no pagan: Factory (no hay familias de objetos que elegir en runtime), Observer o event bus (`ADR-009` lo descarta: un solo servicio), Unit of Work (la sesión de SQLAlchemy ya lo es), CQRS y Mediator (no hay complejidad de lectura/escritura que separar).
+Y los que **no**, porque acá no pagan: Abstract Factory (hay una familia sola, y `registry.py` ya la resuelve con una función), Observer o event bus (`ADR-009` lo descarta: un solo servicio), Unit of Work (la sesión de SQLAlchemy ya lo es), CQRS y Mediator (no hay complejidad de lectura/escritura que separar), Singleton explícito (el módulo de Python ya lo es: `_GATEKEEPER` y `get_settings()` son una instancia por proceso sin ceremonia), y una clase de métodos estáticos en lugar de funciones de módulo (es un namespace disfrazado de objeto, y el namespace ya existe).
 
 ---
 
@@ -425,13 +430,13 @@ class FavoriteStock(BaseModel):
     currency: str
 ```
 
-Un `dataclass` queda para lo que **no** es dato: un contenedor de estado del proceso, con un `asyncio.Lock` adentro, que nunca cruza una frontera y no tiene nada que validar ni que serializar. Hoy hay exactamente uno (`_Gate`, en `quotes/service.py`) y su docstring dice por qué.
+Lo que **no** es dato no es ninguna de las dos cosas: un contenedor de estado del proceso, con un `asyncio.Lock` adentro, que nunca cruza una frontera y no tiene nada que validar ni que serializar, es una **clase con comportamiento** (`_Gate` y `_Gatekeeper`, en `quotes/service.py`). Un `dataclass` ahí sólo agregaría un `__init__` generado y dejaría el estado público.
 
 El motivo de la regla es que un modelo se valida, se serializa y genera su schema en el OpenAPI; un `dataclass` no hace ninguna de las tres, así que la misma estructura terminaba escrita dos veces —una como `dataclass` para el service, otra como modelo para la respuesta— y había que mantenerlas en paralelo.
 
 Los modelos viven en `schemas.py` cuando el service y la respuesta comparten la forma; cuando **no** coinciden son dos modelos y el router traduce. Un campo agregado a un modelo que además es respuesta sale por la API sin que nadie lo decida: eso es API3/BOPLA, y es el costo que compra la reutilización.
 
-La excepción declarada son las **clases de infraestructura de los tests** (`tests/architecture/source_tree.py`): no son datos del dominio, no cruzan ninguna frontera y no participan del OpenAPI.
+La excepción declarada son las **clases de infraestructura de los tests** (`tests/architecture/source_tree.py`): no son datos del dominio, no cruzan ninguna frontera y no participan del OpenAPI. En `app/` no queda ningún `dataclass`.
 
 **No la verifica ningún test**, y conviene decirlo en vez de simularlo: `ruff` no distingue un dato de un contenedor de estado. La recorre el `Code-Reviewer`, y el grep que la hace visible es:
 

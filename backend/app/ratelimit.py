@@ -30,23 +30,17 @@ class SlidingWindowLimiter:
         self._events.move_to_end(key)
 
     def is_exceeded(self, key: str) -> bool:
-        """Whether this key has already used up its window.
-
-        The default answer is no: this is a brake and not a gate, so a key nobody touched
-        passes.
-        """
+        """Whether this key has already used up its window."""
         return len(self._inside_the_window(key)) >= self._limit
 
     def retry_after(self, key: str) -> int:
-        """Seconds until the oldest event still counted leaves the window.
-
-        Which is when there is room for one more, and therefore what a `Retry-After` header can
-        honestly promise. Rounded up, so it is never a wait of zero that is not over yet.
-        """
+        """Seconds until the oldest event still counted leaves the window."""
         events = self._inside_the_window(key)
+
         if not events:
             return 0
 
+        # Rounded up, so it is never a wait of zero that is not over yet.
         return max(0, math.ceil(self._window - (_now() - events[0])))
 
     def reset(self, key: str) -> None:
@@ -56,25 +50,23 @@ class SlidingWindowLimiter:
     def _inside_the_window(self, key: str) -> deque[float]:
         """This key's events, having dropped the ones the window has moved past."""
         events = self._events.get(key)
+
         if events is None:
             return deque()
 
         horizon = _now() - self._window
+
         while events and events[0] <= horizon:
             events.popleft()
 
         return events
 
     def _make_room_for(self, key: str) -> None:
-        """Keep the number of keys under the ceiling before one more is added.
-
-        Expired keys go first, because dropping those costs nothing; only if that is not enough
-        does a live key get evicted, and then it is the one hit longest ago. The walk over every
-        key is paid only while the ceiling is reached, never on a normal hit.
-        """
+        """Keep the number of keys under the ceiling before one more is added."""
         if key in self._events or len(self._events) < self._max_keys:
             return
 
+        # Drop expired keys first, because that costs nothing.
         for known in list(self._events):
             if not self._inside_the_window(known):
                 del self._events[known]
