@@ -33,7 +33,7 @@ cp .env.example .env      # completá POSTGRES_PASSWORD; el resto puede quedar v
 make up
 ```
 
-Levanta la base, el backend y el frontend:
+Levanta la base, el backend, el frontend y la observabilidad:
 
 | | |
 |---|---|
@@ -41,6 +41,12 @@ Levanta la base, el backend y el frontend:
 | API | http://localhost:8000/api/health |
 | OpenAPI | http://localhost:8000/docs |
 | PostgreSQL | `localhost:5432` (`origin` / `origin`) |
+| Grafana | http://localhost:3000 (`admin` / `admin`) |
+| Prometheus | http://localhost:9090 |
+
+El dashboard del Artículo II se provisiona solo, igual que en producción. En local el proveedor
+es el falso (`MARKET_DATA_PROVIDER: fake`), así que los paneles de cuota miden llamadas que no
+salen a la red. Loki no está en el compose local: ningún panel lo lee.
 
 `make down` baja todo y conserva el volumen de la base.
 

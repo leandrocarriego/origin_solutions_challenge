@@ -56,5 +56,51 @@ services:
     depends_on:
       - backend
 
+  # --- Observability ----------------------------------------------------------------------------
+  # The same two services production runs, with the hardening that only makes sense there left
+  # out: no sub-path, no traefik labels, no memory limits, and a password everyone knows.
+  # Loki and Alloy are not here -- no panel reads them, and tailing the Docker socket is a cost
+  # a laptop has no reason to pay.
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=3d
+      - --storage.tsdb.retention.size=256MB
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      # File by file, and not the provisioning directory: mounting it whole would bring the Loki
+      # datasource too, and a datasource pointing at a service that is not running is a red that
+      # means nothing.
+      - ./infra/grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./infra/grafana/provisioning/dashboards/origin.yml:/etc/grafana/provisioning/dashboards/origin.yml:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   db_data:
+  prometheus_data:
+  grafana_data:
