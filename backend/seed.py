@@ -1,8 +1,6 @@
-"""Loads the minimum dataset needed to exercise the application (REQ-19).
+"""Loads the minimum dataset needed to exercise the application.
 
-The brief asks for it in as many words -- *"insertar una cantidad minima de datos para poder
-probar la aplicacion"* -- and that is why it runs in phase 0 and not at the end: without it
-there is nothing to develop against, and whoever clones the repository has no way in.
+Without it there is nothing to develop against, and whoever clones the repository has no way in.
 
 It runs from the container entrypoint when SEED_ON_START is true, which only the local compose
 sets. It is never a default, and it refuses outright when the environment says production: the
@@ -46,7 +44,7 @@ class DemoUser:
     password: str
 
 
-# Two, because one user cannot demonstrate that favourites are per user (Article III).
+# Two, because one user cannot demonstrate that favourites are per user.
 #
 # The passwords are here in the open on purpose: they are demo credentials, the README hands
 # them to whoever evaluates the project, and the seed refuses to run in production precisely
@@ -59,9 +57,9 @@ DEMO_USERS = (
 # The three of the brief's own grid, so its screen is reproducible on the first run.
 DEMO_FAVOURITES = ("TSLA", "AAPL", "NFLX")
 
-# The favourites reference the catalogue, so the catalogue has to hold them. The ingestion of
-# ADR-002 refreshes these rows the first time it runs; until then this is what makes the demo
-# work without spending a request of the Article II quota.
+# The favourites reference the catalogue, so the catalogue has to hold them. The ingestion
+# refreshes these rows the first time it runs; until then this is what makes the demo work
+# without spending a request of the quota.
 DEMO_CATALOGUE = (
     ("TSLA", "Tesla, Inc.", "XNGS"),
     ("AAPL", "Apple Inc.", "XNGS"),
@@ -113,7 +111,7 @@ async def _seed_catalogue(session: AsyncSession) -> None:
 
 
 async def _seed_users(session: AsyncSession) -> None:
-    """The demo accounts, with their passwords hashed (SEC-06).
+    """The demo accounts, with their passwords hashed.
 
     `on_conflict_do_nothing` and not an update: rehashing on every start would change the stored
     hash for no reason, and a seed is not where a password gets rotated.

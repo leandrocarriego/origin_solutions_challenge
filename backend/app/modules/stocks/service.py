@@ -31,13 +31,13 @@ CATALOGUE_EXCHANGES = ("NYSE", "NASDAQ")
 # refresh, so the window is about how stale a new listing may be, not about cost.
 MAX_CATALOGUE_AGE = timedelta(hours=24)
 
-# The symbol travels in the URL (REQ-11), and a slash in it is not a symbol, it is a route. Dots
+# The symbol travels in the URL, and a slash in it is not a symbol, it is a route. Dots
 # and dashes are legal inside a path segment, so they stay: dropping them would lose real
 # companies (BRK.B, ABR-D).
 ROUTABLE_SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,8}$")
 
 # The only type dropped. A warrant is a derivative, not a stock, and it is the only thing that
-# duplicates a symbol in the catalogue -- which is what makes ADR-001's natural key true.
+# duplicates a symbol in the catalogue -- which is what makes the natural key true.
 # Narrower than Common-Stock-only on purpose: that would have thrown away 393 ADRs and 214 REITs
 # that collide with nothing and that somebody may search for.
 DERIVATIVE = "Warrant"
@@ -55,7 +55,7 @@ class CatalogueReconciliation(BaseModel):
 
 
 def is_worth_ingesting(record: StockRecord) -> bool:
-    """Whether a catalogue entry may become a row of `stocks` (ADR-001)."""
+    """Whether a catalogue entry may become a row of `stocks`."""
     if record.instrument_type == DERIVATIVE:
         return False
 
@@ -181,7 +181,7 @@ async def refresh_catalogue_if_stale(
 
 
 async def keep_the_catalogue_fresh(every: timedelta = MAX_CATALOGUE_AGE) -> None:
-    """Refresh the catalogue when it goes stale, for as long as the process lives (ADR-002).
+    """Refresh the catalogue when it goes stale, for as long as the process lives.
 
     Started by the composition root and cancelled with it. The first pass happens immediately,
     which is what covers the case of a container that came up after being down for a week; the
@@ -204,10 +204,10 @@ async def keep_the_catalogue_fresh(every: timedelta = MAX_CATALOGUE_AGE) -> None
 
 
 class StockInfo(BaseModel):
-    """What the catalogue tells another module about a symbol (GEN-02).
+    """What the catalogue tells another module about a symbol.
 
     Four fields, and the fourth is the one that needs a reason. The first three are the grid of
-    `Mis Acciones` (RF-03). `is_listed` exists because `favorites` has to do two opposite things
+    `Mis Acciones`. `is_listed` exists because `favorites` has to do two opposite things
     with the same lookup: **show** a favourite that stopped trading -- the business rule asks for
     it expressly -- and **refuse** to add one that is no longer offered. Filtering the delisted
     ones out here would take rows away from whoever saved them; saying nothing would let the add
@@ -245,7 +245,7 @@ async def get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[Stoc
 
     An empty list never reaches the database: `WHERE symbol IN ()` is a round trip whose result
     is known before writing it. "Is this query worth making" is a decision, and decisions live
-    here and not in the repository (PY-06).
+    here and not in the repository.
     """
     wanted = list(dict.fromkeys(symbols))
     if not wanted:
@@ -262,11 +262,11 @@ async def get_stocks(session: AsyncSession, symbols: Sequence[str]) -> list[Stoc
     ]
 
 
-# RF-13: shorter than this and no suggestion is worth showing, so the database is not asked. The
-# router imports it for its `Query(min_length=...)`, which is what keeps the number in one place.
+# Shorter than this and no suggestion is worth showing, so the database is not asked. The router
+# imports it for its `Query(min_length=...)`, which is what keeps the number in one place.
 MIN_QUERY_LENGTH = 2
 
-# RF-11: what fits in a dropdown. A product decision, applied **after** the ranking.
+# What fits in a dropdown. A product decision, applied **after** the ranking.
 SUGGESTION_LIMIT = 20
 
 # A containment cap on the query, and a different number for a different reason. It is chosen so
@@ -314,9 +314,9 @@ async def search_stocks(session: AsyncSession, text: str) -> list[StockInfo]:
       `micro` -- the two halves of one search talking about two different texts.
     - **Shorter than `MIN_QUERY_LENGTH` after that, and the database is never asked.** `"  "`
       passes the router's `min_length` and would become `ILIKE '%%'`, which is the whole
-      catalogue: exactly the cost RF-13's minimum exists to avoid. `[]` is a result, not a
-      failure, and not a 422 either -- a service that raised for the transport to translate would
-      be opining about HTTP (PY-06).
+      catalogue: exactly the cost the minimum exists to avoid. `[]` is a result, not a failure,
+      and not a 422 either -- a service that raised for the transport to translate would be
+      opining about HTTP.
     - **Rank first, cut second.** The repository brings candidates; cutting at twenty before the
       ranking existed would mean ranking a set the database already chose, and `MSFT` would not
       be in the answer for `micro`.

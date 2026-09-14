@@ -1,8 +1,7 @@
 """The request id, bound for the length of a request and returned in the response.
 
-It is the seam where the three other files meet: it binds what `logs` configured, it fills the
-counters of `metrics`, and what it writes is what makes a Sentry event findable afterwards. That
-is why it is its own file rather than part of any of them.
+The seam where the other three meet: it binds what `logs` configured, fills the counters of
+`metrics`, and writes what makes a Sentry event findable afterwards.
 """
 
 import time

@@ -25,9 +25,9 @@ QuoteStatus = Literal["ok", "stale", "market_closed", "no_data"]
 class QuoteCandle(BaseModel):
     """One point of the chart: an instant, and the close of that candle.
 
-    The chart draws one value per instant (RF-14), so what leaves this module is the close and
-    not the four prices of a candle. A type of ours and never the ORM row: a contract that
-    handed back the model would have aisled nothing (Article IV).
+    The chart draws one value per instant, so what leaves this module is the close and not the
+    four prices of a candle. A type of ours and never the ORM row: a contract that handed back
+    the model would have isolated nothing.
 
     The price crosses the wire as a string, which is what Pydantic does with a `Decimal` and is
     kept on purpose: it travels with the decimals the provider sent and becomes a `number` once,
@@ -55,11 +55,11 @@ class QuoteSeries(BaseModel):
 
 
 class QuoteSeriesResponse(BaseModel):
-    """The series and what has to be said about it, as the chart reads it (ERR-05).
+    """The series and what has to be said about it, as the chart reads it.
 
     The four states answer 200, every one of them: a spent quota is not a failure of the caller,
     and a closed market is the normal state of two days out of seven. And no field names the
-    provider, neither in the happy path nor in the three notices (RF-26, Article I).
+    provider, neither in the happy path nor in the three notices.
     """
 
     symbol: str

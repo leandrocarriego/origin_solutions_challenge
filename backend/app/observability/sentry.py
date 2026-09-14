@@ -2,7 +2,7 @@
 
 Sending an exception to a third party is sending whatever the exception was carrying. The three
 defaults that would ship credentials are turned off here, and `scrub_secrets` is the second line:
-it walks the event and blanks out the values this process holds (Article I, `SEC-06`).
+it walks the event and blanks out the values this process holds.
 """
 
 import re
@@ -37,8 +37,7 @@ _MIN_SECRET_LENGTH = 8
 def _secret_values() -> tuple[str, ...]:
     """The secrets worth blanking out literally.
 
-    Which values are secret is the settings' business (GEN-08: nothing outside the provider and
-    the settings names the provider), and how short is too short is this file's.
+    Which values are secret is the settings' business; how short is too short is this file's.
     """
     return tuple(
         value for value in get_settings().secret_values() if len(value) >= _MIN_SECRET_LENGTH
@@ -80,8 +79,8 @@ def scrub_secrets(event: Event, hint: Hint) -> Event | None:
 def configure_sentry() -> None:
     """Initialise error reporting with every unsafe default turned off.
 
-    An empty DSN disables it, which is what local development and CI want: no events, no
-    network, nothing to clean up afterwards (TEST-03).
+    An empty DSN disables it, which is what local development and CI want: no events and no
+    network.
     """
     settings = get_settings()
     if not settings.sentry_dsn:
@@ -92,8 +91,8 @@ def configure_sentry() -> None:
         environment=settings.environment,
         release=settings.version,
         integrations=[FastApiIntegration(), AsyncioIntegration()],
-        # The three defaults that would ship credentials to a third party. Frame locals hold
-        # the DSN and the provider URL; request bodies hold passwords (Article I, SEC-06).
+        # The three defaults that would ship credentials to a third party: frame locals hold the
+        # DSN and the provider URL, and request bodies hold passwords.
         include_local_variables=False,
         send_default_pii=False,
         max_request_body_size="never",

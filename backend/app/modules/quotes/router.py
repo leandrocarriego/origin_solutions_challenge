@@ -25,7 +25,7 @@ async def read_quotes(
     start: Annotated[datetime | None, Query(alias="from")] = None,
     end: Annotated[datetime | None, Query(alias="to")] = None,
 ) -> QuoteSeriesResponse:
-    """Answer the series of that symbol, and the state it is served in (RF-13, RF-16).
+    """Answer the series of that symbol, and the state it is served in.
 
     One route for the two modes of the screen, because they are not two questions: without
     `from` and `to` it is today's session in market hours, and with them it is the window the
@@ -33,11 +33,11 @@ async def read_quotes(
     two instants exactly as they were written, naive, and puts no timezone on them.
 
     The symbol travels in the path and **that is not an identity**: it is the object. Who is
-    asking comes from the token and from nowhere else (Article III), and a symbol that is not on
-    that person's list is a 404 that never reaches the provider (RF-35).
+    asking comes from the token and from nowhere else, and a symbol that is not on that person's
+    list is a 404 that never reaches the provider.
 
     The provider arrives by dependency rather than being built here: it is what lets the suite
-    exercise this endpoint with no network and no API key (TEST-03).
+    exercise this endpoint with no network and no API key.
     """
     series = await get_series(
         session,

@@ -1,4 +1,4 @@
-"""The quote cache (ADR-001), which is what makes Article II possible."""
+"""The quote cache, which is what keeps the quota finite."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -28,7 +28,7 @@ PRICE = Numeric(18, 6)
 
 
 class QuoteInterval(StrEnum):
-    """The three intervals REQ-16 offers the user, and the only ones the table accepts."""
+    """The three intervals the user is offered, and the only ones the table accepts."""
 
     ONE_MINUTE = "1min"
     FIVE_MINUTES = "5min"
@@ -46,8 +46,7 @@ class Quote(Base):
     already has instead of trusting a bookkeeping table.
 
     `interval` is a String with a CHECK and not a native enum: adding a value to a Postgres enum
-    is an awkward migration and removing one is worse, while a CHECK is altered in one line
-    (ADR-001).
+    is an awkward migration and removing one is worse, while a CHECK is altered in one line.
     """
 
     __tablename__ = "quotes"

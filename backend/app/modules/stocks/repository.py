@@ -1,4 +1,4 @@
-"""Data access for the catalogue. The only layer here that writes SQL (PY-06)."""
+"""Data access for the catalogue. The only layer here that writes SQL."""
 
 from collections.abc import Sequence
 from datetime import datetime
@@ -138,20 +138,20 @@ def _escape_like(text: str) -> str:
 
 
 async def search_listed(session: AsyncSession, text: str, limit: int) -> list[Stock]:
-    r"""Catalogue rows still trading whose symbol or name contains that text (RF-08 to RF-10).
+    r"""Catalogue rows still trading whose symbol or name contains that text.
 
     `text` arrives stripped and never empty -- the service already decided that -- and arrives
     unescaped, because building the pattern is this layer's job: `%` only means anything because
     *this* function chose `ILIKE`, and the day the query becomes `similarity()` the escaping does
     not become unnecessary, it becomes wrong.
 
-    `ILIKE` is case-insensitive on its own, so nothing is upper-cased here (RF-10). `ESCAPE '\'`
+    `ILIKE` is case-insensitive on its own, so nothing is upper-cased here. `ESCAPE '\'`
     is declared rather than left to the default: it makes visible that the pattern has syntax,
     and `pg_trgm` parses the pattern assuming that very character -- another one would leave the
     index reading something Postgres does not evaluate, and that can only lose rows.
 
     `limit` is a **containment cap on candidates**, not the number of suggestions: ranking by
-    relevance and cutting at twenty are decisions, and they belong to the service (PY-06).
+    relevance and cutting at twenty are decisions, and they belong to the service.
     Reading `search_listed(..., limit=20)` anywhere is a bug, not a shortcut.
     """
     pattern = f"%{_escape_like(text)}%"

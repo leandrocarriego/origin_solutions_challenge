@@ -1,4 +1,4 @@
-"""Data access for the quote cache. The only layer here that writes SQL (PY-06).
+"""Data access for the quote cache. The only layer here that writes SQL.
 
 Data and never decisions: which window to read, whether what it holds is still current and what
 to do when it is not are the service's business. What this answers is what is stored.
@@ -21,9 +21,9 @@ async def candles_in(
 ) -> list[Quote]:
     """The candles of that symbol and interval inside that window, oldest first.
 
-    Ascending because a chart is read forwards, and bounded at both ends because RF-16 is about
-    the window the user asked for: a query that answered everything stored for the symbol looks
-    right on a fresh database and wrong on a full one.
+    Ascending because a chart is read forwards, and bounded at both ends because what is asked
+    for is a window: a query that answered everything stored for the symbol looks right on a
+    fresh database and wrong on a full one.
     """
     rows: Sequence[Quote] = (
         await session.scalars(
@@ -44,8 +44,8 @@ async def candles_in(
 async def newest_ts(session: AsyncSession, symbol: str, interval: str) -> datetime | None:
     """The instant of the newest candle stored for that pair, or nothing if there is none.
 
-    It is how the service finds the last session there was when today has nothing (RF-27), and
-    it is unbounded on purpose: the question is what the cache knows, not what a window holds.
+    It is how the service finds the last session there was when today has nothing, and it is
+    unbounded on purpose: the question is what the cache knows, not what a window holds.
     """
     newest: datetime | None = await session.scalar(
         select(Quote.ts)

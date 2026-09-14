@@ -1,9 +1,4 @@
-"""Structured logging: one JSON object per line, and the request id already merged in.
-
-The file is `logs.py` and not `logging.py` on purpose: a module of that name inside this package
-reads as the standard library at every glance, and being right about absolute imports does not
-make it readable.
-"""
+"""Structured logging: one JSON object per line, and the request id already merged in."""
 
 import logging
 import sys
@@ -37,5 +32,5 @@ def bind_request_id(request_id: str) -> None:
 
 
 def get_logger(name: str | None = None) -> Any:
-    """Return the structured logger every module should use instead of print (ERR-03)."""
+    """The structured logger, which is what anything logs through instead of print."""
     return structlog.get_logger(name)

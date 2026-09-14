@@ -40,16 +40,14 @@ async def log_in(credential: LoginRequest, request: Request, session: SessionDep
 async def read_current_user(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> CurrentUserResponse:
-    """Answer the identity the token carries, without reading anything (RF-07).
+    """Answer the identity the token carries, without reading anything.
 
-    This is what a reloaded page calls to find out whether the token it kept is still good, so it
-    runs once per navigation and has to stay cheap: the claims were already verified by
-    `get_current_user`, and looking `users` up again would add a round trip to confirm something
-    the signature already confirmed. A row that changed underneath is not a risk worth a query --
-    the token expires in an hour either way (ADR-004).
+    A reloaded page calls this to find out whether the token it kept is still good, so it runs
+    once per navigation: the claims were already verified, and looking `users` up again would add
+    a round trip to confirm what the signature confirmed. A row that changed underneath is not a
+    risk worth a query -- the token expires in an hour either way.
 
-    It takes no parameter, and that is the whole of Article III here: there is no id to pass, so
-    there is none to substitute.
+    It takes no parameter, so there is no id to substitute.
     """
     return CurrentUserResponse(id=current_user.id, full_name=current_user.full_name)
 
@@ -58,12 +56,11 @@ def _client_address(request: Request) -> str:
     """Where the request came from, read in one place and never out of a header.
 
     `request.client.host` is the peer of the connection, already resolved by uvicorn from the
-    proxy headers it was told to trust (`--forwarded-allow-ips`, narrowed to the loopback and the
-    RFC1918 ranges) and rewritten by nginx to a single value. Reading `X-Forwarded-For` here
-    instead would let the caller choose its own key in the attempt counter, which is opting out of
-    the limit with a header.
+    proxy headers it was told to trust and rewritten by nginx to a single value. Reading
+    `X-Forwarded-For` here instead would let the caller choose its own key in the attempt
+    counter, which is opting out of the limit with a header.
 
-    The fallback covers the case with no peer at all -- an ASGI transport in a test, a unix
-    socket. One shared bucket is the safe answer: it over-counts rather than under-counts.
+    The fallback covers the case with no peer at all. One shared bucket over-counts rather than
+    under-counts, which is the safe direction.
     """
     return request.client.host if request.client else "unknown"
