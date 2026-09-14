@@ -36,15 +36,15 @@ La columna **Test** se completa a medida que se implementa (`AGENTS.md` → Defi
 
 | ID | Requisito | Test |
 |---|---|---|
-| REQ-01 | Página de login con campos Usuario y Clave, y botón Ingresar | |
-| REQ-02 | Credenciales inválidas muestran el mensaje literal `usuario o clave invalida` | |
-| REQ-03 | Login exitoso redirige a la página "Mis Acciones" | |
+| REQ-01 | Página de login con campos Usuario y Clave, y botón Ingresar | `frontend/tests/Login.test.tsx` · `frontend/tests/copy.test.ts` |
+| REQ-02 | Credenciales inválidas muestran el mensaje literal `usuario o clave invalida` | `frontend/tests/copy.test.ts` · `backend/tests/integration/test_login.py` |
+| REQ-03 | Login exitoso redirige a la página "Mis Acciones" | `frontend/tests/Login.test.tsx` · `frontend/tests/session.test.tsx` · `backend/tests/integration/test_login.py` |
 
 ### Mis Acciones
 
 | ID | Requisito | Test |
 |---|---|---|
-| REQ-04 | La cabecera muestra el nombre del usuario logueado (`Usuario: Juan`) | |
+| REQ-04 | La cabecera muestra el nombre del usuario logueado (`Usuario: Juan`) | `frontend/tests/Header.test.tsx` · `frontend/tests/copy.test.ts` |
 | REQ-05 | Un autocomplete sugiere acciones que coinciden con el texto buscado | |
 | REQ-06 | "Agregar Símbolo" añade la acción seleccionada a las favoritas del usuario | |
 | REQ-07 | La grilla se refresca luego de agregar | |
