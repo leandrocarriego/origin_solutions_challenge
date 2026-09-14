@@ -41,7 +41,7 @@ Estas once convenciones **no dependen de que alguien las lea**: hay un test que 
 | `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` | La suite falla por dos motivos: un cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor —sin distinguir mayúsculas— fuera de `app/providers/twelvedata.py`, que es su único hogar. |
 | `GEN-09` | `backend/tests/integration/test_user_isolation.py` | La suite falla si un usuario alcanza datos de otro. La mitad estática ya corre: `TestNoRouteAcceptsAUserId` en `test_route_authorization.py` falla por cada ruta que acepta la identidad del usuario por path, query o body. |
 | `PY-08` | `backend/tests/architecture/test_route_authorization.py` (`TestRoutesDeclareAuthorization` + `TestRoutesEnforceAuthorization`) | La suite falla por cada endpoint que responde sin decidir quién lo llama, y por cada entrada de `PUBLIC_ROUTES` sin motivo escrito o que ya no corresponde a ninguna ruta montada. |
-| `TEST-03` | La suite corre en CI con `TWELVEDATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
+| `TEST-03` | La suite corre en CI con `MARKET_DATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
 | `TEST-05` | `--cov-fail-under=80` en `backend/pyproject.toml` | `pytest` termina en rojo aunque todos los tests pasen. |
 | `SEC-08` | `backend/tests/unit/test_cors.py` | La suite falla si `Settings` acepta `"*"` como origen, o si el preflight de la aplicación anuncia credenciales o métodos que la API no tiene. |
 | `UI-02` | `frontend/tests/copy.test.ts` | La suite falla y nombra el texto que no coincide con `docs/design/COPY.md`. |
@@ -734,7 +734,7 @@ Los fixtures van en `backend/tests/fixtures/twelvedata/`.
 **La suite completa corre sin red y sin API key**.
 
 ```
-cd backend && TWELVEDATA_API_KEY= uv run pytest
+cd backend && MARKET_DATA_API_KEY= uv run pytest
 ```
 
 ### `TEST-04` - Major: Toda alta de favorita tiene su test de idempotencia, agregar dos veces el mismo símbolo no duplica ni falla.
