@@ -1,8 +1,10 @@
 # Specs entregadas
 
-Acá vive la carpeta de cada feature **después** de que su PR se mergeó a `main`. La mueve
-`/ship` (`agents/skills/ship_changes.md`), en el mismo commit que completa la columna **Test**
-de la tabla de trazabilidad de `docs/PROJECT_BRIEF.md`.
+Acá vive la carpeta de cada feature **después** de que su PR se mergeó a `main` **y el cambio salió
+a producción** (decisión humana, 2026-09-13). La mueve `/ship`
+(`agents/skills/ship_changes.md`), en un changeset propio y posterior al de la feature: la columna
+**Test** de la tabla de trazabilidad de `docs/PROJECT_BRIEF.md` no viaja acá, porque se completa
+antes, en el commit de la feature.
 
 ```bash
 git mv docs/specs/<NNN-feature> docs/specs/archive/<NNN-feature>

@@ -61,9 +61,22 @@ Un solo producto, un solo remoto (`origin`), un solo flujo:
 - Verificar que, si hubo cambios de dependencias, estén commiteados juntos `pyproject.toml` +
   `uv.lock` (backend) o `package.json` + `package-lock.json` (frontend).
 - Verificar que los cambios de modelos vayan junto con su migración de Alembic.
+- Completar la **columna Test** de la tabla de trazabilidad de `docs/PROJECT_BRIEF.md` para cada
+  `REQ-NN` que esta feature cubre, con la ruta del test que lo verifica, y stagearla junto con la
+  feature.
 - Armar el mensaje Conventional a partir de la feature o del bug (el scope es el área:
   `feat(quotes): ...`).
 - Commitear. **Sin trailer `Co-Authored-By`.**
+
+```
+| REQ-02 | Credenciales inválidas muestran … | pág. 2 | `tests/integration/test_auth.py::test_invalid_credentials` |
+```
+
+La columna va en el commit de la feature, y no en el del archivado, porque registra **qué test
+verifica el requisito**: eso ya es verdad cuando el test corre en verde, no cuando el código sale a
+producción. Si esperara al deploy, el PR se mergearía con la tabla diciendo que algo sigue pendiente
+cuando ya está hecho, y el evaluador leería eso. Es lo único del brief que se actualiza acá; el
+resto es el acuerdo firmado y no se toca.
 
 ### 4) Pushear (confirmar antes)
 - Mostrarle al usuario la rama destino y el commit. **Pedir confirmación.**
@@ -82,32 +95,33 @@ Un solo producto, un solo remoto (`origin`), un solo flujo:
 - **Pedir confirmación antes de crear el PR.**
 - Reportar la URL del PR.
 
-### Archivar la spec (después del merge)
+### 6) Archivar la spec (después del deploy)
 
-Una vez que el PR está mergeado a `main` y desplegado, mover la carpeta de la feature a
-`docs/specs/archive/`:
+**Decisión humana (2026-09-13): la spec se archiva después del deploy, no después del merge.**
+`docs/specs/archive/` significa *"está en producción"*, y mover la carpeta apenas se mergea el PR
+convierte esa lectura en una promesa: quien abre `docs/specs/` deja de poder leer la lista como
+"esto es lo que todavía no está desplegado".
+
+Una vez que el PR está mergeado a `main` **y el cambio salió a producción**, mover la carpeta de la
+feature a `docs/specs/archive/`:
 
 ```bash
 git mv docs/specs/<NNN-feature> docs/specs/archive/<NNN-feature>
 ```
+
+Es un changeset propio y posterior al PR de la feature, así que entra por donde entra todo: rama
+desde `main` (`chore/archive-<NNN-feature>`), commit `docs(specs): ...` y PR. Nunca directo a
+`main` (`GIT-01`).
 
 Sin este paso el árbol de specs crece sin límite y deja de distinguir lo que está por
 construirse de lo que ya está en producción. El número **no se reutiliza**: la próxima feature
 toma el siguiente al mayor entre las activas y las archivadas. Convención completa en
 `docs/specs/archive/README.md`.
 
-En el **mismo commit**, actualizar la **tabla de trazabilidad** de `docs/PROJECT_BRIEF.md`:
-completar la columna **Test** de cada `REQ-NN` que esta feature cubre, con la ruta del test que lo
-verifica.
-
-```
-| REQ-02 | Credenciales inválidas muestran … | pág. 2 | `tests/integration/test_auth.py::test_invalid_credentials` |
-```
-
-Va junto al archivado y no después porque es la misma pregunta desde los dos lados: la spec sale
-del árbol activo **porque** sus requisitos quedaron cubiertos. Si se separan, la tabla queda vieja
-y el evaluador lee que algo sigue pendiente cuando ya está hecho. Es lo único del brief
-que se actualiza; el resto es el acuerdo firmado y no se toca.
+La columna **Test** del brief **no viaja acá**: ya se completó en el commit de la feature (paso 3).
+Lo que garantiza que la tabla no quede vieja deja de ser el "mismo commit" y pasa a ser la
+*Definition of Done* de `AGENTS.md`, que la exige completa y frena el merge — un gate, y no una
+convención sobre dónde cae el diff.
 
 ## Validación
 - El commit quedó en una rama de feature, nunca directo en `main`.
@@ -115,7 +129,10 @@ que se actualiza; el resto es el acuerdo firmado y no se toca.
 - El push y el PR ocurrieron sólo después de la confirmación explícita del usuario.
 - El mensaje de commit es Conventional, en inglés, y no tiene trailer `Co-Authored-By`.
 - El PR está abierto contra `main` y tiene una descripción útil.
-- Después del merge, la spec de la feature quedó movida a `docs/specs/archive/`.
+- La columna **Test** del brief quedó completa —en el commit de la feature, antes del merge— para
+  los requisitos que esta feature cubre.
+- Después del **deploy**, y no del merge, la spec de la feature quedó movida a
+  `docs/specs/archive/` en su propio changeset.
 - El *Estado de los doce problemas* del brief refleja lo que esta feature resolvió.
 
 ## Errores comunes (evitar)
@@ -125,6 +142,9 @@ que se actualiza; el resto es el acuerdo firmado y no se toca.
 - Commitear el modelo sin su migración, o la dependencia sin el lockfile.
 - Commitear `.env`, fixtures pesadas innecesarias o exports de diagramas (van gitignorados).
 - Agregar el trailer `Co-Authored-By`.
+- Archivar la spec apenas se mergea el PR, sin esperar al deploy.
+- Dejar la columna **Test** del brief para el commit del archivado: el PR de la feature se
+  mergearía con la tabla incompleta.
 - Hacer force-push para "acomodar" la rama.
 
 ## Troubleshooting

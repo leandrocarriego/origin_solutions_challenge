@@ -77,6 +77,15 @@ que la cadena promete.
 
 ## Al entregar
 
-La carpeta pasa a `archive/` y, en el **mismo commit**, se completa la columna **Test** de la tabla
-de trazabilidad del brief (`ship_changes`). Si se separan, la tabla queda vieja y el evaluador lee
-que algo sigue pendiente cuando ya está hecho.
+Son dos momentos distintos, y el orden importa (`ship_changes`).
+
+La columna **Test** de la tabla de trazabilidad del brief se completa **en el commit de la feature**,
+antes del merge: registra qué test verifica cada `REQ-NN`, y eso ya es verdad cuando el test corre
+en verde, no cuando el código sale a producción. Lo que impide que la tabla quede vieja ya no es el
+"mismo commit", sino la *Definition of Done* de `AGENTS.md`, que la exige completa y frena el
+merge — un gate, y no una convención sobre dónde cae el diff.
+
+La carpeta pasa a `archive/` **después del deploy**, en un changeset propio con su rama y su PR
+(decisión humana, 2026-09-13). `archive/` significa "está en producción": archivar en el merge
+convertiría esa lectura en una promesa, y `docs/specs/` dejaría de leerse como "esto es lo que
+todavía no está desplegado".
