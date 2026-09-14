@@ -58,11 +58,18 @@ app = FastAPI(title="ORIGIN Acciones", version=settings.version, lifespan=lifesp
 # Outermost, so the request id covers CORS and every error the layers below turn into a response.
 app.add_middleware(RequestContextMiddleware)
 
+# `allow_credentials=False` because nothing here travels in a cookie: the session is a bearer
+# token in `Authorization`, which is a request header and is governed by `allow_headers`. The flag
+# is what turns a widened origin list into any site making authenticated requests, so it is off
+# for the same reason a door nobody uses is still locked.
+#
+# The methods are the three the API has. `*` would also announce PUT and PATCH, which exist
+# nowhere and would answer 405 -- advertising surface that is not there.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 

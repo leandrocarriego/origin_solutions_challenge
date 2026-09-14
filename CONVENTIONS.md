@@ -28,7 +28,7 @@ Esta es la distinción más importante del documento.
 
 Estas once convenciones **no dependen de que alguien las lea**: hay un test que falla, y la suite no pasa.
 
-**Dónde se verifican.** El hook `pytest-fast` del pre-commit corre `tests/unit` y `tests/architecture`, así que `GEN-02`, `PY-06`, `PY-08`, `GEN-08` y `GEN-09` frenan el commit antes de que salga de la máquina.
+**Dónde se verifican.** El hook `pytest-fast` del pre-commit corre `tests/unit` y `tests/architecture`, así que `GEN-02`, `PY-06`, `PY-08`, `GEN-08`, `GEN-09` y `SEC-08` frenan el commit antes de que salga de la máquina.
 
 `TEST-03` y `TEST-05` miden la suite completa y por eso se verifican en CI (`.github/workflows/ci.yml`), junto con integración y `alembic check`. `UI-02` y `UI-03` son del frontend: las corre `npm test` (vitest), también en CI.
 
@@ -43,6 +43,7 @@ Estas once convenciones **no dependen de que alguien las lea**: hay un test que 
 | `PY-08` | `backend/tests/architecture/test_route_authorization.py` (`TestRoutesDeclareAuthorization` + `TestRoutesEnforceAuthorization`) | La suite falla por cada endpoint que responde sin decidir quién lo llama, y por cada entrada de `PUBLIC_ROUTES` sin motivo escrito o que ya no corresponde a ninguna ruta montada. |
 | `TEST-03` | La suite corre en CI con `TWELVEDATA_API_KEY` vacía | Cualquier test que salga a la red falla por credencial ausente. |
 | `TEST-05` | `--cov-fail-under=80` en `backend/pyproject.toml` | `pytest` termina en rojo aunque todos los tests pasen. |
+| `SEC-08` | `backend/tests/unit/test_cors.py` | La suite falla si `Settings` acepta `"*"` como origen, o si el preflight de la aplicación anuncia credenciales o métodos que la API no tiene. |
 | `UI-02` | `frontend/tests/copy.test.ts` | La suite falla y nombra el texto que no coincide con `docs/design/COPY.md`. |
 | `UI-03` | `frontend/tests/tokens.test.ts` | La suite falla y lista archivo, línea y el color escrito a mano. La paleta de fábrica de Tailwind ya no existe (`--color-*: initial`), así que el test cubre lo que queda: hex, `rgb()`, `hsl()` y estilos inline. |
 
@@ -658,11 +659,25 @@ Las que **sí** aplican acá, cada una con la regla que ya la cubre:
 | **API3** | BOPLA — exponer o aceptar campos de más | Los schemas de `schemas.py` son explícitos en las dos direcciones, nunca `model_config = {"extra": "allow"}`. Un modelo que el service decide **y** la respuesta lleva se revisa con más cuidado: agregarle un campo para uso interno lo publica | `PY-01` |
 | **API4** | Consumo de recursos sin límite | La cuota de 800/día **es** este riesgo | Artículo II, `ADR-003` |
 | **API5** | Autorización a nivel función | Toda ruta declara su autenticación o está en `PUBLIC_ROUTES` con motivo | `PY-08` |
-| **API8** | Mala configuración | CORS acotado al origen del frontend, nunca `*`; Sentry sin PII ni variables locales | `SEC-02`, `ADR-009` |
+| **API8** | Mala configuración | CORS acotado al origen del frontend, nunca `*`; Sentry sin PII ni variables locales | `SEC-08`, `SEC-02`, `ADR-009` |
 
 Las que **no** aplican, dicho de frente: **API6** (flujos de negocio sensibles: no hay pagos ni transferencias), **API7** (SSRF: la única URL saliente es la del proveedor, fija en `app/providers/`), **API9** (gestión de inventario: hay una sola versión y un solo ambiente público), **API10** (consumo inseguro de APIs de terceros — aplica parcialmente, y lo cubre `ERR-05`: la respuesta del proveedor se valida y se tipa, nunca se reenvía cruda).
 
 **API1 y API5 son distintos y se confunden.** API1 pregunta *"¿este usuario puede tocar **este objeto**?"*; API5, *"¿este usuario puede llamar a **este endpoint**?"*. La primera la sostiene el filtro por `sub` del token, la segunda la declaración de autorización de la ruta. Un endpoint puede pasar API5 y fallar API1.
+
+### `SEC-08` - Blocker: CORS nombra sus orígenes, y no habilita credenciales.
+
+`allow_origins` lista los orígenes uno por uno, con esquema, y **nunca** `"*"`. Lo rechaza un validador de `Settings`, porque Starlette no lo rechaza: pedido con `"*"` y credenciales habilitadas, `CORSMiddleware` **no** contesta `"*"` — devuelve el origen que preguntó, que es justo lo que un navegador necesita para entregarle la sesión de un visitante a otro sitio.
+
+`allow_credentials` va en `False`. Acá la sesión es un bearer token en `Authorization`, que es un header de request y lo gobierna `allow_headers`: no hay ninguna cookie que tenga que cruzar un origen. Ese flag es el que convierte una lista de orígenes floja en un agujero, así que está apagado aunque hoy no haga falta.
+
+`allow_methods` nombra los métodos que la API tiene (`GET`, `POST`, `DELETE`). `"*"` anuncia además `PUT` y `PATCH`, que no existen en ninguna ruta.
+
+Vale la pena decir por qué esto es `Blocker` si **nada es cross-origin hoy**: en producción nginx proxea `/api` y en desarrollo lo proxea Vite, así que el navegador nunca sale del origen. Una configuración que nadie ejercita es exactamente la que alguien afloja sin enterarse de lo que enciende.
+
+```
+cd backend && uv run pytest tests/unit/test_cors.py
+```
 
 ---
 

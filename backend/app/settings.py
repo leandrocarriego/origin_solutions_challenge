@@ -4,7 +4,7 @@ import re
 from functools import lru_cache
 from typing import Final
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Signing HS256 with a short key is offline brute force on any captured token, so below this
@@ -49,8 +49,31 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     sentry_environment: str = "local"
 
-    # Narrowed to the frontend origin, never "*": the API answers with credentials.
+    # Narrowed to the frontend origin, never "*", and the validator below is what makes that a
+    # rule rather than a habit.
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+
+    @field_validator("cors_origins")
+    @classmethod
+    def _refuse_any_origin(cls, origins: list[str]) -> list[str]:
+        """Refuse `"*"`, because Starlette will not.
+
+        Asked for every origin, `CORSMiddleware` does not answer `"*"`: it echoes back whichever
+        origin asked, which is what makes the answer usable by a browser that is carrying somebody
+        else's session. Frameworks that refuse the combination outright exist; this is not one, so
+        the refusal lives here.
+
+        In this application nothing is cross-origin today -- nginx proxies `/api` in production
+        and Vite proxies it in development -- and that is exactly why this is worth pinning: a
+        setting nobody exercises is a setting somebody widens without noticing what it turns on.
+        """
+        if "*" in origins:
+            raise ValueError(
+                'CORS_ORIGINS must name the origins it allows, never "*": with credentials '
+                "enabled that lets any site make authenticated requests from a visitor's browser"
+            )
+
+        return origins
 
     @property
     def market_data_api_key(self) -> str:
