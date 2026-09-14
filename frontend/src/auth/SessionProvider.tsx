@@ -72,12 +72,30 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
   // token cannot be captured: it has to be looked up at the moment the call goes out.
   const heldRef = useRef(held);
 
+  // The latest `navigate`, so the registration below can stay a one-off. It is only read when a
+  // session ends, which is never during a render.
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+
+  /**
+   * Change the held session, and the ref with it, in the same statement.
+   *
+   * The ref is **not** kept in sync by an effect, and that is the whole of this function. React
+   * runs the effects of the children before those of the parent, so on the commit that logs the
+   * visitor in -- the one where the inner screen mounts -- the screen's own effect fires first and
+   * asks for the grid while the parent's effect has not run yet. Through an effect the provider
+   * would still be holding `null` at that moment, the call would go out with no `Authorization`
+   * header, and our API would answer 401: a session that ended, one frame after it began.
+   */
+  const hold = useCallback((next: HeldSession | null): void => {
+    heldRef.current = next;
+    setHeld(next);
+  }, []);
+
   const [confirming, setConfirming] = useState(startup.kind === 'unconfirmed');
   const [expired, setExpired] = useState(startup.kind === 'expired');
-
-  useEffect(() => {
-    heldRef.current = held;
-  }, [held]);
 
   useEffect(() => {
     // Read through a ref of the latest value rather than captured: this effect runs once, and a
@@ -87,17 +105,26 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
 
     setUnauthorizedHandler(() => {
       clearStoredSession();
-      setHeld(null);
+      hold(null);
       setConfirming(false);
       setExpired(true);
-      void navigate('/login', { replace: true });
+      void navigateRef.current('/login', { replace: true });
     });
 
     return () => {
       setUnauthorizedHandler(null);
       setAuthTokenProvider(null);
     };
-  }, [navigate]);
+    // No dependency, and that is the point: this registration has to outlive every navigation.
+    // `navigate` changes identity on each one, so depending on it made React tear the registration
+    // down and put it back on the commit that navigates -- and React runs the cleanups of the whole
+    // tree, then the effects child-first. The screen that had just mounted asked for its data in
+    // between: with no provider registered the call went out with no `Authorization` header, our
+    // API answered 401, and the interceptor read that as a session that had ended. One frame after
+    // logging in, `Tu sesión expiró. Volvé a ingresar.` -- which is why `navigate` is reached
+    // through a ref here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (startup.kind === 'expired') clearStoredSession();
@@ -110,12 +137,12 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
       try {
         const who = await fetchMe(token);
         // The name comes from the answer and not from what was kept: the API is the source.
-        if (!abandoned) setHeld({ token, user: { fullName: who.full_name } });
+        if (!abandoned) hold({ token, user: { fullName: who.full_name } });
       } catch {
         // A 401 already went through the interceptor, which is what says why. Anything else left
         // the token unconfirmed, and an unconfirmed token is not a session.
         clearStoredSession();
-        if (!abandoned) setHeld(null);
+        if (!abandoned) hold(null);
       } finally {
         if (!abandoned) setConfirming(false);
       }
@@ -124,31 +151,34 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
     return () => {
       abandoned = true;
     };
-  }, [startup]);
+  }, [hold, startup]);
 
-  const logIn = useCallback(async (username: string, password: string): Promise<void> => {
-    const session = await login(username, password);
+  const logIn = useCallback(
+    async (username: string, password: string): Promise<void> => {
+      const session = await login(username, password);
 
-    writeStoredSession({
-      token: session.access_token,
-      fullName: session.full_name,
-      // `expires_in` is seconds, and the frontend holds no copy of the number itself.
-      expiresAt: Date.now() + session.expires_in * 1000,
-    });
+      writeStoredSession({
+        token: session.access_token,
+        fullName: session.full_name,
+        // `expires_in` is seconds, and the frontend holds no copy of the number itself.
+        expiresAt: Date.now() + session.expires_in * 1000,
+      });
 
-    setHeld({ token: session.access_token, user: { fullName: session.full_name } });
-    setConfirming(false);
-    setExpired(false);
-  }, []);
+      hold({ token: session.access_token, user: { fullName: session.full_name } });
+      setConfirming(false);
+      setExpired(false);
+    },
+    [hold],
+  );
 
   const logOut = useCallback((): void => {
     clearStoredSession();
-    setHeld(null);
+    hold(null);
     setConfirming(false);
     // Not an expiry: it was closed on purpose, so the login must not say the session ran out.
     setExpired(false);
     void navigate('/login', { replace: true });
-  }, [navigate]);
+  }, [hold, navigate]);
 
   const value = useMemo<Session>(
     () => ({

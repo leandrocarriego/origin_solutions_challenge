@@ -442,3 +442,33 @@ describe('the address of the detail of an action, opened with no session', () =>
     expect(screen.queryByRole('button', { name: GRAFICAR })).toBeNull();
   });
 });
+
+/**
+ * The regression of the session that ended one frame after it began.
+ *
+ * In production, logging in showed `Mis Acciones` for an instant and came straight back to the
+ * login with `Tu sesión expiró. Volvé a ingresar.` on it. Nothing had expired: the first call the
+ * inner screen makes -- `GET /api/favorites`, the moment it mounts -- went out with **no**
+ * `Authorization` header, our API answered 401, and the interceptor did what a 401 means and ended
+ * the session.
+ *
+ * What made it possible is that the provider registers the token of every call from an effect. An
+ * effect that depended on `navigate` -- whose identity changes on every navigation -- was torn down
+ * and set up again on the very commit that navigates, and React runs the cleanups of the whole tree
+ * before the effects, children first: the screen asked for its grid in the gap, with nothing
+ * registered to hand it a credential.
+ *
+ * The test is written on the header and not on the screen on purpose. Asserting "the visitor stays
+ * inside" would go green again the day the interceptor stops reacting to a 401, which would be a
+ * different bug wearing this one's clothes. The header is the thing that was missing.
+ */
+describe('the first call an inner screen makes after logging in', () => {
+  it('carries the session that was just handed out', async () => {
+    stubTheApi(meAnswers);
+
+    await logInThroughTheScreen();
+
+    const [, init] = callsTo(FAVORITES_URL)[0] ?? [];
+    expect(headersOf(init).get('Authorization')).toBe(`Bearer ${A_SESSION.access_token}`);
+  });
+});
