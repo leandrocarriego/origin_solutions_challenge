@@ -14,12 +14,17 @@ discovery.docker "containers" {
 
 // Only this project's containers. The other 20-odd on the host belong to someone else, and
 // their logs are not ours to read.
+//
+// The compose project is read from the environment because it is not the same name in every
+// environment -- `origin-acciones` locally, `origin-solutions-challenge` on the VPS -- and a
+// regex matching the wrong one keeps nothing and reports no error. The fallback is the VPS,
+// which is where forgetting to set it would cost the most.
 discovery.relabel "origin" {
 	targets = discovery.docker.containers.targets
 
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-		regex         = "origin-solutions-challenge"
+		regex         = coalesce(sys.env("COMPOSE_PROJECT"), "origin-solutions-challenge")
 		action        = "keep"
 	}
 

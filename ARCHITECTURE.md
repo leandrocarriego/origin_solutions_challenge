@@ -18,7 +18,7 @@ origin_solutions_challenge/
 ├── scripts/              scripts para el seed de la db (pg_dump de la base sembrada), etc
 ├── docs/                 brief, decisiones, specs, diseño
 ├── agents/               roles y skills del proceso SDD
-├── infra/                configuración de la observabilidad desplegada (ADR-009)
+├── infra/                configuración de la observabilidad, local y desplegada (ADR-009)
 │   ├── prometheus/       qué se scrapea
 │   └── grafana/          datasource, provisioning y los dashboards como código
 ├── docker-compose.yml
