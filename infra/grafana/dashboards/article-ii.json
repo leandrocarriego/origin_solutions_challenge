@@ -1,10 +1,10 @@
 {
   "uid": "origin-article-ii",
   "title": "ORIGIN Acciones - cuota y salud de la API",
-  "description": "La evidencia del Articulo II: el consumo del proveedor escala con simbolos distintos observados, nunca con clientes conectados.",
+  "description": "El consumo del proveedor escala con simbolos distintos observados, nunca con clientes conectados.",
   "tags": [
     "origin",
-    "articulo-ii"
+    "cuota"
   ],
   "timezone": "browser",
   "editable": false,
@@ -19,7 +19,7 @@
   "panels": [
     {
       "type": "row",
-      "title": "Articulo II - la cuota del proveedor es finita",
+      "title": "La cuota del proveedor es finita",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -292,7 +292,7 @@
     {
       "type": "timeseries",
       "title": "Llamadas al proveedor, por simbolo",
-      "description": "El consumo escala con simbolos distintos observados, no con clientes conectados. Si una linea nueva aparece solo cuando alguien mira un simbolo nuevo, el Articulo II se cumple.",
+      "description": "El consumo escala con simbolos distintos observados, no con clientes conectados. Si una linea nueva aparece solo cuando alguien mira un simbolo nuevo, el consumo esta acotado por simbolo y no por usuario.",
       "datasource": {
         "type": "prometheus",
         "uid": "origin-prometheus"
@@ -599,13 +599,14 @@
             "type": "prometheus",
             "uid": "origin-prometheus"
           },
-          "expr": "time() - catalogue_last_success_timestamp_seconds",
+          "expr": "time() - (catalogue_last_success_timestamp_seconds != 0)",
           "legendFormat": "antigüedad"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "s",
+          "noValue": "sin refrescar",
           "thresholds": {
             "mode": "absolute",
             "steps": [
