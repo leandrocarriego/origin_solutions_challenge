@@ -1,20 +1,35 @@
-"""The HTTP contract of `favorites`: what comes in and what goes out.
+"""The data structures of `favorites`: what comes in, what goes out, and what the module decides.
 
 Internal to the module. What travels to other modules is what the `__init__` declares, and today
 that is the router and nothing else.
+
+The file is called `schemas` and not `io` because most of what is here is not exclusive to the
+transport: `FavoriteStock` is the row of the grid *and* what `list_favorites` answers, and having
+written it twice -- once as a Pydantic model for the response and once as a dataclass for the
+service -- bought nothing but two places to keep in step.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class FavoriteItem(BaseModel):
-    """One row of `Mis Acciones`, as the grid reads it (RF-03).
+class FavoriteStock(BaseModel):
+    """One row of `Mis Acciones`: what the service decides, and what the grid reads (RF-03).
 
     Three fields, and the reason there are only three is worth stating: the screen draws a
     symbol, a name and a currency, and anything else the tables happen to hold -- when it was
     added, which market it trades in -- would be answered for no reason. That habit is
-    API3:2023 (BOPLA).
+    API3:2023 (BOPLA), and it is the risk this model carries by being the two things at once:
+    a field added here for the service is a field the API starts answering. Nothing goes in
+    that the grid does not draw.
+
+    Whether the symbol still trades does not travel either: a favourite is shown either way, so
+    a field nobody reads would be surface to keep. That decision is `stocks`' to publish and
+    this module's to ignore.
+
+    Frozen, because it is a value and not a record somebody edits on the way out.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     symbol: str
     name: str

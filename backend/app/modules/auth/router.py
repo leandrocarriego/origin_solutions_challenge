@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 
 from app.db import SessionDep
-from app.modules.auth.io import CurrentUserResponse, LoginRequest, LoginResponse
+from app.modules.auth.schemas import CurrentUserResponse, LoginRequest, LoginResponse
 from app.modules.auth.service import authenticate
 from app.security import ACCESS_TOKEN_TTL, CurrentUser, create_access_token, get_current_user
 

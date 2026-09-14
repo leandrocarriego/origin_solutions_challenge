@@ -102,7 +102,7 @@ cd frontend && npm run lint && npm run format:check
 
 Son **dos cláusulas** y las dos son la regla.
 
-- **Afuera:** a un módulo se entra por su paquete. Cualquier ruta más profunda (`app.modules.stocks.service`, `app.modules.stocks.models`) es interior ajeno y para el resto del sistema no existe. Lo que está en `__all__` es lo único que el módulo promete sostener; todo lo demás (`router.py`, `io.py`, `service.py`, `repository.py`, `models.py`) se cambia sin avisarle a nadie. Un import que entra por el costado convierte un detalle interno en API pública sin que su dueño se entere, y ata los dos módulos para siempre.
+- **Afuera:** a un módulo se entra por su paquete. Cualquier ruta más profunda (`app.modules.stocks.service`, `app.modules.stocks.models`) es interior ajeno y para el resto del sistema no existe. Lo que está en `__all__` es lo único que el módulo promete sostener; todo lo demás (`router.py`, `schemas.py`, `service.py`, `repository.py`, `models.py`) se cambia sin avisarle a nadie. Un import que entra por el costado convierte un detalle interno en API pública sin que su dueño se entere, y ata los dos módulos para siempre.
 
 - **Adentro:** los archivos del módulo se importan entre sí **por ruta completa**, nunca por `app.modules.<modulo>`: eso reentra al `__init__` a medio inicializar y da un `ImportError` confuso. Es la cláusula que evita el error, así que vale tanto como la primera.
 
@@ -173,7 +173,7 @@ cd backend && grep -n "fastapi" app/errors.py
 
 ### `GEN-04` - Major: El router de un módulo nuevo se monta explícitamente en `app/main.py`.
 
-`main.py` es el *composition root*: es el único lugar que conoce todos los módulos, monta el router de cada uno, configura CORS y traduce las excepciones de dominio a códigos HTTP.
+`main.py` es el *composition root*: es el único lugar que conoce todos los módulos y monta el router de cada uno. La traducción de las excepciones de dominio a códigos HTTP vive en `app/error_handlers.py`, que `main.py` engancha con `register_error_handlers(app)`.
 Un módulo que existe y cuyo router no está montado es código muerto que aparenta ser una feature.
 
 ### `GEN-05` - Blocker: No hay ciclos entre módulos.
@@ -335,7 +335,7 @@ Las capas son reales y están verificadas por un test de arquitectura, no por di
 - ✅ `quotes/router.py` → `from app.modules.quotes.service import QuoteService`
 - ✅ `quotes/service.py` → `from app.modules.quotes.repository import QuoteRepository`
 
-Vale igual cuando la pieza creció de archivo a carpeta del mismo nombre (`router.py` → `routers/`, `service.py` → `services/`, `repository.py` → `repositories/`, `io.py` → `schemas/`, `models.py` → `models/`): cambia la forma, no la dirección.
+Vale igual cuando la pieza creció de archivo a carpeta del mismo nombre (`router.py` → `routers/`, `service.py` → `services/`, `repository.py` → `repositories/`, `schemas.py` → `schemas/`, `models.py` → `models/`): cambia la forma, no la dirección.
 
 ```
 cd backend && uv run pytest tests/architecture/test_module_boundaries.py
@@ -405,6 +405,33 @@ En inglés, como todo el código (`GEN-07`).
 
 ```
 cd backend && uv run ruff check --select D app tests
+```
+
+### `PY-12` - Major: Las estructuras de datos son modelos de Pydantic, no `dataclass`.
+
+Todo lo que es **dato** —lo que un service decide, lo que una respuesta lleva, lo que un proveedor devuelve, la identidad que sale de un token— es un `BaseModel`. Inmutable salvo que haya un motivo escrito para lo contrario:
+
+```python
+class FavoriteStock(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    name: str
+    currency: str
+```
+
+Un `dataclass` queda para lo que **no** es dato: un contenedor de estado del proceso, con un `asyncio.Lock` adentro, que nunca cruza una frontera y no tiene nada que validar ni que serializar. Hoy hay exactamente uno (`_Gate`, en `quotes/service.py`) y su docstring dice por qué.
+
+El motivo de la regla es que un modelo se valida, se serializa y genera su schema en el OpenAPI; un `dataclass` no hace ninguna de las tres, así que la misma estructura terminaba escrita dos veces —una como `dataclass` para el service, otra como modelo para la respuesta— y había que mantenerlas en paralelo.
+
+Los modelos viven en `schemas.py` cuando el service y la respuesta comparten la forma; cuando **no** coinciden son dos modelos y el router traduce. Un campo agregado a un modelo que además es respuesta sale por la API sin que nadie lo decida: eso es API3/BOPLA, y es el costo que compra la reutilización.
+
+La excepción declarada son las **clases de infraestructura de los tests** (`tests/architecture/source_tree.py`): no son datos del dominio, no cruzan ninguna frontera y no participan del OpenAPI.
+
+**No la verifica ningún test**, y conviene decirlo en vez de simularlo: `ruff` no distingue un dato de un contenedor de estado. La recorre el `Code-Reviewer`, y el grep que la hace visible es:
+
+```
+cd backend && grep -rn "@dataclass" app/
 ```
 
 ---
@@ -553,7 +580,7 @@ cd backend && grep -rnE "^\s*print\(" app | grep -v "bootstrap.py"
 
 Lanzan excepciones de dominio: las comunes en `app/errors.py` (`DomainError` y su familia : `NotFoundError`, `ConflictError`, `ValidationError`, `AuthenticationError`, `PermissionDeniedError`), y las propias de cada módulo en su propio código, heredando de `DomainError`.
 
-`main.py` las traduce a códigos HTTP.
+`app/error_handlers.py` las traduce a códigos HTTP, y `main.py` lo engancha.
 
 Una excepción de dominio se levanta desde cualquier módulo y no arrastra `fastapi` con ella.
 
@@ -628,7 +655,7 @@ Las que **sí** aplican acá, cada una con la regla que ya la cubre:
 |---|---|---|---|
 | **API1** | **BOLA** — autorización a nivel objeto rota | El riesgo principal del proyecto: favoritas de otro usuario | Artículo III, `GEN-09` |
 | **API2** | Autenticación rota | Login, JWT, expiración, Argon2id | `ADR-004`, `SEC-06` |
-| **API3** | BOPLA — exponer o aceptar campos de más | Los schemas de `io.py` son explícitos en las dos direcciones, nunca `model_config = {"extra": "allow"}` | `PY-01` |
+| **API3** | BOPLA — exponer o aceptar campos de más | Los schemas de `schemas.py` son explícitos en las dos direcciones, nunca `model_config = {"extra": "allow"}`. Un modelo que el service decide **y** la respuesta lleva se revisa con más cuidado: agregarle un campo para uso interno lo publica | `PY-01` |
 | **API4** | Consumo de recursos sin límite | La cuota de 800/día **es** este riesgo | Artículo II, `ADR-003` |
 | **API5** | Autorización a nivel función | Toda ruta declara su autenticación o está en `PUBLIC_ROUTES` con motivo | `PY-08` |
 | **API8** | Mala configuración | CORS acotado al origen del frontend, nunca `*`; Sentry sin PII ni variables locales | `SEC-02`, `ADR-009` |

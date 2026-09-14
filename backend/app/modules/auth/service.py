@@ -15,10 +15,10 @@ the wrong resource -- the CPU it spends is exactly what a brute-force attempt is
 """
 
 import secrets
-from dataclasses import dataclass
 from datetime import timedelta
 
 import structlog
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import AuthenticationError, RateLimitedError
@@ -47,8 +47,7 @@ _ABSENT_USER_HASH = hash_password(secrets.token_urlsafe(32))
 _log = structlog.get_logger()
 
 
-@dataclass(frozen=True, slots=True)
-class AuthenticatedUser:
+class AuthenticatedUser(BaseModel):
     """Whoever just proved they know the password.
 
     Deliberately not `CurrentUser`: this is the result of authenticating and it does not leave
@@ -56,6 +55,8 @@ class AuthenticatedUser:
     system sees. The ORM row stays behind -- a model that reached the HTTP edge would bring the
     session and the table layout with it.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     id: int
     full_name: str

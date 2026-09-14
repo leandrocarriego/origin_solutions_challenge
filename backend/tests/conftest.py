@@ -1,8 +1,22 @@
 """Shared fixtures.
 
 TEST-03: the suite runs with no network and no API key. Anything that would reach outside is
-replaced here — never reached, and never a reason to skip a test.
+replaced here -- never reached, and never a reason to skip a test.
+
+`JWT_SECRET` is set before anything of `app` is imported, and that ordering is the whole point:
+the variable is a required field of `Settings` (`SEC-05`), `Settings` is read while `app.main` is
+imported, so without this every module that reaches `app` would fail at collection. `setdefault`
+and not an assignment, so a suite run against a real environment keeps the secret it was given.
+
+The value is not a secret and does not pretend to be one: it says so, and it is long enough to
+clear the floor and good for nothing else. It lives in the tests and never in `app/`, which is
+the line `SEC-05` actually draws -- what must not exist is a default *the application ships
+with*.
 """
+
+import os
+
+os.environ.setdefault("JWT_SECRET", "test-signing-secret-not-a-real-one")
 
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
@@ -10,7 +24,11 @@ from typing import Any
 import pytest
 import sentry_sdk
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app import observability
 from app.settings import get_settings
@@ -28,7 +46,7 @@ def database_is_reachable(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     async def _probe_succeeds() -> bool:
         return True
 
-    monkeypatch.setattr("app.main.database_is_up", _probe_succeeds)
+    monkeypatch.setattr("app.health.database_is_up", _probe_succeeds)
     yield
 
 
@@ -43,7 +61,7 @@ def database_is_unreachable(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     async def _probe_fails() -> bool:
         return False
 
-    monkeypatch.setattr("app.main.database_is_up", _probe_fails)
+    monkeypatch.setattr("app.health.database_is_up", _probe_fails)
     yield
 
 

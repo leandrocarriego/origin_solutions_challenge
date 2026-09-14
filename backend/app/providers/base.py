@@ -10,9 +10,10 @@ about format.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict
 
 
 class ProviderError(Exception):
@@ -40,9 +41,15 @@ class SymbolNotFound(ProviderError):
     """The provider has no data for that symbol, which is about the request and not the service."""
 
 
-@dataclass(frozen=True, slots=True)
-class StockRecord:
-    """One entry of a provider's catalogue, in the shape `stocks` stores (ADR-001)."""
+class StockRecord(BaseModel):
+    """One entry of a provider's catalogue, in the shape `stocks` stores (ADR-001).
+
+    A model and not a plain container: this is the shape of something that arrived from outside,
+    so the boundary is where it is worth checking that it really has that shape. Frozen, because
+    what a provider answered is not something a service gets to rewrite.
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     symbol: str
     name: str
@@ -53,9 +60,10 @@ class StockRecord:
     instrument_type: str
 
 
-@dataclass(frozen=True, slots=True)
-class QuotePoint:
+class QuotePoint(BaseModel):
     """One candle of a series, in the shape `quotes` stores (ADR-001)."""
+
+    model_config = ConfigDict(frozen=True)
 
     ts: datetime
     open: Decimal

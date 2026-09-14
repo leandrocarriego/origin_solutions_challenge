@@ -2,9 +2,16 @@
 
 import re
 from functools import lru_cache
+from typing import Final
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Signing HS256 with a short key is offline brute force on any captured token, so below this
+# length the process refuses to start (SEC-05). It lives here and not in `app/security.py`
+# because this is where the value is validated; that file imports it to say the same thing when
+# it signs, which is one number with two readers rather than two numbers.
+MIN_JWT_SECRET_LENGTH: Final = 32
 
 
 class Settings(BaseSettings):
@@ -20,10 +27,17 @@ class Settings(BaseSettings):
     # Article I: this never leaves the backend, and never reaches a VITE_* variable.
     twelvedata_api_key: str = ""
 
-    # ADR-004: what session tokens are signed with. The empty value is not a default, it is a
-    # refusal -- app/security.py raises rather than signing with something that is not a secret,
-    # and it does so at use and not at import, so `import app.main` works without one (SEC-05).
-    jwt_secret: str = ""
+    # ADR-004: what session tokens are signed with. **Required, and with a floor**: there is no
+    # default because a development secret committed to a repository is production's secret the
+    # day somebody forgets the variable (SEC-05), and no short value because that is a signature
+    # anybody can forge offline.
+    #
+    # The consequence is deliberate and worth stating: a process that was started without it does
+    # not boot at all. It cannot answer health in green and break at the first login, which is the
+    # failure this replaces. Whatever only *imports* the application without serving it -- the
+    # OpenAPI export of `make types`, the test suite -- hands it a throwaway value, and those are
+    # the only two places that do.
+    jwt_secret: str = Field(min_length=MIN_JWT_SECRET_LENGTH)
 
     # Which module under app/providers/ serves market data. It lives here because GEN-08 keeps
     # the provider's name to one file plus this one: a composition root that imported the class

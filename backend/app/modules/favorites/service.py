@@ -9,27 +9,13 @@ The catalogue is entered through its package and in a single call: the grid of N
 one question and not N (GEN-02).
 """
 
-from dataclasses import dataclass
-
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import UnknownSymbolError
 from app.modules.favorites.repository import add, follows, remove, symbols_of
+from app.modules.favorites.schemas import FavoriteStock
 from app.modules.stocks import get_stocks
-
-
-@dataclass(frozen=True, slots=True)
-class FavoriteStock:
-    """One row of the grid: the three columns of RF-03 and nothing else.
-
-    Whether the symbol still trades does not travel: a favourite is shown either way, so a field
-    nobody reads would be surface to keep. That decision is `stocks`' to publish and this
-    module's to ignore.
-    """
-
-    symbol: str
-    name: str
-    currency: str
 
 
 async def list_favorites(session: AsyncSession, user_id: int) -> list[FavoriteStock]:
@@ -54,14 +40,15 @@ async def list_favorites(session: AsyncSession, user_id: int) -> list[FavoriteSt
     ]
 
 
-@dataclass(frozen=True, slots=True)
-class FavoriteAddition:
+class FavoriteAddition(BaseModel):
     """What one add did: whether it created the row, and the row itself.
 
     The boolean is the decision of the business and the status is its translation to the
     transport, which is the router's job (PY-06). A service that answered 201 would already be
     speaking HTTP.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     created: bool
     favorite: FavoriteStock

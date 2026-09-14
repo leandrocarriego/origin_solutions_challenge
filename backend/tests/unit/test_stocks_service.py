@@ -18,11 +18,11 @@ The repository is stubbed: what is under test is the conversion and the shape of
 the SQL, which is asserted against a real table in `tests/integration/`.
 """
 
-import dataclasses
 from datetime import UTC, datetime
 from typing import cast
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.stocks import StockInfo, get_stocks
@@ -115,11 +115,15 @@ class TestWhatItReturns:
         The assignment goes through `setattr` with the name in a variable so that the statement
         under test is the runtime one. Written as `info.name = ...` it would be a type error as
         well, and a type error is checked by `mypy` and never reached by the run.
+
+        What is asserted is that the assignment is refused, not which library refuses it:
+        `StockInfo` is a frozen Pydantic model today and was a frozen dataclass before, and the
+        contract -- whoever receives a description cannot rewrite it -- did not change with it.
         """
         info = (await get_stocks(_UNUSED_SESSION, ["TSLA"]))[0]
         field = "name"
 
-        with pytest.raises(dataclasses.FrozenInstanceError):
+        with pytest.raises(ValidationError):
             setattr(info, field, "Something Else")
 
     async def test_it_describes_every_symbol_the_catalogue_had(self, catalogue: _Catalogue) -> None:

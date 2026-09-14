@@ -30,11 +30,13 @@ HTTP_CLIENTS = ("httpx", "requests", "aiohttp", "urllib.request")
 
 # A piece of a module grows from file to directory of the same name when the size asks for it.
 # The direction of the flow does not change with the shape, so both spellings map to one layer.
+# `schemas` maps to itself, and the entry stays for that reason: without it the directory would
+# read as a layer this map does not know, which is the same answer as "not part of a module".
 LAYER_OF_DIRECTORY = {
     "routers": "router",
     "services": "service",
     "repositories": "repository",
-    "schemas": "io",
+    "schemas": "schemas",
     "models": "models",
 }
 
@@ -151,7 +153,7 @@ def owning_module(source: SourceFile, app_root: Path) -> str | None:
 
 
 def layer_of(source: SourceFile, app_root: Path) -> str | None:
-    """Which layer of its module the file is: router, service, repository, io or models."""
+    """Which layer of its module the file is: router, service, repository, schemas or models."""
     module = owning_module(source, app_root)
     if module is None:
         return None

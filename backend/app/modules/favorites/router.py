@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Response, status
 
 from app.db import SessionDep
-from app.modules.favorites.io import AddFavoriteRequest, FavoriteItem
+from app.modules.favorites.schemas import AddFavoriteRequest, FavoriteStock
 from app.modules.favorites.service import add_favorite, list_favorites, remove_favorite
 from app.security import CurrentUser, get_current_user
 
@@ -16,19 +16,14 @@ router = APIRouter(prefix="/api/favorites", tags=["favorites"])
 async def read_favorites(
     session: SessionDep,
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
-) -> list[FavoriteItem]:
+) -> list[FavoriteStock]:
     """Answer the grid of the token's user, empty list included (RF-01, RF-07).
 
     The identity comes from `get_current_user` and from nowhere else: this route takes no id, so
     there is none to substitute (Article III). An empty list is a result and not a 404 -- the
     text the screen writes in place of the rows is its business, not this one's.
     """
-    favorites = await list_favorites(session, current_user.id)
-
-    return [
-        FavoriteItem(symbol=favorite.symbol, name=favorite.name, currency=favorite.currency)
-        for favorite in favorites
-    ]
+    return await list_favorites(session, current_user.id)
 
 
 @router.post(
@@ -37,7 +32,7 @@ async def read_favorites(
     # Without this the OpenAPI document carries only the 201, and `schema.d.ts` is generated
     # from that document: the screen would have no typed way of telling an addition that
     # created a row from one that found it already there (RF-19).
-    responses={status.HTTP_200_OK: {"model": FavoriteItem}},
+    responses={status.HTTP_200_OK: {"model": FavoriteStock}},
     summary="Add a stock to the favourites of whoever is asking",
 )
 async def add_to_favorites(
@@ -45,7 +40,7 @@ async def add_to_favorites(
     session: SessionDep,
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
     response: Response,
-) -> FavoriteItem:
+) -> FavoriteStock:
     """Answer 201 when the favourite was created and 200 when it already was there (RF-18).
 
     Never a 409: adding the same action twice is not an error, it is an operation that was
@@ -64,11 +59,7 @@ async def add_to_favorites(
     if not addition.created:
         response.status_code = status.HTTP_200_OK
 
-    return FavoriteItem(
-        symbol=addition.favorite.symbol,
-        name=addition.favorite.name,
-        currency=addition.favorite.currency,
-    )
+    return addition.favorite
 
 
 @router.delete(

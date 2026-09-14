@@ -90,13 +90,25 @@ comando, en `CONVENTIONS.md` (`GEN-02`, `GEN-03`, `GEN-05`, `GEN-08`, `PY-06`, `
 
 - el cliente de TwelveData y su protocolo → `app/providers/` (infraestructura: lo consumen `quotes` para las series y `stocks` para la ingesta del catálogo)
 - transversal sin dominio (engine y sesión, `DomainError`, el límite de intentos, Argon2, JWT, `get_current_user`) → `app/` (`db.py` · `errors.py` · `ratelimit.py` · `security.py`)
-- composición HTTP (registro de routers, handlers de error) → `app/main.py`
+- composición HTTP (el `lifespan`, los middlewares y el montaje de cada router) → `app/main.py`.
+  Es el **único** archivo por debajo de los módulos que puede importar un módulo (`GEN-03`), y por
+  eso el `lifespan` y los `include_router` no pueden vivir en otro lado.
+- la traducción de una excepción de dominio a HTTP → `app/error_handlers.py`, que `main.py` engancha
+  con una línea (`register_error_handlers(app)`)
+- el endpoint de health → `app/health.py`, un router del kernel: no es una capacidad del negocio,
+  es lo que el proxy y el deploy le preguntan al proceso sobre sí mismo
 
-Y adentro del módulo: HTTP → `router.py` · schemas de entrada y salida → `io.py` · decisiones del
+Y adentro del módulo: HTTP → `router.py` · los modelos Pydantic → `schemas.py` · decisiones del
 negocio → `service.py` · acceso a datos → `repository.py` · SQLAlchemy → `models.py` · lo que otros
 módulos pueden usar → el `__all__` del `__init__.py`. **Cada uno de esos cinco archivos crece a
-carpeta del mismo nombre** cuando el tamaño lo pide (`service.py` → `services/`, `io.py` →
-`schemas/io.py` y los que hagan falta); el `__init__.py` no crece, porque es el contrato.
+carpeta del mismo nombre** cuando el tamaño lo pide (`service.py` → `services/`, `schemas.py` →
+`schemas/` y los archivos que hagan falta); el `__init__.py` no crece, porque es el contrato.
+
+`schemas.py` se llama así y no `io.py` porque lo que vive ahí **no es exclusivo del transporte**:
+una estructura que el service decide y la respuesta lleva tal cual se escribe una sola vez y la
+importan los dos. La contracara hay que tenerla presente: un campo agregado a un modelo que además
+es respuesta sale por la API sin que nadie lo decida, que es API3/BOPLA. Cuando la forma del
+dominio y la de la respuesta **no** coinciden, son dos modelos y el router traduce.
 
 Un módulo nuevo se justifica cuando aparece **una capacidad del negocio con lenguaje propio**, no
 cuando un archivo creció. Y antes de agregar un nombre al `__all__`: preguntarse si otro módulo lo

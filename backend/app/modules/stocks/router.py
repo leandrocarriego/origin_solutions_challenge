@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from app.db import SessionDep
-from app.modules.stocks.io import StockSuggestion
+from app.modules.stocks.schemas import StockSuggestion
 from app.modules.stocks.service import MIN_QUERY_LENGTH, search_stocks
 from app.security import CurrentUser, get_current_user
 

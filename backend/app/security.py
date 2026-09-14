@@ -19,7 +19,6 @@ on the HTTP edge of the kernel. `PY-06` and `ERR-04` forbid `HTTPException` *ins
 and this file is inside none.
 """
 
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Final
 
@@ -28,8 +27,9 @@ from argon2 import PasswordHasher
 from argon2.exceptions import Argon2Error
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, ConfigDict
 
-from app.settings import get_settings
+from app.settings import MIN_JWT_SECRET_LENGTH, get_settings
 
 # The library's defaults, which track OWASP's current parameters. Tuning them by hand is how a
 # project ends up with a cost factor that was reasonable in 2019.
@@ -47,10 +47,6 @@ _ALGORITHM = "HS256"
 # Claims a token has to carry to be considered at all. Without `exp` in this list a token with no
 # expiry would be accepted by omission, which is a session that never ends.
 _REQUIRED_CLAIMS = ("exp", "iat", "sub")
-
-# Signing HS256 with "dev" is not signing: a short key is offline brute force on any captured
-# token. Below this length the process refuses rather than producing something weaker (SEC-05).
-_MIN_SECRET_LENGTH = 32
 
 # `auto_error=False` on purpose. Left to itself, `HTTPBearer` answers 403 for an absent header
 # and a body we did not choose for a malformed one; with it off, the four ways a credential can
@@ -81,13 +77,14 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
-@dataclass(frozen=True, slots=True)
-class CurrentUser:
+class CurrentUser(BaseModel):
     """Who a token says is calling, and the only identity a protected route ever sees.
 
     Frozen because a route that could edit the identity it was handed is a route that can act as
     somebody else (Article III).
     """
+
+    model_config = ConfigDict(frozen=True)
 
     id: int
     full_name: str
@@ -144,17 +141,17 @@ async def get_current_user(
 def _signing_secret() -> str:
     """The secret to sign and verify with, refusing the values that are not secrets.
 
-    Read at call time and not at import: `import app.main` has to work without one, which is what
-    the architecture tests and the OpenAPI export of `make types` rely on, and a request with no
-    token is a 401 before any key is needed. A deployment that forgot the variable finds out at
-    the first login, loudly -- and, so that it does not have to wait that long, `main.py` logs a
-    warning about it while starting up.
+    `Settings` already refuses a missing or short one when the process reads its environment
+    (`SEC-05`), so in a running application this cannot fire: it is the second line, and it is
+    here because a `Settings` built by hand -- `model_construct`, which skips validation -- walks
+    past the first. The number is imported and never retyped, so the two cannot come to disagree
+    about what counts as a secret.
     """
     secret = get_settings().jwt_secret
-    if len(secret) < _MIN_SECRET_LENGTH:
+    if len(secret) < MIN_JWT_SECRET_LENGTH:
         raise RuntimeError(
             "JWT_SECRET is missing or shorter than "
-            f"{_MIN_SECRET_LENGTH} characters; refusing to sign or verify a session token"
+            f"{MIN_JWT_SECRET_LENGTH} characters; refusing to sign or verify a session token"
         )
 
     return secret

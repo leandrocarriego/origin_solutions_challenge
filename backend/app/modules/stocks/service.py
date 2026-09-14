@@ -1,12 +1,12 @@
-"""The catalogue: what is worth ingesting, and how a snapshot becomes the table (ADR-002)."""
+"""The catalogue: what is worth ingesting, and how a snapshot becomes the table."""
 
 import asyncio
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import structlog
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import SessionFactory
@@ -43,9 +43,10 @@ ROUTABLE_SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,8}$")
 DERIVATIVE = "Warrant"
 
 
-@dataclass(frozen=True, slots=True)
-class CatalogueReconciliation:
+class CatalogueReconciliation(BaseModel):
     """What one reconciliation did, for the log line and the metric that follow it."""
+
+    model_config = ConfigDict(frozen=True)
 
     exchange: str
     listed: int
@@ -94,9 +95,10 @@ async def reconcile_catalogue(
     )
 
 
-@dataclass(frozen=True, slots=True)
-class CatalogueRefresh:
+class CatalogueRefresh(BaseModel):
     """What one scheduled refresh did, including the markets that did not answer."""
+
+    model_config = ConfigDict(frozen=True)
 
     reconciled: tuple[CatalogueReconciliation, ...]
     failed: tuple[str, ...]
@@ -201,8 +203,7 @@ async def keep_the_catalogue_fresh(every: timedelta = MAX_CATALOGUE_AGE) -> None
         await asyncio.sleep(every.total_seconds())
 
 
-@dataclass(frozen=True, slots=True)
-class StockInfo:
+class StockInfo(BaseModel):
     """What the catalogue tells another module about a symbol (GEN-02).
 
     Four fields, and the fourth is the one that needs a reason. The first three are the grid of
@@ -216,6 +217,8 @@ class StockInfo:
     Frozen, and never a row of `stocks`: a contract that handed back the ORM would hand the
     session and the table layout over with it, and the boundary would live only in the docs.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     symbol: str
     name: str

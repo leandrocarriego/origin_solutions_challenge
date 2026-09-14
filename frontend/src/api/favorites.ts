@@ -14,7 +14,7 @@ import type { components } from './schema';
 import { request, send } from './client';
 
 /** One row of `Mis Acciones`: the symbol, the name and the currency (RF-03). */
-export type FavoriteItem = components['schemas']['FavoriteItem'];
+export type FavoriteItem = components['schemas']['FavoriteStock'];
 
 /**
  * The favourites of whoever is logged in, in the order the backend decides (RF-01, RF-06).

@@ -17,8 +17,6 @@ knowing who the provider is (GEN-08).
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
-from decimal import Decimal
-from typing import Literal
 from zoneinfo import ZoneInfo
 
 import structlog
@@ -28,6 +26,7 @@ from app.errors import QuoteRangeInvalid, QuoteRangeTooLong, UnknownSymbolError
 from app.modules.favorites import is_favorite
 from app.modules.quotes.models import Quote, QuoteInterval
 from app.modules.quotes.repository import candles_in, newest_ts, save
+from app.modules.quotes.schemas import QuoteCandle, QuoteSeries
 from app.observability import (
     PROVIDER_QUOTA_REMAINING,
     PROVIDER_REQUESTS,
@@ -65,40 +64,17 @@ MAX_RANGE_DAYS = {
     QuoteInterval.FIFTEEN_MINUTES: 90,
 }
 
-QuoteStatus = Literal["ok", "stale", "market_closed", "no_data"]
-
 _log = structlog.get_logger()
-
-
-@dataclass(frozen=True, slots=True)
-class QuoteCandle:
-    """One point of the chart: an instant and a price.
-
-    The chart draws one value per instant (RF-14), so what leaves this module is the close and
-    not the four prices of a candle. A type of ours and never the ORM row: a contract that
-    handed back the model would have aisled nothing (Article IV).
-    """
-
-    ts: datetime
-    price: Decimal
-
-
-@dataclass(frozen=True, slots=True)
-class QuoteSeries:
-    """A chart, and what has to be said about it.
-
-    `session_date` travels only with `market_closed`: it is the `{fecha}` of the notice, and on
-    every other state there is no session to name.
-    """
-
-    status: QuoteStatus
-    points: tuple[QuoteCandle, ...]
-    session_date: date | None
 
 
 @dataclass(slots=True)
 class _Gate:
     """The lock of one `(symbol, interval)`, and when it last reached the provider.
+
+    The one dataclass left in the application, and it is not an oversight: this is not data. It
+    holds an `asyncio.Lock` and the loop that lock belongs to, it is mutable by design, and it
+    never crosses a boundary -- nothing here is worth validating, and there is nothing to
+    serialise. Everything that *is* data is a Pydantic model.
 
     Two pieces because they stop two different kinds of waste. The lock collapses the requests
     that overlap; the instant stops the ones that follow a fetch which brought nothing back --

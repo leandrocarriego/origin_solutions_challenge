@@ -6,8 +6,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query
 
 from app.db import SessionDep
-from app.modules.quotes.io import QuotePointOut, QuoteSeriesResponse
 from app.modules.quotes.models import QuoteInterval
+from app.modules.quotes.schemas import QuoteSeriesResponse
 from app.modules.quotes.service import get_series
 from app.providers import MarketDataProvider, get_market_data_provider
 from app.security import CurrentUser, get_current_user
@@ -54,5 +54,5 @@ async def read_quotes(
         interval=interval.value,
         status=series.status,
         session_date=series.session_date,
-        points=[QuotePointOut(ts=point.ts, price=point.price) for point in series.points],
+        points=list(series.points),
     )

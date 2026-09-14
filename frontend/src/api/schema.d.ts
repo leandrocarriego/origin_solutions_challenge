@@ -199,6 +199,10 @@ export interface paths {
      *
      *     The 503 matters as much as the 200: answering 200 with the database down would keep the
      *     proxy sending traffic to an instance that can serve nothing.
+     *
+     *     The settings are read here and not held at import: this endpoint runs once per probe, the
+     *     lookup is cached, and a module-level copy would be one more thing to keep in step with the
+     *     process it describes.
      */
     get: operations['health_api_health_get'];
     put?: never;
@@ -244,15 +248,23 @@ export interface components {
       full_name: string;
     };
     /**
-     * FavoriteItem
-     * @description One row of `Mis Acciones`, as the grid reads it (RF-03).
+     * FavoriteStock
+     * @description One row of `Mis Acciones`: what the service decides, and what the grid reads (RF-03).
      *
      *     Three fields, and the reason there are only three is worth stating: the screen draws a
      *     symbol, a name and a currency, and anything else the tables happen to hold -- when it was
      *     added, which market it trades in -- would be answered for no reason. That habit is
-     *     API3:2023 (BOPLA).
+     *     API3:2023 (BOPLA), and it is the risk this model carries by being the two things at once:
+     *     a field added here for the service is a field the API starts answering. Nothing goes in
+     *     that the grid does not draw.
+     *
+     *     Whether the symbol still trades does not travel either: a favourite is shown either way, so
+     *     a field nobody reads would be surface to keep. That decision is `stocks`' to publish and
+     *     this module's to ignore.
+     *
+     *     Frozen, because it is a value and not a record somebody edits on the way out.
      */
-    FavoriteItem: {
+    FavoriteStock: {
       /** Symbol */
       symbol: string;
       /** Name */
@@ -320,20 +332,18 @@ export interface components {
       full_name: string;
     };
     /**
-     * QuoteInterval
-     * @description The three intervals REQ-16 offers the user, and the only ones the table accepts.
-     * @enum {string}
-     */
-    QuoteInterval: '1min' | '5min' | '15min';
-    /**
-     * QuotePointOut
-     * @description One point of the chart: the instant, and the close of that candle.
+     * QuoteCandle
+     * @description One point of the chart: an instant, and the close of that candle.
+     *
+     *     The chart draws one value per instant (RF-14), so what leaves this module is the close and
+     *     not the four prices of a candle. A type of ours and never the ORM row: a contract that
+     *     handed back the model would have aisled nothing (Article IV).
      *
      *     The price crosses the wire as a string, which is what Pydantic does with a `Decimal` and is
      *     kept on purpose: it travels with the decimals the provider sent and becomes a `number` once,
      *     at the edge of the chart, which is the one place a number is needed at all.
      */
-    QuotePointOut: {
+    QuoteCandle: {
       /**
        * Ts
        * Format: date-time
@@ -343,8 +353,14 @@ export interface components {
       price: string;
     };
     /**
+     * QuoteInterval
+     * @description The three intervals REQ-16 offers the user, and the only ones the table accepts.
+     * @enum {string}
+     */
+    QuoteInterval: '1min' | '5min' | '15min';
+    /**
      * QuoteSeriesResponse
-     * @description The series and what has to be said about it (ERR-05).
+     * @description The series and what has to be said about it, as the chart reads it (ERR-05).
      *
      *     The four states answer 200, every one of them: a spent quota is not a failure of the caller,
      *     and a closed market is the normal state of two days out of seven. And no field names the
@@ -363,7 +379,7 @@ export interface components {
       /** Session Date */
       session_date: string | null;
       /** Points */
-      points: components['schemas']['QuotePointOut'][];
+      points: components['schemas']['QuoteCandle'][];
     };
     /**
      * StockSuggestion
@@ -471,7 +487,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['FavoriteItem'][];
+          'application/json': components['schemas']['FavoriteStock'][];
         };
       };
     };
@@ -495,7 +511,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['FavoriteItem'];
+          'application/json': components['schemas']['FavoriteStock'];
         };
       };
       /** @description Successful Response */
@@ -504,7 +520,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['FavoriteItem'];
+          'application/json': components['schemas']['FavoriteStock'];
         };
       };
       /** @description Validation Error */

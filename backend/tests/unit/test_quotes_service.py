@@ -39,7 +39,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import UnknownSymbolError
 from app.modules.quotes.models import Quote, QuoteInterval
-from app.modules.quotes.service import QuoteSeries, get_series
+from app.modules.quotes.schemas import QuoteSeries
+from app.modules.quotes.service import get_series
 from app.providers import (
     MarketDataProvider,
     ProviderError,

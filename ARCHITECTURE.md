@@ -49,12 +49,14 @@ Los tipos de TypeScript se generan desde el OpenAPI de FastAPI (`make types`), n
 
 ```
 backend/app/
-├── main.py               composition root: monta el router de cada módulo, CORS,
-│                         y traduce las excepciones de dominio a HTTP
+├── main.py               composition root: el lifespan, los middlewares y el montaje de
+│                         cada router. El único que puede importar un módulo (GEN-03)
+├── error_handlers.py     la traducción de cada excepción de dominio a su respuesta HTTP
+├── health.py             el router de /api/health: no es negocio, es el estado del proceso
 ├── settings.py           Pydantic Settings — las apikeys y secrets viven acá y sólo acá
 │                         dentro de backend/app/ esta el kernel: lo que cualquier módulo puede importar
 ├── db.py                 engine async, Base declarativa, get_session · SessionDep
-├── errors.py             DomainError, la base que main.py traduce
+├── errors.py             DomainError, la base que error_handlers.py traduce
 ├── ratelimit.py          SlidingWindowLimiter — cuenta intentos y no sabe de qué
 ├── security.py           Argon2 · JWT · get_current_user · CurrentUser
 ├── observability.py      logging estructurado, Sentry, métricas y el request id (ADR-009)
@@ -87,8 +89,9 @@ El `__init__.py` no crece: es el contrato, y es igual en todos los módulos.
 modules/<modulo>/
 ├── __init__.py                        EL CONTRATO: docstring, imports y el `__all__`
 ├── router.py        → routers/        HTTP: rutas, códigos, autorización
-├── io.py            → schemas/        schemas Pydantic de entrada y salida
-│                                      al crecer: schemas/io.py + schemas/<otros>.py
+├── schemas.py       → schemas/        los modelos Pydantic del módulo: los de entrada y
+│                                      salida HTTP, y los que el service decide y la
+│                                      respuesta lleva. Al crecer: schemas/<uno>.py por tema
 ├── service.py       → services/       las decisiones del negocio
 ├── repository.py    → repositories/   acceso a datos
 └── models.py        → models/         SQLAlchemy
@@ -145,7 +148,7 @@ router  ──►  service  ──►  repository  ──►  PostgreSQL
 - Un **router** no importa SQLAlchemy. No hay `select()` en una ruta.
 
 - Un **service** no importa `fastapi`. No levanta `HTTPException`: levanta excepciones de dominio,
-  y el router las traduce en `main.py`.
+  y quien las traduce es `app/error_handlers.py`, enganchado desde `main.py`.
 
 - Un **repository** no decide nada: recibe qué buscar y devuelve datos.
 
@@ -252,7 +255,8 @@ el `__all__` declara, y el que pregunta no toca la tabla del otro.
 
 Lo que **no** está en ningún `__all__` es igual de informativo: `search_stocks` —la consume sólo el
 router de su propio módulo—, `list_favorites`, `add_favorite`, `remove_favorite`, `get_series`,
-`QuoteSeries`, `MARKET_TIMEZONE`, `MAX_RANGE_DAYS`, la compuerta y los schemas de los `io.py`. Son internos: visibles para sus hermanos, invisibles para el resto del sistema.
+`QuoteSeries`, `MARKET_TIMEZONE`, `MAX_RANGE_DAYS`, la compuerta y los schemas de los `schemas.py`.
+Son internos: visibles para sus hermanos, invisibles para el resto del sistema.
 
 Y `auth` es además el módulo del que **nadie lee**: no exporta nada más que su router, y ningún
 módulo lo importa. Lo que los demás necesitan de la sesión —`get_current_user` y `CurrentUser`— no

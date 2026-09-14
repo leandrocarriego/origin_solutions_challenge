@@ -41,8 +41,11 @@ hooks:  ## Instala los hooks de pre-commit (pre-commit y commit-msg)
 # printed by importing the application, not by serving it: `import app.main` needs no database and
 # no secret, so this runs on a laptop with nothing up. Prettier runs last because the generated
 # file lives under src/ and `make lint` checks it like any other source.
+# JWT_SECRET is inline and throwaway on purpose: exporting the OpenAPI imports the application,
+# and since the secret is a required field of Settings (SEC-05), importing it demands one. What
+# comes out of here is a document of types; nothing is signed or verified with this value.
 types:  ## Genera los tipos de la API del frontend desde el OpenAPI del backend (TS-03)
-	cd $(BACKEND) && uv run python -c \
+	cd $(BACKEND) && JWT_SECRET=openapi-export-only-not-a-real-secret uv run python -c \
 		'import json; from app.main import app; print(json.dumps(app.openapi()))' \
 		| (cd ../$(FRONTEND) && npx openapi-typescript --output src/api/schema.d.ts)
 	cd $(FRONTEND) && npx prettier --write src/api/schema.d.ts
