@@ -8,14 +8,32 @@
 
 **Feature:** `003-quote-chart` · **Plan:** `plan.md`
 
-**Tests aprobados por:** — · **Fecha de aprobación:** —
+**Tests aprobados por:** Leandro Carriego · **Fecha de aprobación:** 2026-09-14
 
 | Historia | Tests | Firma | Fecha |
 |---|---|---|---|
-| H1 — Ver el gráfico de una acción | tareas 2, 3 y 3b | — *(sin escribir)* | — |
-| H2 — Que el gráfico se mantenga solo | tarea 10 | — *(sin escribir)* | — |
-| H3 — Consultar un período pasado | tareas 13 y 14 | — *(sin escribir)* | — |
-| H4 — Entender qué estoy viendo cuando no hay datos de hoy | tareas 18 y 19 | — *(sin escribir)* | — |
+| H1 — Ver el gráfico de una acción | tareas 2, 3 y 3b | Leandro Carriego | 2026-09-14 |
+| H2 — Que el gráfico se mantenga solo | tarea 10 | Leandro Carriego | 2026-09-14 |
+| H3 — Consultar un período pasado | tareas 13 y 14 | Leandro Carriego | 2026-09-14 |
+| H4 — Entender qué estoy viendo cuando no hay datos de hoy | tareas 18 y 19 | Leandro Carriego | 2026-09-14 |
+
+> **Qué se firmó, y con qué salvedades.** 186 tests en 13 archivos, leídos en los archivos por
+> quien firma. Verificado antes de la firma: todos fallan por ausencia de implementación, ninguno
+> por un import roto ni por un fixture mal armado.
+>
+> Dos salvedades quedaron señaladas y aceptadas:
+>
+> - Los **dos tests de `RF-02`** de `session.test.tsx` pasan hoy en verde sin implementación,
+>   porque la dirección del Detalle todavía cae sola en el guard de sesión. No prueban nada
+>   todavía; lo que compran es que siga siendo cierto cuando la pantalla exista.
+> - Los **21 casos de `market.test.ts`** salen *skipped* y no *failed*: el módulo se carga con un
+>   `import()` dinámico para que su ausencia no voltee `tsc --noEmit` de toda la suite. El archivo
+>   sí sale `FAIL`, así que el rojo llega a CI. Cuando el módulo exista, pasa a ser un import
+>   normal y los 21 se cuentan como el resto.
+>
+> **La tarea 1 sigue sin hacer** (recapturar el JSON fijado en UTC): no hay `TWELVEDATA_API_KEY` en
+> este entorno. El `xfail(strict=True)` de `test_upstream_client.py` marca el lugar y va a dar
+> XPASS el día que se recapture.
 
 <!--
   Lo completa `/approve-tests`, nunca un agente por su cuenta (Artículo VI). Mientras diga "—",
