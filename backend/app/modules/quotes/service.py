@@ -15,7 +15,6 @@ knowing who the provider is (GEN-08).
 """
 
 import asyncio
-from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -67,48 +66,88 @@ MAX_RANGE_DAYS = {
 _log = structlog.get_logger()
 
 
-@dataclass(slots=True)
 class _Gate:
-    """The lock of one `(symbol, interval)`, and when it last reached the provider.
+    """One `(symbol, interval)`'s turn at the provider: who is going, and when one last went.
 
-    The one dataclass left in the application, and it is not an oversight: this is not data. It
-    holds an `asyncio.Lock` and the loop that lock belongs to, it is mutable by design, and it
-    never crosses a boundary -- nothing here is worth validating, and there is nothing to
-    serialise. Everything that *is* data is a Pydantic model.
+    Not data, which is why it is a class with behaviour and not a model: it holds an
+    `asyncio.Lock` and the loop that lock belongs to, it is mutable by design, and it never
+    crosses a boundary. Everything that *is* data in this application is a Pydantic model.
 
-    Two pieces because they stop two different kinds of waste. The lock collapses the requests
-    that overlap; the instant stops the ones that follow a fetch which brought nothing back --
-    a Sunday, or a symbol with no series -- where there is no fresh candle to say "do not ask
+    The two pieces stop two different kinds of waste. The lock collapses the requests that
+    overlap; the instant stops the ones that follow a fetch which brought nothing back -- a
+    Sunday, or a symbol with no series -- where there is no fresh candle to say "do not ask
     again" (RF-24, RF-25).
+
+    Taking the turn is `async with gate:`, and the state behind it is private: the caller cannot
+    read the instant without asking a question about it, nor write one that is not now.
     """
 
-    lock: asyncio.Lock
-    loop: asyncio.AbstractEventLoop
-    last_attempt: datetime | None = None
+    __slots__ = ("_last_attempt", "_lock", "_loop")
+
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Open a gate nobody has gone through, on the loop its lock will be awaited in."""
+        self._lock = asyncio.Lock()
+        self._loop = loop
+        self._last_attempt: datetime | None = None
+
+    async def __aenter__(self) -> "_Gate":
+        """Wait for this pair's turn, however many readers are asking for it."""
+        await self._lock.acquire()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        """Hand the turn to whoever is next, whether or not the fetch went well."""
+        self._lock.release()
+
+    def belongs_to(self, loop: asyncio.AbstractEventLoop) -> bool:
+        """Whether this gate's lock can still be awaited, which is true only in its own loop."""
+        return self._loop is loop
+
+    def asked_within(self, window: timedelta, now: datetime) -> bool:
+        """Whether the provider was already asked this recently and brought nothing back."""
+        return self._last_attempt is not None and now - self._last_attempt < window
+
+    def went_out(self, at: datetime) -> None:
+        """Record that the provider answered, so the next reader waits out the TTL."""
+        self._last_attempt = at
 
 
-# Process state, and the reason the `(symbol, interval)` pair is the key: ten browsers on TSLA
-# at `5min` are one question, and the same ten on `1min` are another one.
-_GATES: dict[tuple[str, str], _Gate] = {}
+class _Gatekeeper:
+    """The gate of every `(symbol, interval)` this process has served.
 
-
-def _gate_for(symbol: str, interval: str) -> _Gate:
-    """The gate of that pair, built the first time somebody asks for it in this event loop.
+    The pair is the key, and that is the whole of Article II in one line: ten browsers on TSLA
+    at `5min` are one question and cost one credit, and the same ten on `1min` are another one.
 
     An `asyncio.Lock` belongs to the loop that awaits it -- waiting on one from a different loop
-    raises about a future attached to somewhere else -- so a gate outliving its loop is not a
-    gate, it is a latent crash. The application has one loop for its whole life and never sees
-    this; what does is anything that runs loops one after another, and then a fresh loop rightly
-    starts with nothing remembered.
+    raises about a future attached to somewhere else -- so a gate that outlived its loop is not
+    a gate, it is a latent crash, and this hands out a new one instead. The application has one
+    loop for its whole life and never sees it; what does is anything that runs loops one after
+    another, and then a fresh loop rightly starts with nothing remembered.
     """
-    running = asyncio.get_running_loop()
-    gate = _GATES.get((symbol, interval))
 
-    if gate is None or gate.loop is not running:
-        gate = _Gate(lock=asyncio.Lock(), loop=running)
-        _GATES[(symbol, interval)] = gate
+    def __init__(self) -> None:
+        """Start with no gate open, which is what a process that has served nothing has."""
+        self._gates: dict[tuple[str, str], _Gate] = {}
 
-    return gate
+    def gate_for(self, symbol: str, interval: str) -> _Gate:
+        """That pair's gate, opened the first time somebody asks for it in this event loop."""
+        running = asyncio.get_running_loop()
+        gate = self._gates.get((symbol, interval))
+
+        if gate is None or not gate.belongs_to(running):
+            gate = _Gate(running)
+            self._gates[(symbol, interval)] = gate
+
+        return gate
+
+    def clear(self) -> None:
+        """Forget every gate, which is what a test needs between one case and the next."""
+        self._gates.clear()
+
+
+# Process state: one gatekeeper for the application, and the reason the quota scales with symbols
+# observed instead of with clients connected.
+_GATEKEEPER = _Gatekeeper()
 
 
 async def get_series(
@@ -268,14 +307,14 @@ async def _fill(
     last session there was, which is what the screen needs on a Sunday (RF-27). In `Histórico`
     the window is the one that was asked for, and nothing else would answer the question.
     """
-    gate = _gate_for(symbol, interval)
+    gate = _GATEKEEPER.gate_for(symbol, interval)
 
-    async with gate.lock:
+    async with gate:
         fresh = await candles_in(session, symbol, interval, *window)
         if _answers_already(fresh, interval, now, historic=historic):
             return False
 
-        if gate.last_attempt is not None and now - gate.last_attempt < _TTL[interval]:
+        if gate.asked_within(_TTL[interval], now):
             # Nothing came back the last time either, and the TTL has not passed: asking again
             # would spend a credit to be told the same thing (RF-24).
             return False
@@ -326,7 +365,7 @@ async def _fetch(
         )
         return False
 
-    gate.last_attempt = datetime.now(tz=UTC)
+    gate.went_out(datetime.now(tz=UTC))
     PROVIDER_REQUESTS.labels(symbol=symbol, interval=interval.value, outcome="success").inc()
     # Only an answer costs an allowance. A refusal that never reached the series -- a 429 above all
     # -- spends no credit, and decrementing on it would drift the gauge away from the number it is

@@ -194,7 +194,7 @@ def a_gate_that_remembers_nothing() -> Iterator[None]:
     the private name is the price of the gate being process state, and it is cheaper than a test
     that passes depending on what ran first.
     """
-    gates = getattr(sys.modules.get(_SERVICE), "_GATES", None)
+    gates = getattr(sys.modules.get(_SERVICE), "_GATEKEEPER", None)
     clear = getattr(gates, "clear", None)
 
     if callable(clear):
