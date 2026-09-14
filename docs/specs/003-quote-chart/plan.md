@@ -292,10 +292,10 @@ REALTIME_LOOKBACK = 7 días
 MAX_RANGE_DAYS   = {"1min": 7, "5min": 30, "15min": 90}   # RF-42..RF-44
 ```
 
-1. **Autorizar.** `is_favorite(session, user_id, symbol)` o `UnknownSymbolError`.
-2. **Validar el rango** (sólo en `Histórico`): `from < to` o `QuoteRangeInvalid`; `to - from` menor
-   o igual al tope del intervalo o `QuoteRangeTooLong`. **Antes de mirar la base y antes de
-   cualquier llamada al proveedor** (`RF-47`).
+1. **Validar el rango** (sólo en `Histórico`): `from < to` o `QuoteRangeInvalid`; `to - from` menor
+   o igual al tope del intervalo o `QuoteRangeTooLong`. **Antes de autorizar, antes de mirar la
+   base y antes de cualquier llamada al proveedor** (`RF-47`).
+2. **Autorizar.** `is_favorite(session, user_id, symbol)` o `UnknownSymbolError`.
 3. **Resolver la ventana.** En `Tiempo Real`, el día de hoy en hora de mercado, de `00:00` a
    `ahora`. En `Histórico`, `from` y `to` localizados en `MARKET_TIMEZONE` y pasados a UTC.
 4. **¿Puede contestar la base?** Ventana que llega al presente: sí, si la vela más nueva del tramo
@@ -308,6 +308,16 @@ MAX_RANGE_DAYS   = {"1min": 7, "5min": 30, "15min": 90}   # RF-42..RF-44
 6. **Decidir el `status`**, en este orden: el proveedor falló → `stale`; la ventana quedó vacía y
    hay una rueda anterior guardada → `market_closed` con su `session_date`; no hay nada en ningún
    lado → `no_data`; si no → `ok`.
+
+> **La validación va antes de autorizar, y es una decisión del humano** *(2026-09-14)*. `RF-47`
+> dice que una consulta inválida no consulta la fuente de datos externa, y hasta acá este plan
+> autorizaba primero: un rango imposible igual costaba una lectura de la base, la de `favorites`.
+> Se invirtió para que *"no se ejecuta"* sea literal — un rango que no se puede pedir no toca nada.
+>
+> **La consecuencia hay que asumirla:** un símbolo que **no** es del usuario, pedido con un rango
+> inválido, ahora responde **422** y no 404. No filtra nada: el 422 habla del rango, que lo escribió
+> quien pregunta, y no dice si el símbolo existe ni de quién es. Con un rango válido, el símbolo
+> ajeno sigue siendo 404 sin llamar al proveedor (`RF-35`, Artículo III).
 
 **La ventana de la llamada al proveedor la elige el service, y son dos.** Con rueda de hoy ya
 guardada, se pide `[última vela, ahora]`: barato y chico, que es el caso de cada refresco. Con la

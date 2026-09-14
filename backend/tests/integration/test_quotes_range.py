@@ -12,13 +12,14 @@ Three claims here are the ones an implementation that "works" still gets wrong:
 - **The series falls entirely inside the window** (RF-16): no point before `from`, none after
   `to`. A repository that answered "everything for the symbol" passes a chart that looks right
   on a fresh database and wrong on a full one.
-- **An invalid range costs nothing** (RF-47): no credit, and not one query against the cache.
-  The 422 is decided before the window is even resolved, which is the only ordering that keeps
-  a query the screen would never have sent from spending quota.
+- **An invalid range costs nothing** (RF-47): no credit, and not one query against the database
+  -- neither the cache nor the membership. The 422 is step 1, decided before authorizing and
+  before the window is resolved, which is the ordering `plan.md` fixed on 2026-09-14 so that
+  "it is not executed" means what it says.
 
-The provider is a double that counts calls, and the cache is watched through the statements the
-engine really executes: nothing in a response body tells a cached answer from one that spent a
-credit (Article II, TEST-03).
+The provider is a double that counts calls, and the database is watched through the statements
+the engine really executes: nothing in a response body tells a cached answer from one that spent
+a credit (Article II, TEST-03).
 """
 
 from collections.abc import AsyncIterator, Iterator, Sequence
@@ -146,8 +147,9 @@ def statements() -> Iterator[list[str]]:
     """Every SQL statement the engine executes while the test runs.
 
     RF-47 says an invalid range is refused *before* anything else happens, and "anything else"
-    includes the cache. Counting the statements is what makes that observable from outside: a
-    validation done after the query is green on the body and wrong on the ordering.
+    includes the authorization and the cache. Recording the statements is what makes that
+    observable from outside: a validation done later is green on the body and wrong on the
+    ordering.
 
     The list is shared with the arrangement, so a test that cares about it empties it before
     acting -- the rows a test sets up are not what it is measuring.
@@ -233,14 +235,23 @@ def _instants(payload: dict[str, Any]) -> list[datetime]:
     return [datetime.fromisoformat(point["ts"]) for point in payload["points"]]
 
 
-def _touched_the_cache(statements: Sequence[str]) -> bool:
-    """Whether any statement went to the `quotes` table.
+def _touched_the_database(statements: Sequence[str]) -> bool:
+    """Whether any statement went to a table this endpoint reads.
 
-    The authorization of step 1 does query the database -- it has to ask `favorites` whether the
-    symbol is the user's -- so "no read" cannot mean "no statement". What RF-47 is about is the
-    cache: the window is never resolved, so `quotes` is never looked at.
+    RF-47 is taken literally *(decision of 2026-09-14, in `plan.md`)*: validating the range is
+    step 1, ahead of authorizing, so a window that cannot be asked for reads nothing at all --
+    neither `user_stocks`, which is how `favorites` answers whose symbol it is, nor `quotes`,
+    which is the cache. Both tables are named here because leaving either out would let the
+    ordering slip back by one step without a test noticing.
+
+    Transaction bookkeeping is not a read, so what is looked for is the tables and not the
+    number of statements: a savepoint the fixture opens says nothing about this requirement.
     """
-    return any("quotes" in statement.lower() for statement in statements)
+    return any(
+        table in statement.lower()
+        for statement in statements
+        for table in ("quotes", "user_stocks")
+    )
 
 
 class TestTheWindowTheUserAsksFor:
@@ -492,7 +503,7 @@ class TestARefusedRangeCostsNothing:
         assert provider.calls == []
 
     @pytest.mark.parametrize("params", _REFUSED_RANGES, ids=_REFUSED_IDS)
-    async def test_it_never_reaches_the_cache(
+    async def test_it_never_reaches_the_database(
         self,
         client: AsyncClient,
         juan: User,
@@ -500,17 +511,17 @@ class TestARefusedRangeCostsNothing:
         statements: list[str],
         params: dict[str, str],
     ) -> None:
-        """The validation is step 2 of the plan: before the window is even resolved.
+        """The validation is step 1 of the plan: ahead of authorizing and of the window.
 
-        Done after the query the response is identical, which is why the ordering needs a test
-        of its own: it is invisible from the body and it is the whole of RF-47.
+        Done later the response is identical, which is why the ordering needs a test of its own:
+        it is invisible from the body and it is the whole of RF-47.
         """
         statements.clear()
 
         response = await client.get(_QUOTES, params=params, headers=_bearer(juan))
 
         assert response.status_code == 422
-        assert not _touched_the_cache(statements)
+        assert not _touched_the_database(statements)
 
     @pytest.mark.parametrize("params", _REFUSED_RANGES, ids=_REFUSED_IDS)
     async def test_it_stores_nothing(
