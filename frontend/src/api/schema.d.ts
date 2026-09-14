@@ -4,6 +4,33 @@
  */
 
 export interface paths {
+  '/api/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Process and dependency status
+     * @description Answer 200 when the database replies, and 503 when it does not.
+     *
+     *     The 503 matters as much as the 200: answering 200 with the database down would keep the
+     *     proxy sending traffic to an instance that can serve nothing.
+     *
+     *     The settings are read here and not held at import: this endpoint runs once per probe, the
+     *     lookup is cached, and a module-level copy would be one more thing to keep in step with the
+     *     process it describes.
+     */
+    get: operations['health_api_health_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/auth/login': {
     parameters: {
       query?: never;
@@ -178,33 +205,6 @@ export interface paths {
      *     exercise this endpoint with no network and no API key (TEST-03).
      */
     get: operations['read_quotes_api_quotes__symbol__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/health': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Process and dependency status
-     * @description Answer 200 when the database replies, and 503 when it does not.
-     *
-     *     The 503 matters as much as the 200: answering 200 with the database down would keep the
-     *     proxy sending traffic to an instance that can serve nothing.
-     *
-     *     The settings are read here and not held at import: this endpoint runs once per probe, the
-     *     lookup is cached, and a module-level copy would be one more thing to keep in step with the
-     *     process it describes.
-     */
-    get: operations['health_api_health_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -419,6 +419,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  health_api_health_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HealthStatus'];
+        };
+      };
+    };
+  };
   log_in_api_auth_login_post: {
     parameters: {
       query?: never;
@@ -625,26 +645,6 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  health_api_health_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HealthStatus'];
         };
       };
     };

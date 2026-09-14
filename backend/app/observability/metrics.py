@@ -9,9 +9,14 @@ They are defined at import and never rebuilt: a Prometheus collector is register
 process, and a second registration of the same name raises.
 """
 
+from fastapi import APIRouter
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
-from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
+
+# Mounted by the composition root the same way every other router is. It carries no prefix and no
+# tag: `/metrics` is not part of our API -- `include_in_schema=False` below keeps it out of the
+# OpenAPI, so it never reaches `schema.d.ts` as if the frontend could call it.
+router = APIRouter()
 
 # The daily allowance of the provider's free plan. Lives here and not in Settings because it is
 # a fact about the plan, not something an operator gets to configure away.
@@ -72,6 +77,11 @@ HTTP_DURATION = Histogram(
 PROVIDER_QUOTA_REMAINING.set(DAILY_QUOTA)
 
 
-async def metrics_endpoint(request: Request) -> Response:
-    """Expose the registry in Prometheus text format."""
+@router.get("/metrics", include_in_schema=False)
+async def metrics_endpoint() -> Response:
+    """Expose the registry in Prometheus text format.
+
+    It answers a `Response` already built, which FastAPI hands back untouched: what Prometheus
+    reads is a text format of its own, not JSON, and there is no model to serialise.
+    """
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)

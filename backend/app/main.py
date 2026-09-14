@@ -15,12 +15,8 @@ from app.modules.favorites import router as favorites_router
 from app.modules.quotes import router as quotes_router
 from app.modules.stocks import keep_the_catalogue_fresh
 from app.modules.stocks import router as stocks_router
-from app.observability import (
-    RequestContextMiddleware,
-    configure_logging,
-    configure_sentry,
-    metrics_endpoint,
-)
+from app.observability import RequestContextMiddleware, configure_logging, configure_sentry
+from app.observability import router as metrics_router
 from app.settings import get_settings
 
 settings = get_settings()
@@ -73,6 +69,7 @@ app.add_middleware(
 # Routers
 
 app.include_router(health_router)
+app.include_router(metrics_router)
 
 app.include_router(auth_router)
 app.include_router(favorites_router)
@@ -81,8 +78,5 @@ app.include_router(quotes_router)
 
 # When a service communicates a failure by raising, this is where the raise turns into a status.
 register_error_handlers(app)
-
-app.add_route("/metrics", metrics_endpoint, methods=["GET"], include_in_schema=False)
-
 
 __all__ = ["app"]

@@ -27,7 +27,7 @@ from app.observability.metrics import (
     PROVIDER_REQUESTS,
     QUOTE_CACHE_HITS,
     QUOTE_CACHE_MISSES,
-    metrics_endpoint,
+    router,
 )
 from app.observability.middleware import RequestContextMiddleware
 from app.observability.sentry import configure_sentry, scrub_secrets
@@ -42,6 +42,6 @@ __all__ = [
     "RequestContextMiddleware",
     "configure_logging",
     "configure_sentry",
-    "metrics_endpoint",
+    "router",
     "scrub_secrets",
 ]
