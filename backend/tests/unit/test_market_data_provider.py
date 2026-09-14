@@ -10,7 +10,7 @@ explicit contract to avoid.
 """
 
 import inspect
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -21,6 +21,9 @@ from app.providers import (
     QuotePoint,
     StockRecord,
 )
+
+# One day of the fixed session, aware and in UTC: the window a service hands a provider.
+_WINDOW = (datetime(2026, 9, 11, tzinfo=UTC), datetime(2026, 9, 12, tzinfo=UTC))
 
 
 class TestTheContractIsAbstract:
@@ -112,3 +115,34 @@ class TestTheFakeIsARealImplementation:
         catalogue = await FakeProvider().list_stocks("NASDAQ")
 
         assert {"TSLA", "AAPL", "NFLX"} <= {entry.symbol for entry in catalogue}
+
+
+class TestTheSeriesIsAnsweredInUtc:
+    """RF-15 and RF-36: the window goes out aware in UTC, and the answer comes back the same.
+
+    The most expensive bug of the chart is a series sitting four or five hours away from where it
+    belongs, with nothing failing anywhere: every point still lands neatly on an axis. The real
+    client's half of that is fixed against the recorded JSON, in `test_upstream_client.py`. What
+    belongs here is the contract's half -- what *any* implementation has to hand the service, the
+    fake that runs the whole suite included, since it is also what runs locally (TEST-03).
+    """
+
+    async def test_its_instants_are_aware(self) -> None:
+        """A naive instant read as a market hour and as a server hour is two different charts."""
+        series = await FakeProvider().get_time_series("TSLA", "1min", *_WINDOW)
+
+        assert all(point.ts.tzinfo is not None for point in series)
+
+    async def test_its_instants_carry_no_offset(self) -> None:
+        """UTC on the wire and in the cache; the market hour is presentation (plan.md)."""
+        series = await FakeProvider().get_time_series("TSLA", "1min", *_WINDOW)
+
+        assert all(point.ts.utcoffset() == timedelta(0) for point in series)
+
+    async def test_no_point_falls_outside_the_window_it_was_asked_for(self) -> None:
+        """The service stores what it is given, so a point outside the window is cache poison."""
+        start, end = _WINDOW
+
+        series = await FakeProvider().get_time_series("TSLA", "1min", start, end)
+
+        assert all(start <= point.ts <= end for point in series)

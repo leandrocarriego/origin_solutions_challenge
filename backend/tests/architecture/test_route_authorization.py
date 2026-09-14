@@ -74,6 +74,11 @@ IDENTITY_PARAMETERS = frozenset({"user_id", "userid", "owner_id", "account_id", 
 # HEAD and OPTIONS are mounted by Starlette alongside GET; they are not decisions anyone made.
 IGNORED_METHODS = frozenset({"HEAD", "OPTIONS"})
 
+# The one route `003-quote-chart` mounts. Written out rather than discovered, because what is
+# under test is that this particular route decided something: a check that looks for "whatever
+# is mounted" passes just as happily over a feature that was never wired up (GEN-04).
+_CHART_ROUTE = "GET /api/quotes/{symbol}"
+
 
 def _routes(application: FastAPI) -> list[tuple[str, RouteContext]]:
     """Every mounted route as "METHOD /path", one entry per method that is a decision.
@@ -188,6 +193,20 @@ class TestRoutesDeclareAuthorization:
     def test_the_public_list_names_no_route_that_is_gone(self, name: str) -> None:
         """A stale entry silently pre-approves the next route that takes the same path."""
         assert name in dict(_routes(app)), f"{name} is listed public and is not mounted"
+
+    def test_the_chart_route_is_mounted(self) -> None:
+        """A route nobody included decides nothing, however well its handler is written."""
+        assert _CHART_ROUTE in dict(_routes(app))
+
+    def test_the_chart_route_declares_authorization(self) -> None:
+        """It serves data that costs quota, and only for the favourites of whoever asks."""
+        route = dict(_routes(app)).get(_CHART_ROUTE)
+
+        assert route is not None and _declares_authorization(route)
+
+    def test_the_chart_route_is_not_public(self) -> None:
+        """`PUBLIC_ROUTES` gains nothing with this feature: publishing it would be a decision."""
+        assert _CHART_ROUTE not in PUBLIC_ROUTES
 
 
 class TestRoutesEnforceAuthorization:

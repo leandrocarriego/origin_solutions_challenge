@@ -1,11 +1,18 @@
 /**
- * `Detalle de Acción` -- wireframe 03, looked at through the screen.
+ * `Detalle de Acción` -- wireframe 03, H1, looked at through the screen.
  *
  * The screen is opened the way a person opens it: the application is mounted at an address, with a
  * session restored from the browser, and everything else is read off what is painted. Nothing here
  * imports `ActionDetail`, `QuoteChart` or `api/quotes` -- which of those draws a given control is
  * an internal arrangement of `plan.md`, and a test that fixed it would go red the day somebody
  * moves a control between two components without the screen changing for anybody.
+ *
+ * **Scope.** This file is task 3 of `tasks.md`: the screen of H1 -- the header, the two ways of
+ * asking, the interval selector, `Graficar`, the chart it draws and the one invalid query of this
+ * story. The refresh of H2 lives in `quoteRefresh.test.tsx`, the date fields and the range
+ * failures of H3 in `quoteHistoric.test.tsx`, the notices of H4 in `quoteNotice.test.tsx`, and
+ * that this address with no session lands on the login (RF-02) in `session.test.tsx`, where
+ * `tasks.md` puts it.
  *
  * Today every test here is red because `/stocks/:symbol` has nothing behind it: `002` has not been
  * implemented either, so the address falls through to `Mis Acciones`. That is the intended red --
@@ -18,9 +25,11 @@
  * on screen", and "it was not remounted" means the SVG that carries it is the same node as before
  * (RF-19). The point-level requirements -- each point at its own market hour (RF-15, RF-36) and
  * the tooltip with the two hours (RF-38) -- are *not* asserted here: they live inside the SVG
- * layout, which jsdom does not compute, and `src/quotes/market.ts` (where the two formatters live)
- * does not exist yet, so a unit test of them cannot even be imported. They are reported as an
- * escalation rather than written as a test that could only go green by accident.
+ * layout, which jsdom does not compute, and `plan.md` names `src/quotes/market.ts` and its two
+ * formatters without fixing their signatures, so a unit test of them would have to invent one.
+ * They are reported as an escalation rather than written as a test that could only go green by
+ * accident (`add_tests`: if the plan does not name what is going to be called, it goes back to
+ * `/plan`).
  *
  * `fetch` is replaced in every test and restored afterwards: a frontend test that goes to the
  * network is not a frontend test (`add_tests`, `TEST-03`).
@@ -47,27 +56,14 @@ const ACLARACION_INTERVALO = '( opciones 1min / 5min / 15min)';
 const GRAFICAR = 'Graficar';
 const COTIZACION = 'Cotización';
 
-const FECHA_DESDE = 'Fecha hora desde';
-const FECHA_HASTA = 'Fecha hora hasta';
-
 // Verbatim from *Detalle: navegación, horarios y validación* of docs/design/COPY.md.
 const MIS_ACCIONES = 'Mis Acciones';
 const HORARIOS = 'Horarios en hora del mercado.';
 const ELEGI_INTERVALO = 'Elegí un intervalo.';
-const FECHAS_AL_REVES = 'La fecha desde tiene que ser anterior a la fecha hasta.';
-const RANGO_EXCEDIDO_1MIN =
-  'El rango es demasiado largo para el intervalo 1min. El máximo es 7 días.';
-
-// Verbatim from *Sesión y validación*: an empty field is the same oversight on both screens, and
-// the client deliberately gave it one text and not two (`COPY.md`).
-const COMPLETA_ESTE_CAMPO = 'Completá este campo.';
 
 const ME_URL = '/api/auth/me';
 const FAVORITES_URL = '/api/favorites';
 const QUOTES_URL = '/api/quotes';
-
-/** The button of the login, which is what a visitor with no session is left looking at (RF-02). */
-const INGRESAR = 'Ingresar';
 
 const FULL_NAME = 'Juan Perez';
 const A_SESSION = {
@@ -143,15 +139,6 @@ function seriesOf(
 /** What `GET /api/quotes/{symbol}` answers next. A test changes it to change the state. */
 let theSeries: QuoteSeries = seriesOf('ok', FIVE_CANDLES);
 
-/**
- * A refusal our API answers instead of a series, or `null` while it answers one.
- *
- * The two failures of the range are decided by the backend and not by the screen (`plan.md`: a
- * rule of the business duplicated on both ends is a rule that one day disagrees with itself), so
- * what the screen owes is to turn the `code` of a 422 into the text of `COPY.md`.
- */
-let theRefusal: { status: number; body: unknown } | null = null;
-
 /** Every call our API received for a series, so a test can count them and read their address. */
 let quoteCalls: { url: string; signal: AbortSignal | null }[] = [];
 
@@ -189,12 +176,6 @@ function stubTheApi(favorites: Favorite[] = THE_LIST): void {
       }
       if (url.includes(QUOTES_URL)) {
         quoteCalls.push({ url, signal: init?.signal ?? null });
-
-        if (theRefusal) {
-          return Promise.resolve(
-            new Response(JSON.stringify(theRefusal.body), { status: theRefusal.status }),
-          );
-        }
 
         return Promise.resolve(new Response(JSON.stringify(theSeries), { status: 200 }));
       }
@@ -284,44 +265,6 @@ function timesAskedForASeries(): number {
 function timesAskedForTheList(): number {
   return listCalls;
 }
-
-/**
- * One of the two date fields, by its label or -- as the wireframe draws it -- by the text inside.
- *
- * The wireframe writes `Fecha hora desde` *inside* the box, so a screen that draws it as a
- * placeholder is reproducing the wireframe and one that adds a `<label>` is doing better; both are
- * ways of saying which end of the range the field is, and both are found here. A field that can be
- * found by neither is one nobody using a screen reader can fill, which is a finding about the
- * screen and not about this test.
- */
-function dateField(name: string): HTMLInputElement {
-  const labelled = screen.queryByLabelText<HTMLInputElement>(name);
-  if (labelled) return labelled;
-
-  return screen.getByPlaceholderText(name);
-}
-
-/** One minute, in milliseconds: the shortest interval the brief offers (`1min`). */
-const ONE_MINUTE = 60_000;
-
-/** Put the tab in the background, the way changing to another tab does (RF-21). */
-function hideTheTab(): void {
-  Object.defineProperty(document, 'visibilityState', {
-    configurable: true,
-    get: () => 'hidden',
-  });
-  document.dispatchEvent(new Event('visibilitychange'));
-}
-
-/** Come back to the tab (RF-22). */
-function showTheTab(): void {
-  Object.defineProperty(document, 'visibilityState', {
-    configurable: true,
-    get: () => 'visible',
-  });
-  document.dispatchEvent(new Event('visibilitychange'));
-}
-
 /** Choose an interval and press `Graficar`, which is the whole gesture of the wireframe. */
 async function plotWith(interval: string): Promise<void> {
   const person = userEvent.setup();
@@ -334,7 +277,6 @@ beforeEach(() => {
   sessionStorage.clear();
   quoteCalls = [];
   listCalls = 0;
-  theRefusal = null;
   theSeries = seriesOf('ok', FIVE_CANDLES);
   stubTheApi();
 });
@@ -393,21 +335,6 @@ describe('the detail of an action that is not in the list of whoever asked', () 
     await waitFor(() => {
       expect(timesAskedForTheList()).toBeGreaterThan(0);
     });
-  });
-});
-
-describe('the address of the detail pasted into a browser with no session', () => {
-  it('leaves the visitor on the login and not on the chart', async () => {
-    // RF-02. `tasks.md` puts this in `session.test.tsx`, which was signed in `001` and is not
-    // reopened here: the guard it describes is the same one, read at this address. It is green
-    // today -- with no route behind it the address already falls through to the guard -- so what
-    // it buys is that it stays true the day `/stocks/:symbol` becomes a screen of its own.
-    sessionStorage.clear();
-
-    openAt(`/stocks/${TSLA.symbol}`);
-
-    expect(await screen.findByRole('button', { name: INGRESAR })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: GRAFICAR })).toBeNull();
   });
 });
 
@@ -622,495 +549,5 @@ describe('Graficar with no interval chosen', () => {
 
     expect(theChart()).toBe(before);
     expect(timesAskedForASeries()).toBe(callsBefore);
-  });
-});
-
-/**
- * H2 -- the chart keeps itself up to date while somebody is looking at it.
- *
- * The timers are the test's: `vi.useFakeTimers` is what turns "a minute goes by" into an assertion
- * that runs in milliseconds and always says the same thing. `shouldAdvanceTime` is on so that
- * Testing Library's waiting still works while the clock is ours.
- *
- * What is asserted about a refresh is what distinguishes the requirement from something that
- * merely looks right: **the chart node is the same one** (RF-19). A screen that threw the chart
- * away and drew a new one every interval would show the same points and flicker once a minute,
- * and no assertion about content would notice.
- */
-describe('a chart of Tiempo Real that is left on screen', () => {
-  /** Open the detail, plot, and hand the clock to the test from the moment of the first plot. */
-  async function plotAndTakeTheClock(interval: string): Promise<SVGSVGElement> {
-    await theDetailOf(TSLA.symbol);
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    await plotWith(interval);
-
-    return await waitForTheChart();
-  }
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('asks our API again once the chosen interval has gone by', async () => {
-    // RF-18. One interval, one request: the screen refreshes on the rhythm the person chose, and
-    // not on one of its own.
-    await plotAndTakeTheClock('1min');
-    const asked = timesAskedForASeries();
-
-    await vi.advanceTimersByTimeAsync(ONE_MINUTE);
-
-    expect(timesAskedForASeries()).toBe(asked + 1);
-  });
-
-  it('draws the refresh into the chart that is already there', async () => {
-    // RF-19, and it is the heart of this story: the same node, not an equivalent one. `setData`
-    // on the chart that exists is what makes the update invisible; a remount "works" and blinks.
-    const chart = await plotAndTakeTheClock('1min');
-
-    await vi.advanceTimersByTimeAsync(ONE_MINUTE);
-
-    expect(theChart()).toBe(chart);
-  });
-
-  it('keeps asking for the whole session, so nothing that was drawn is dropped', async () => {
-    // RF-20. The realtime answer is the whole session (`plan.md` → *Alternativas descartadas*):
-    // the screen does not ask for "what is new", which is where a chart loses its left-hand side.
-    await plotAndTakeTheClock('1min');
-
-    await vi.advanceTimersByTimeAsync(ONE_MINUTE);
-
-    const refresh = quoteCalls.at(-1)?.url ?? '';
-    expect(refresh).toContain('interval=1min');
-    expect(refresh).not.toContain('from=');
-    expect(refresh).not.toContain('to=');
-  });
-
-  it('refreshes on the interval that was chosen, and not on another one', async () => {
-    // RF-18 again, with the interval changed: at `5min` a minute is not a refresh. A screen that
-    // polled on a fixed rhythm would pass the test above and spend five times the quota here.
-    await plotAndTakeTheClock('5min');
-    const asked = timesAskedForASeries();
-
-    await vi.advanceTimersByTimeAsync(ONE_MINUTE);
-    expect(timesAskedForASeries()).toBe(asked);
-
-    await vi.advanceTimersByTimeAsync(4 * ONE_MINUTE);
-    expect(timesAskedForASeries()).toBe(asked + 1);
-  });
-
-  it('stops asking while the tab is not being looked at', async () => {
-    // RF-21, and Article II: a forgotten tab renewing the TTL of its symbol all session long is
-    // quota spent by nobody.
-    await plotAndTakeTheClock('1min');
-    const asked = timesAskedForASeries();
-
-    hideTheTab();
-    await vi.advanceTimersByTimeAsync(3 * ONE_MINUTE);
-
-    expect(timesAskedForASeries()).toBe(asked);
-  });
-
-  it('catches up as soon as the tab is looked at again', async () => {
-    // RF-22. Coming back asks immediately -- waiting a whole interval would show a chart that is
-    // visibly out of date -- and arms the timer again, which the second half checks.
-    await plotAndTakeTheClock('1min');
-    hideTheTab();
-    await vi.advanceTimersByTimeAsync(3 * ONE_MINUTE);
-    const asked = timesAskedForASeries();
-
-    showTheTab();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(timesAskedForASeries()).toBe(asked + 1);
-
-    await vi.advanceTimersByTimeAsync(ONE_MINUTE);
-    expect(timesAskedForASeries()).toBe(asked + 2);
-  });
-
-  it('stops asking when the screen is left', async () => {
-    // The leak nobody sees: an interval that survives its screen keeps spending requests for a
-    // chart that is not on screen any more.
-    await theDetailOf(TSLA.symbol);
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    await plotWith('1min');
-    await waitForTheChart();
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('link', { name: MIS_ACCIONES }));
-    const asked = timesAskedForASeries();
-
-    await vi.advanceTimersByTimeAsync(3 * ONE_MINUTE);
-
-    expect(timesAskedForASeries()).toBe(asked);
-  });
-
-  it('cancels the request in flight when the interval changes', async () => {
-    // The answer to a question nobody is asking any more must not land on the chart: at `5min`
-    // the reply to the `1min` request is a series of another shape. `plan.md` says every request
-    // cancels the previous one with an `AbortController`, so the signal of the first call is
-    // aborted once the second one starts.
-    await plotAndTakeTheClock('1min');
-    const first = quoteCalls[0];
-
-    await plotWith('5min');
-    await waitForTheChart();
-
-    expect(first?.signal?.aborted).toBe(true);
-  });
-});
-
-describe('a chart of Histórico that is left on screen', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('is never refreshed on its own', async () => {
-    // RF-23. A period that already ended does not change, so no timer is armed for it: this is
-    // the other half of RF-18, and the one that quietly spends quota if it is got wrong.
-    await theDetailOf(TSLA.symbol);
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('radio', { name: new RegExp(HISTORICO) }));
-
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    await plotWith('1min');
-    await waitForTheChart();
-    const asked = timesAskedForASeries();
-
-    await vi.advanceTimersByTimeAsync(10 * ONE_MINUTE);
-
-    expect(timesAskedForASeries()).toBe(asked);
-  });
-});
-
-/**
- * H3 -- asking for a period that already went by.
- *
- * The clock is the test's here too, and for a different reason than in H2: the two date fields
- * come already filled with the last 24 hours **of market time** (RF-10), so what they say depends
- * on when the screen was opened. With the system time fixed, that becomes an assertion.
- *
- * What the fields are asserted against is *the market hour*, not the hour of the machine running
- * the suite: the whole point of RF-36 is that the screen tells the time on the exchange's clock.
- * The format is left alone on purpose -- the plan fixes neither `datetime-local` nor a mask -- so
- * each value is required to carry the day, the month, the year and the hour of the instant it
- * stands for, and nothing is said about the order they are written in.
- */
-describe('the two date fields of Histórico', () => {
-  /** An instant inside a session: 15:55 on the market clock, which is 19:55 UTC. */
-  const WHEN_IT_WAS_OPENED = new Date('2026-09-11T19:55:00Z');
-
-  /** Day, month, year and hour of an instant, as the market's clock tells them. */
-  function marketParts(instant: Date): { day: string; month: string; year: string; time: string } {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(instant);
-
-    const part = (type: string): string => parts.find((one) => one.type === type)?.value ?? '';
-
-    return {
-      day: part('day'),
-      month: part('month'),
-      year: part('year'),
-      time: `${part('hour')}:${part('minute')}`,
-    };
-  }
-
-  /** Whether a field carries the instant it should, whichever way it writes it down. */
-  function expectFieldToCarry(field: HTMLInputElement, instant: Date): void {
-    const { day, month, year, time } = marketParts(instant);
-
-    expect(field.value).toContain(year);
-    expect(field.value).toContain(month);
-    expect(field.value).toContain(day);
-    expect(field.value).toContain(time);
-  }
-
-  beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, now: WHEN_IT_WAS_OPENED });
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('are both on screen, each saying which end of the range it is', async () => {
-    // RF-09, verbatim: `Fecha hora desde` and `Fecha hora hasta`. A field that can be found by
-    // neither its label nor the text inside it is a field nobody using a screen reader can fill.
-    await theDetailOf(TSLA.symbol);
-
-    expect(dateField(FECHA_DESDE)).toBeInTheDocument();
-    expect(dateField(FECHA_HASTA)).toBeInTheDocument();
-  });
-
-  it('come already filled with the last 24 hours of market time', async () => {
-    // RF-10, which is A6 resolved: nobody has to type a date to get a chart out of `Histórico`,
-    // and the two values are told in the market's hour and not in the machine's (RF-36).
-    await theDetailOf(TSLA.symbol);
-
-    const twentyFourHoursEarlier = new Date(WHEN_IT_WAS_OPENED.getTime() - 24 * 60 * ONE_MINUTE);
-
-    expectFieldToCarry(dateField(FECHA_DESDE), twentyFourHoursEarlier);
-    expectFieldToCarry(dateField(FECHA_HASTA), WHEN_IT_WAS_OPENED);
-  });
-
-  it('are the window the screen asks our API for', async () => {
-    // The two fields are not decoration: what they carry is what travels, and it travels as the
-    // person wrote it -- market time -- for the backend to localise (`plan.md` → *Contratos*).
-    await theDetailOf(TSLA.symbol);
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('radio', { name: new RegExp(HISTORICO) }));
-    await plotWith('15min');
-    await waitForTheChart();
-
-    const asked = quoteCalls.at(-1)?.url ?? '';
-    expect(asked).toContain('interval=15min');
-    expect(asked).toContain('from=');
-    expect(asked).toContain('to=');
-  });
-});
-
-describe('Graficar in Histórico with a date field left empty', () => {
-  /** Open the detail in `Histórico`, with an interval chosen and one of the fields emptied. */
-  async function emptyTheField(name: string): Promise<HTMLInputElement> {
-    await theDetailOf(TSLA.symbol);
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('radio', { name: new RegExp(HISTORICO) }));
-    await person.selectOptions(theIntervalSelect(), '1min');
-
-    const field = dateField(name);
-    await person.clear(field);
-
-    return field;
-  }
-
-  it('says what is missing, under the field that is missing it', async () => {
-    // RF-40, and the text is the one the login already uses for an empty field: the client wrote
-    // one text for the same oversight, not two (`COPY.md`). Under *that* field, because that is
-    // the one that has to be corrected.
-    const field = await emptyTheField(FECHA_HASTA);
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('button', { name: GRAFICAR }));
-
-    const notice = await screen.findByText(COMPLETA_ESTE_CAMPO);
-    const position = field.compareDocumentPosition(notice);
-    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('asks our API for nothing', async () => {
-    // RF-47: a missing field is presence, which the screen resolves on its own -- there is not
-    // even a request to build, so no credit of the provider's quota can be spent on it.
-    await emptyTheField(FECHA_DESDE);
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('button', { name: GRAFICAR }));
-    await screen.findByText(COMPLETA_ESTE_CAMPO);
-
-    expect(timesAskedForASeries()).toBe(0);
-  });
-
-  it('draws no chart', async () => {
-    // RF-46.
-    await emptyTheField(FECHA_DESDE);
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('button', { name: GRAFICAR }));
-    await screen.findByText(COMPLETA_ESTE_CAMPO);
-
-    expect(chartOrNull()).toBeNull();
-  });
-});
-
-describe('Graficar in Histórico with a range our API refuses', () => {
-  /** Plot in `Histórico` while our API answers the refusal the test set up. */
-  async function plotAndBeRefused(refusal: { status: number; body: unknown }): Promise<void> {
-    await theDetailOf(TSLA.symbol);
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('radio', { name: new RegExp(HISTORICO) }));
-
-    theRefusal = refusal;
-    await plotWith('1min');
-  }
-
-  it('says the dates are the wrong way round, in the words of the copy', async () => {
-    // RF-41. The rule lives in the backend and only there (`plan.md`: a rule of the business
-    // written on both ends is a rule that one day disagrees with itself), so what the screen owes
-    // is turning `range_invalid` into the text the client wrote.
-    await plotAndBeRefused({ status: 422, body: { detail: { code: 'range_invalid' } } });
-
-    expect(await screen.findByText(FECHAS_AL_REVES)).toBeInTheDocument();
-  });
-
-  it('says how long the range may be, with the interval and the number of the answer', async () => {
-    // RF-45. `{intervalo}` and `{N}` are filled in from the body and not from a copy of the limits
-    // kept in the browser: the day the limits change, the screen says the new ones.
-    await plotAndBeRefused({
-      status: 422,
-      body: { detail: { code: 'range_too_long', interval: '1min', max_days: 7 } },
-    });
-
-    expect(await screen.findByText(RANGO_EXCEDIDO_1MIN)).toBeInTheDocument();
-  });
-
-  it('never names the provider when something is refused', async () => {
-    // RF-26. What the person reads is what the client wrote; the `code` of the answer is an
-    // identifier for the screen to read, and neither it nor the provider's name is on display.
-    await plotAndBeRefused({ status: 422, body: { detail: { code: 'range_invalid' } } });
-    await screen.findByText(FECHAS_AL_REVES);
-
-    expect(document.body.textContent ?? '').not.toMatch(/twelvedata/i);
-  });
-
-  it('draws no chart', async () => {
-    // RF-46.
-    await plotAndBeRefused({ status: 422, body: { detail: { code: 'range_invalid' } } });
-    await screen.findByText(FECHAS_AL_REVES);
-
-    expect(chartOrNull()).toBeNull();
-  });
-
-  it('leaves the chart that was already there exactly as it was', async () => {
-    // RF-48, the third and fourth of the four invalid queries: whatever is on screen stays on
-    // screen, the same node and not a redrawn copy of it.
-    await theDetailOf(TSLA.symbol);
-    await plotWith('5min');
-    const before = await waitForTheChart();
-
-    const person = userEvent.setup();
-    await person.click(screen.getByRole('radio', { name: new RegExp(HISTORICO) }));
-    theRefusal = {
-      status: 422,
-      body: { detail: { code: 'range_too_long', interval: '1min', max_days: 7 } },
-    };
-    await plotWith('1min');
-    await screen.findByText(RANGO_EXCEDIDO_1MIN);
-
-    expect(theChart()).toBe(before);
-  });
-});
-
-/**
- * H4 -- the screen says what it is showing when what it shows is not today's session.
- *
- * The four states are the contract of `ERR-05` and all four answer 200: a failure of the provider
- * is not a failure of the request, and the screen finds out which of the four it got by reading
- * `status` -- never a 4xx, never the name of whoever could not be reached (RF-26).
- *
- * The date inside the `market_closed` notice is checked by the fixed parts the copy fixes plus
- * *something with a digit in it* where `{fecha}` goes. How that date is written down is not fixed
- * anywhere -- `COPY.md` writes the placeholder and `plan.md` says only that it is in market time
- * -- and a test that demanded one spelling would be inventing a requirement.
- */
-describe('the notices above the chart', () => {
-  const STALE = 'Mostrando la última cotización disponible: no se pudo consultar el proveedor.';
-  const MERCADO_CERRADO =
-    /^El mercado está cerrado\. Se muestra la última rueda disponible: .*\d.*\.$/;
-  const SIN_COTIZACIONES = `No hay cotizaciones para ${TSLA.symbol} en el rango e intervalo seleccionados.`;
-
-  /** Open the detail, have our API answer this series, and plot. */
-  async function plotAnswering(series: QuoteSeries): Promise<void> {
-    await theDetailOf(TSLA.symbol);
-    theSeries = series;
-    await plotWith('5min');
-  }
-
-  it('explains a closed market, with the session that is being shown', async () => {
-    // RF-28, and it is the Sunday of the demo: the chart shows the last session there was, and
-    // the notice says which one, so an empty-looking screen is never mistaken for a broken one.
-    await plotAnswering(seriesOf('market_closed', FIVE_CANDLES, '2026-09-11'));
-
-    expect(await screen.findByText(MERCADO_CERRADO)).toBeInTheDocument();
-  });
-
-  it('puts that notice above the chart and not at its foot', async () => {
-    // UI-05: a notice qualifies the data that is about to be read, so it goes before it. At the
-    // foot it is a footnote to something already misread.
-    await plotAnswering(seriesOf('market_closed', FIVE_CANDLES, '2026-09-11'));
-
-    const notice = await screen.findByText(MERCADO_CERRADO);
-    const chart = await waitForTheChart();
-
-    expect(notice.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('explains quotes it could not refresh, without naming who did not answer', async () => {
-    // RF-30, verbatim, and RF-26 in the same breath: the person has no account with any provider,
-    // so the notice says what is on screen and not whose fault it is.
-    await plotAnswering(seriesOf('stale', FIVE_CANDLES));
-
-    expect(await screen.findByText(STALE)).toBeInTheDocument();
-    expect(document.body.textContent ?? '').not.toMatch(/twelvedata/i);
-  });
-
-  it('puts the stale notice above the chart too', async () => {
-    // UI-05 again, for the state where there *is* a chart underneath: the notice is what says the
-    // prices being read are not the latest ones.
-    await plotAnswering(seriesOf('stale', FIVE_CANDLES));
-
-    const notice = await screen.findByText(STALE);
-    const chart = await waitForTheChart();
-
-    expect(notice.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('says which action has no quotes when there are none at all', async () => {
-    // RF-31, with the symbol inside the text: the same screen can be open on another action, and
-    // a notice that did not name one would be ambiguous exactly when it matters.
-    await plotAnswering(seriesOf('no_data', []));
-
-    expect(await screen.findByText(SIN_COTIZACIONES)).toBeInTheDocument();
-  });
-
-  it('shows no notice at all when the quotes are up to date', async () => {
-    // RF-32. A screen that always explains itself teaches people to stop reading the explanation.
-    await plotAnswering(seriesOf('ok', FIVE_CANDLES));
-    await waitForTheChart();
-
-    expect(screen.queryByText(STALE)).toBeNull();
-    expect(screen.queryByText(MERCADO_CERRADO)).toBeNull();
-    expect(screen.queryByText(SIN_COTIZACIONES)).toBeNull();
-  });
-
-  it('never leaves the screen with neither a chart nor a notice', async () => {
-    // RF-33, the invariant of the four states: something is always shown, and something always
-    // explains it -- a chart, a notice, or both. Nothing is what reads as an application that
-    // broke. Each state gets a screen of its own, so that what is on it was drawn by that state
-    // and is not left over from the one before.
-    const states: QuoteSeries[] = [
-      seriesOf('ok', FIVE_CANDLES),
-      seriesOf('stale', FIVE_CANDLES),
-      seriesOf('market_closed', FIVE_CANDLES, '2026-09-11'),
-      seriesOf('no_data', []),
-    ];
-
-    for (const state of states) {
-      const mounted = await theDetailOf(TSLA.symbol);
-      theSeries = state;
-      await plotWith('5min');
-
-      await waitFor(() => {
-        const notice =
-          screen.queryByText(STALE) ??
-          screen.queryByText(MERCADO_CERRADO) ??
-          screen.queryByText(SIN_COTIZACIONES);
-
-        expect(
-          chartOrNull() !== null || notice !== null,
-          `with status "${state.status}" the screen shows neither a chart nor a notice (RF-33)`,
-        ).toBe(true);
-      });
-
-      mounted.unmount();
-      sessionStorage.clear();
-    }
   });
 });

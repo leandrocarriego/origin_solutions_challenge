@@ -412,3 +412,33 @@ describe('the address of the inner screen, after closing the session', () => {
     expect(callsTo(ME_URL).length).toBe(askedBefore);
   });
 });
+
+/**
+ * `003` adds the third address the guard has to hold: the Detail of an action (RF-02).
+ *
+ * It is the same guard read at another door, and that is why it is here and not in
+ * `ActionDetail.test.tsx` -- `tasks.md` puts RF-02 in this file on purpose: what is being fixed is
+ * the capacity, and a screen-by-screen copy of it would go stale the day a fourth address appears.
+ *
+ * It is green today -- with no route behind `/stocks/:symbol` the address already falls through to
+ * the guard -- so what it buys is that it stays true the day the Detail becomes a screen of its
+ * own. A guard that stopped covering an address is exactly the kind of regression nobody notices.
+ */
+describe('the address of the detail of an action, opened with no session', () => {
+  /** The button of the Detail (`COPY.md` → *Detalle de Acción*), which must not be reachable. */
+  const GRAFICAR = 'Graficar';
+
+  it('leaves the visitor looking at the login', async () => {
+    openAt('/stocks/TSLA');
+
+    expect(await screen.findByRole('button', { name: INGRESAR })).toBeInTheDocument();
+    expect(screen.getByLabelText(USUARIO)).toBeInTheDocument();
+  });
+
+  it('does not show the detail at all', async () => {
+    openAt('/stocks/TSLA');
+
+    await screen.findByRole('button', { name: INGRESAR });
+    expect(screen.queryByRole('button', { name: GRAFICAR })).toBeNull();
+  });
+});
