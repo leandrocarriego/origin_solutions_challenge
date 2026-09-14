@@ -358,7 +358,7 @@ pasado el 72.
 
 ## ADR-005 — Modos de fallo explícitos
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** La rúbrica dice "estabilidad". Los tres escenarios que rompen una demo son
 mercado cerrado, símbolo sin datos y cuota agotada — y los tres son *probables* durante la
@@ -454,14 +454,17 @@ proveedor ya no devuelve.
 
 ## ADR-007 — docker-compose como forma de levantar el proyecto
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** REQ-22 pide un README con los pasos para levantar. El evaluador tiene poco
 tiempo y muchas entregas.
 
 **Decisión.** `docker compose up --build` levanta Postgres, API y frontend, corre las
-migraciones y el seed automáticamente. El `.env.example` documenta cada variable; la única
-obligatoria es `TWELVEDATA_API_KEY`.
+migraciones y el seed automáticamente. El `.env.example` documenta cada variable. Obligatoria en
+**todo** entorno hay una sola, `JWT_SECRET`, que no tiene default y no lo va a tener (`SEC-05`): un
+secreto "de desarrollo" es el secreto de producción el día que alguien se olvida de cambiarlo. La
+`TWELVEDATA_API_KEY` hace falta desde la fase 1 —la pantalla de salud no la usa—, y en producción
+se suman `DOMAIN`, `POSTGRES_PASSWORD` y `GRAFANA_ADMIN_PASSWORD`.
 
 **Consecuencias.** El camino de "clonar a funcionando" es un comando. `db/backup.sql`
 (REQ-21) se genera con `make backup` a partir de la base ya sembrada, así que el backup y
@@ -486,7 +489,7 @@ origen.
 
 ## ADR-008 — Los wireframes del enunciado son la especificación de la UI
 
-**Estado:** Propuesta · **Decidida por:** — · **Fecha:** —
+**Estado:** Aceptada · **Decidida por:** Leandro Carriego · **Fecha:** 2026-09-13
 
 **Contexto.** El enunciado dice, textualmente, que **no se evalúa el diseño ni el conocimiento de
 UI**. Y sin embargo incluye tres wireframes detallados: login, "Mis Acciones" y el detalle con su
@@ -495,10 +498,11 @@ gráfico, con etiquetas, columnas y textos concretos.
 Las dos cosas juntas dicen lo mismo desde dos lados: la interfaz no es un espacio donde ganar
 puntos, es un requisito a cumplir.
 
-**Decisión.** No hay design system, ni librería de componentes, ni framework de estilos: CSS plano
-y una paleta neutra tomada del propio mockup. Los tres wireframes se recortaron del PDF a
-`docs/design/wireframes/` y son la fuente de layout; los textos visibles están fijados **verbatim**
-en `docs/design/COPY.md`, faltas de ortografía incluidas.
+**Decisión.** No hay design system ni librería de componentes. Los estilos son **utilidades de
+Tailwind 4** sobre una paleta neutra tomada del propio mockup, declarada en el bloque `@theme` de
+`src/styles/tokens.css` — el único `.css` del proyecto (`CONVENTIONS.md` → `UI-03`, `UI-07`). Los
+tres wireframes se recortaron del PDF a `docs/design/wireframes/` y son la fuente de layout; los
+textos visibles están fijados **verbatim** en `docs/design/COPY.md`, faltas de ortografía incluidas.
 
 Ante la duda entre reproducir el wireframe y mejorarlo, se reproduce.
 
@@ -506,13 +510,25 @@ Ante la duda entre reproducir el wireframe y mejorarlo, se reproduce.
 (`CONVENTIONS.md` → `UI-01`, `UI-02`). Se ahorra el tiempo que un design system se llevaría, y se
 gasta donde la rúbrica sí paga: modelo de datos, estabilidad y NFR.
 
+La paleta vive en **un solo archivo** y se discute ahí: el `@theme` arranca con `--color-*: initial`,
+que borra la paleta de fábrica de Tailwind, así que un color inventado en un componente no genera
+CSS. Lo verifica `frontend/tests/tokens.test.ts` en CI (`UI-03`).
+
 Lo único que la UI agrega por encima del wireframe son los **avisos de estado** de `ADR-005`, que
 van arriba del gráfico (`UI-05`): el mockup no los previó porque no contempla que el proveedor
 falle, y una pantalla en blanco sin explicación es un modo de falla, no una decisión de diseño.
 
-**Alternativas descartadas.** Una UI "linda" con Tailwind y componentes. Es trabajo que el enunciado
+**Alternativas descartadas.** Dos.
+
+*Una UI "linda" con una librería de componentes* — MUI, shadcn, Chakra. Es trabajo que el enunciado
 declara que no va a mirar, y cada pixel que se aleja del mockup es una diferencia que el evaluador
-tiene que interpretar.
+tiene que interpretar. Además trae su propio sistema de theming, que es una segunda fuente de verdad
+para la paleta.
+
+*CSS plano, sin Tailwind* — parece lo más austero y no lo es: obliga a una hoja por componente o a
+una global que crece, y con ella una segunda cascada donde un selector le gana a otro a distancia.
+Nada impide escribir un color en el lugar, que es justamente lo que `UI-03` existe para impedir. Las
+utilidades dejan el componente legible de un solo archivo y la paleta en uno solo.
 
 ---
 
