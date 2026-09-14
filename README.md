@@ -43,10 +43,11 @@ Levanta la base, el backend, el frontend y la observabilidad:
 | PostgreSQL | `localhost:5432` (`origin` / `origin`) |
 | Grafana | http://localhost:3000 (`admin` / `admin`) |
 | Prometheus | http://localhost:9090 |
+| Loki | `localhost:3100` — los logs se ven en Grafana → *Explore* |
 
-El dashboard del Artículo II se provisiona solo, igual que en producción. En local el proveedor
-es el falso (`MARKET_DATA_PROVIDER: fake`), así que los paneles de cuota miden llamadas que no
-salen a la red. Loki no está en el compose local: ningún panel lo lee.
+El dashboard y los dos datasources se provisionan solos, igual que en producción. En local el
+proveedor es el falso (`MARKET_DATA_PROVIDER: fake`), así que los paneles de cuota miden
+llamadas que no salen a la red.
 
 `make down` baja todo y conserva el volumen de la base.
 

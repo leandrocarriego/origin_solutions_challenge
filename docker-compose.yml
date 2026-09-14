@@ -57,10 +57,8 @@ services:
       - backend
 
   # --- Observability ----------------------------------------------------------------------------
-  # The same two services production runs, with the hardening that only makes sense there left
-  # out: no sub-path, no traefik labels, no memory limits, and a password everyone knows.
-  # Loki and Alloy are not here -- no panel reads them, and tailing the Docker socket is a cost
-  # a laptop has no reason to pay.
+  # The same services production runs, with the hardening that only makes sense there left out:
+  # no sub-path, no traefik labels, no memory limits, and a password everyone knows.
 
   prometheus:
     image: prom/prometheus:v3.1.0
@@ -88,19 +86,65 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
     volumes:
-      # File by file, and not the provisioning directory: mounting it whole would bring the Loki
-      # datasource too, and a datasource pointing at a service that is not running is a red that
-      # means nothing.
-      - ./infra/grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
-      - ./infra/grafana/provisioning/dashboards/origin.yml:/etc/grafana/provisioning/dashboards/origin.yml:ro
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "3000:3000"
     depends_on:
       - prometheus
+      - loki
+
+  # Logs, so a spike and the lines that explain it share a pane. Explore -> Loki, or
+  # `{service="backend"} | json` in a panel.
+  loki:
+    image: grafana/loki:3.7.7
+    command: ["-config.file=/etc/loki/loki.yml"]
+    user: "10001:10001"
+    volumes:
+      - ./infra/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+
+  # Alloy tails this project's containers and pushes what it reads to Loki. `docker compose logs`
+  # keeps working: the container still writes its own json file and Alloy follows it.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      # Which containers are ours. The local project is not named like the deployed one, and a
+      # filter matching the wrong name keeps nothing and says nothing.
+      COMPOSE_PROJECT: origin-acciones
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
+      - socket-proxy
+
+  # The Docker socket is root on the host, and Alloy only needs to list containers and read their
+  # output. The proxy is what makes that difference real: GET on /containers and nothing else.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      CONTAINERS: "1"
+      # Alloy reads /networks too: without it the discovery refuses the whole refresh with a 403.
+      NETWORKS: "1"
+      POST: "0"
+      ALLOW_START: "0"
+      ALLOW_STOP: "0"
+      ALLOW_RESTARTS: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 volumes:
   db_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  alloy_data:

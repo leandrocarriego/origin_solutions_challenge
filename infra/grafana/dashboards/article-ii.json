@@ -581,7 +581,7 @@
       "id": 1,
       "type": "stat",
       "title": "Antigüedad del catálogo",
-      "description": "Cuánto hace que la ingesta reconcilió el catálogo contra el proveedor (ADR-002). Si esto crece sin parar, el refresco de fondo murió y el autocompletado está sirviendo una foto vieja sin avisar.",
+      "description": "Cuánto hace que la ingesta reconcilió el catálogo contra el proveedor. Si esto crece sin parar, el refresco de fondo murió y el autocompletado está sirviendo una foto vieja sin avisar.",
       "datasource": {
         "type": "prometheus",
         "uid": "origin-prometheus"
