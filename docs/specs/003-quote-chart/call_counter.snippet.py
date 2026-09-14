@@ -17,4 +17,3 @@ class _CallCounter(MarketDataProvider):
         self.calls.append((symbol, interval))
 
         return []
-
