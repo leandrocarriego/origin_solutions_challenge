@@ -56,7 +56,7 @@ const ACLARACION_INTERVALO = '( opciones 1min / 5min / 15min)';
 const GRAFICAR = 'Graficar';
 const COTIZACION = 'Cotización';
 
-// Verbatim from *Detalle: navegación, horarios y validación* of docs/design/COPY.md.
+// Verbatim from the `Detalle: navegación, horarios y validación` table of docs/design/COPY.md.
 const MIS_ACCIONES = 'Mis Acciones';
 const HORARIOS = 'Horarios en hora del mercado.';
 const ELEGI_INTERVALO = 'Elegí un intervalo.';

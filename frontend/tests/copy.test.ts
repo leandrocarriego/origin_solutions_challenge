@@ -106,9 +106,10 @@ const REQUIRED: Pick<CopyRow, 'section' | 'element'>[] = [
   // rows are what stops somebody from "correcting" them on the way to the screen.
   //
   // `Cabecera (izquierda)` is deliberately **not** here, and it is the one row of the table this
-  // list cannot ask for: its cell carries two literals, the pattern `{símbolo} - {nombre} -
-  // {moneda}` and the example `TSLA - Tesla Inc - USD`, and the second is an example of what the
-  // screen shows for one action -- never a string a source file contains. Requiring it would ask
+  // list cannot ask for: its cell carries two literals, the pattern
+  // `{símbolo} - {nombre} - {moneda}` and the example `TSLA - Tesla Inc - USD`, and the second is
+  // an example of what the screen shows for one action -- never a string a source file contains.
+  // Requiring it would ask
   // for a literal that cannot exist. What it stands for is checked where it can be: the header of
   // the detail is read off the screen in `ActionDetail.test.tsx` (RF-01).
   //
@@ -137,7 +138,7 @@ const REQUIRED: Pick<CopyRow, 'section' | 'element'>[] = [
   // client wrote for it. Both of those are templates, and `fragmentsOf` is what splits them at the
   // edges of `{intervalo}` and `{N}`: what is required of a source file is the fixed parts, never
   // the placeholder. `Completá este campo.` is not added here -- the detail shows the same text
-  // the login already shows, and `REQUIRED` has asked for it from *Sesión y validación* since
+  // the login already shows, and `REQUIRED` has asked for it from `Sesión y validación` since
   // `001`.
   { section: 'Detalle de Acción', element: 'Placeholder desde' },
   { section: 'Detalle de Acción', element: 'Placeholder hasta' },
