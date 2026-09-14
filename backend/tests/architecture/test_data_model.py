@@ -14,7 +14,7 @@ from importlib import import_module
 from pathlib import Path
 
 import pytest
-from sqlalchemy import CheckConstraint, MetaData
+from sqlalchemy import CheckConstraint, MetaData, String
 from sqlalchemy.schema import Index, Table
 
 from app.db import Base
@@ -197,3 +197,40 @@ class TestTheSchemaCompositionRoot:
         env = (BACKEND_ROOT / "alembic" / "env.py").read_text(encoding="utf-8")
 
         assert f"app.modules.{module}.models" in env
+
+
+class TestTheThreeSymbolColumnsAgree:
+    """`SYMBOL_LENGTH` is declared three times, and the three have to be the same number.
+
+    The duplication is not an oversight and cannot be removed: each module owns its table, and
+    `favorites` importing `app.modules.stocks.models` to borrow the number would be the interior
+    of another module, which is the one thing the boundary forbids. Moving it to the kernel is
+    worse -- `app/` would learn what a symbol is.
+
+    So three copies it is, and what makes three copies safe is this test rather than the hope
+    that whoever changes one changes the others. Drift is quiet in the worst way: `stocks` would
+    accept a symbol that `favorites` truncates on INSERT, and the error would surface a module
+    away from the line that caused it.
+    """
+
+    def test_every_module_that_stores_a_symbol_declares_the_same_length(self) -> None:
+        """One number, three declarations, and the test is what keeps them one number."""
+        declared = {
+            module: import_module(f"app.modules.{module}.models").SYMBOL_LENGTH
+            for module in ("stocks", "favorites", "quotes")
+        }
+
+        assert len(set(declared.values())) == 1, f"symbol columns disagree: {declared}"
+
+    def test_the_symbol_columns_are_as_long_as_the_constant_says(self, schema: MetaData) -> None:
+        """A constant nothing is measured against would agree with itself and with no column."""
+        length = import_module("app.modules.stocks.models").SYMBOL_LENGTH
+
+        for module, table in TABLE_OF_MODULE.items():
+            if module == "auth":
+                continue
+
+            column_type = schema.tables[table].columns["symbol"].type
+
+            assert isinstance(column_type, String)
+            assert column_type.length == length, f"{table}.symbol is not {length} characters"

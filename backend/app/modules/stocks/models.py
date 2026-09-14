@@ -7,8 +7,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
-# The ingestion filter of ADR-001 accepts at most nine characters; the column has room to
-# spare so a longer symbol fails the filter where the reason is written, not on an INSERT.
+# The ingestion filter accepts at most nine characters; the column has room to spare so a longer
+# symbol fails the filter where the reason is written, not on an INSERT. `favorites` and `quotes`
+# declare the same number on their own, and a test keeps the three from drifting apart.
 SYMBOL_LENGTH = 12
 
 

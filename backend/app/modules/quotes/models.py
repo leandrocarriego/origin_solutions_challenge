@@ -17,6 +17,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
+# The same number as the catalogue's, and a test says so: the three modules that store a
+# symbol declare it apart, because borrowing it would mean importing another module's
+# interior.
 SYMBOL_LENGTH = 12
 
 # Money, and therefore never a float: 18 digits with 6 decimals covers every price the provider
