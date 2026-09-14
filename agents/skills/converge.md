@@ -199,9 +199,11 @@ pasa y en qué forma: la grilla de "Mis Acciones" cruza `favorites` con `stocks`
 lectura que entra por dentro del paquete ajeno (`app.modules.stocks.service`,
 `app.modules.stocks.repository`) son deriva del plan, no un detalle de implementación.
 
-Ese cruce es el inventario completo de lecturas cruzadas del backend: una función y un tipo,
-`get_stocks` y `StockInfo`, que `favorites` consume de `stocks`. Los `__init__.py` de `auth`,
-`favorites` y `quotes` exportan sólo su `router`. `get_current_user` no cuenta como lectura
+Ese cruce es uno de los **dos** que forman el inventario completo de lecturas cruzadas del
+backend: `get_stocks` y `StockInfo`, que `favorites` consume de `stocks` para la grilla, e
+`is_favorite`, que `quotes` consume de `favorites` para servir el gráfico sólo por las acciones de
+quien pregunta. Los `__init__.py` de `auth` y `quotes` exportan sólo su `router`; el de `favorites`,
+su `router` y `is_favorite`. `get_current_user` no cuenta como lectura
 cruzada: es una primitiva de seguridad que vive en `app/security.py` —junto con Argon2 y
 JWT— y la importan los routers de todos los módulos. Un plan que diga que la feature toma
 `get_current_user` de `auth` está describiendo algo que no existe.

@@ -36,10 +36,11 @@ Andamiaje que ninguna feature debería tener que resolver:
 - Ingesta del catálogo NYSE + NASDAQ · **ADR-002, A4**
 - Seed: 2 usuarios con Argon2 + favoritas demo (TSLA, AAPL, NFLX) · **REQ-19**
 
-**El estado de cada uno vive en `docs/specs/000-scaffolding/tasks.md`, no acá.** Ese archivo es
-además donde se registra la firma del Artículo VI sobre los tests de la fase: el gate no tiene
-excepciones y necesitaba un `tasks.md` donde anotarse. Acá está el alcance; allá, qué está hecho.
-Si los dos llevaran checkboxes, uno de los dos quedaría viejo.
+**El estado de cada uno vive en `docs/specs/archive/000-scaffolding/tasks.md`, no acá** — la fase
+está cerrada y su carpeta ya se archivó. Ese archivo es además donde se registra la firma del
+Artículo VI sobre los tests de la fase: el gate no tiene excepciones y necesitaba un `tasks.md`
+donde anotarse. Acá está el alcance; allá, qué está hecho. Si los dos llevaran checkboxes, uno de
+los dos quedaría viejo.
 
 El seed va en la fase 0 y no al final porque el enunciado pide **"insertar una cantidad mínima de
 datos para poder probar la aplicación"**: sin él no se puede desarrollar contra nada.

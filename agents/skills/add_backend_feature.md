@@ -192,10 +192,11 @@ que nadie invoca, y un router sin service es una capa salteada (Artículo IV).
 - La vara para decidir qué va: `__all__` es la superficie que quedaría si mañana el módulo se
   extrajera a un servicio aparte. Lo que exportás hoy es el endpoint HTTP que tendrías que escribir
   entonces — si no lo escribirías, no lo exportes.
-- Hoy el inventario completo de lecturas cruzadas del backend es **una función y un tipo**:
-  `get_stocks` y `StockInfo`, de `stocks`, que consume `favorites` para armar la grilla. Los
-  `__init__.py` de `auth`, `favorites` y `quotes` exportan sólo su `router`. Si tu módulo necesita
-  exportar más, eso se justifica en `plan.md`.
+- Hoy el inventario completo de lecturas cruzadas del backend son **dos**: `get_stocks` y
+  `StockInfo`, de `stocks`, que consume `favorites` para armar la grilla, e `is_favorite`, de
+  `favorites`, que consume `quotes` para servir el gráfico sólo por las acciones de quien pregunta.
+  Los `__init__.py` de `auth` y `quotes` exportan sólo su `router`; el de `favorites`, su `router` y
+  `is_favorite`. Si tu módulo necesita exportar más, eso se justifica en `plan.md`.
 
 ### 9) Registrar el router en `main.py`
 El registro es **explícito**: agregar en `backend/app/main.py`

@@ -125,9 +125,12 @@ Rol: `agents/roles/code_reviewer.md`. Sin argumento, se revisa la rama actual co
   moneda; `user_stocks` vive en `favorites/` y `stocks` en `stocks/`, así que se resuelve con
   `get_stocks(symbols: list[str]) -> list[StockInfo]`, que `stocks` exporta en su `__all__`: una
   sola consulta para toda la grilla. Una llamada por símbolo adentro de un `for` es N+1 y es
-  hallazgo aunque respete la frontera. Ese es el inventario **completo** de lecturas cruzadas del
-  backend —una función y un tipo—: `auth`, `favorites` y `quotes` exportan sólo su `router`. Un
-  `__all__` que crece en el diff se justifica o se saca.
+  hallazgo aunque respete la frontera. La otra es el gráfico del Detalle, que se sirve sólo por las
+  acciones que el usuario tiene en su lista: `is_favorite(session, user_id, symbol) -> bool`, que
+  `favorites` exporta y `quotes` consume — un símbolo por request, así que no hay N+1 posible. Ese
+  es el inventario **completo** de lecturas cruzadas del backend: `auth` y `quotes` exportan sólo su
+  `router`, `favorites` su `router` y `is_favorite`. Un `__all__` que crece en el diff se justifica
+  o se saca.
 
 ---
 
@@ -245,8 +248,12 @@ Testing y base de datos tienen sección propia más abajo.
 - Toda pantalla tocada reproduce su wireframe de `docs/design/wireframes/` (`UI-01`).
 - Los textos visibles son los de `docs/design/COPY.md`, verbatim y sin "corregir" las faltas
   del enunciado (`UI-02`).
-- La columna **Test** de `docs/PROJECT_BRIEF.md` quedó completa para los requisitos que la
-  feature cubre.
+- La columna **Test** de la tabla de trazabilidad de `docs/PROJECT_BRIEF.md` está **asignada a
+  `/ship`** para los requisitos que la feature cubre: nadie la completó antes de tiempo ni la dejó
+  sin dueño. **No se verifica que esté completa**, porque no es de este paso: `docs/specs/README.md`
+  → *Al entregar* la asigna a `ship_changes`, en el mismo commit que archiva la spec, y `AGENTS.md`
+  → *Estructura de las specs* le delega a ese documento qué artefacto escribe cada rol — una skill
+  no lo puede sobrescribir. Exigirla completa acá produce un hallazgo falso.
 
 ---
 

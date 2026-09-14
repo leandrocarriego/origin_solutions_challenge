@@ -1,7 +1,9 @@
 """Engine, session and declarative base. This is kernel: it imports no module (GEN-03)."""
 
 from collections.abc import AsyncIterator
+from typing import Annotated
 
+from fastapi import Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -41,3 +43,12 @@ async def database_is_up() -> bool:
     except Exception:  # noqa: BLE001 -- see the docstring: this is a probe, not a call
         return False
     return True
+
+
+# What a router writes to receive the session: `session: SessionDep`.
+#
+# Spelling it out at the call site -- `Annotated[AsyncSession, Depends(get_session)]` -- would
+# make the router import SQLAlchemy, and PY-06 forbids exactly that: the ORM belongs to the
+# repository. The alias declares the type once, here, where the other half of it already lived,
+# and the router names the ORM never. The fix is the alias, not an exception to the rule.
+SessionDep = Annotated[AsyncSession, Depends(get_session)]

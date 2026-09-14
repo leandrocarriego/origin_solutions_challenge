@@ -60,9 +60,10 @@ Seguir `add_backend_feature`:
 
 Router, service y repository van los tres o no va ninguno: un service sin router es lógica que
 nadie invoca, un router sin service es una capa salteada. El `__all__` se mide con regla corta:
-entra sólo lo que otro módulo consume de verdad. Hoy `auth`, `favorites` y `quotes` exportan nada
-más que su `router`, y el inventario completo de lecturas cruzadas del backend son `get_stocks` y
-`StockInfo`, de `stocks`, que consume `favorites` para la grilla.
+entra sólo lo que otro módulo consume de verdad. Hoy `auth` y `quotes` exportan nada más que su
+`router`, `favorites` exporta su `router` e `is_favorite`, y el inventario completo de lecturas
+cruzadas del backend son dos: `get_stocks` y `StockInfo`, de `stocks`, que consume `favorites` para
+la grilla, e `is_favorite`, de `favorites`, que consume `quotes` para el gráfico.
 
 El guión bajo y el `__all__` son dos niveles de privacidad distintos: el guión bajo marca lo privado
 del ARCHIVO, el `__all__` marca lo público hacia OTROS MÓDULOS. Un nombre sin guión bajo que no está

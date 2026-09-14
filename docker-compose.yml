@@ -28,6 +28,13 @@ services:
       # Empty on purpose: no events and no network while developing (TEST-03).
       SENTRY_DSN: ""
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      # A known development value, so a fresh clone can `make up` and log in. It is in the
+      # repository on purpose and it is the same bargain the demo passwords of seed.py already
+      # take: worthless because everyone has it, and confined to this file. Production is the
+      # environment SEC-05 is about, and there it is `${JWT_SECRET}` with no default at all --
+      # compose refuses to start rather than sign with something guessable.
+      # Override it here too by putting JWT_SECRET in .env; the command is in .env.example.
+      JWT_SECRET: ${JWT_SECRET:-local-development-signing-key-not-a-secret}
       # The fake provider locally, so `make up` reaches no network and spends none of the 800
       # daily requests (Article II). Set it to "twelvedata" with a key to exercise the real one.
       MARKET_DATA_PROVIDER: fake

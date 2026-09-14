@@ -54,8 +54,9 @@ datos y contratos. Es el artefacto donde viven las decisiones que `spec.md` tien
    (`from app.modules.stocks.service import get_stocks`), nunca por `app.modules.stocks`: eso reentra
    al `__init__` a medio inicializar y da un ImportError confuso. Todo lo que entra a un `__all__` es
    superficie que hay que sostener: se justifica o no entra —hoy el inventario completo de lecturas
-   cruzadas del backend es `get_stocks` y `StockInfo`, que `favorites` consume de `stocks`. Si la
-   feature necesita el usuario autenticado, entra por `from app.security import
+   cruzadas del backend son dos: `get_stocks` y `StockInfo`, que `favorites` consume de `stocks`, e
+   `is_favorite`, que `quotes` consume de `favorites`—. Si la feature necesita el usuario
+   autenticado, entra por `from app.security import
    get_current_user, CurrentUser`: es una primitiva de seguridad, no dominio de `auth`. Declarar
    también el flujo interno —`router` → `service` → `repository`— y qué excepción de dominio
    levanta el service cuando falla.

@@ -107,12 +107,13 @@
 
   Lo que entra en un `__all__` se sostiene para siempre: se expone lo mínimo, con tipos
   propios del módulo, y en BATCH —`get_stocks(symbols)` para toda la grilla, nunca un
-  `get_stock()` por fila, que es N+1 (ARCHITECTURE.md → La lectura cruzada). Hoy el inventario
-  completo de lecturas cruzadas del backend es `get_stocks` y `StockInfo`, de `stocks`, que
-  consume `favorites`: los `__init__.py` de `auth`, `favorites` y `quotes` exportan sólo su
-  `router`. Un service no importa el service de otro módulo (GEN-05): le pide al paquete, o el
-  corte entre módulos está mal hecho. Si esta feature no cruza alguna frontera, escribir
-  "Ninguna" y no borrar la fila.
+  `get_stock()` por fila, que es N+1 (ARCHITECTURE.md → Las lecturas cruzadas). Hoy el inventario
+  completo de lecturas cruzadas del backend son dos: `get_stocks` y `StockInfo`, de `stocks`, que
+  consume `favorites`, e `is_favorite`, de `favorites`, que consume `quotes`. Los `__init__.py` de
+  `auth` y `quotes` exportan sólo su `router`; el de `favorites`, su `router` y `is_favorite`.
+  Un service no importa el service de otro módulo (GEN-05): le pide al paquete, o el corte
+  entre módulos está mal hecho. Si esta feature no cruza alguna frontera, escribir "Ninguna"
+  y no borrar la fila.
 
   Son dos niveles de privacidad distintos y no se mezclan: el guión bajo marca lo privado del
   ARCHIVO, `__all__` marca lo público hacia OTROS MÓDULOS (PY-10). Un nombre sin guión bajo que

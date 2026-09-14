@@ -13,7 +13,7 @@ BACKEND  := backend
 FRONTEND := frontend
 COMPOSE  := docker compose
 
-.PHONY: help install hooks lint format typecheck test test-fast check build \
+.PHONY: help install hooks types lint format typecheck test test-fast check build \
         up down logs ps dev-backend dev-frontend deploy clean
 
 # --- Help -------------------------------------------------------------------------------------
@@ -34,6 +34,18 @@ install:  ## Instala las dependencias de ambos proyectos desde sus lockfiles
 
 hooks:  ## Instala los hooks de pre-commit (pre-commit y commit-msg)
 	uvx pre-commit install --install-hooks
+
+# --- Contract ------------------------------------------------------------------------------------
+
+# The frontend's API types are generated, never written by hand (TS-03). The OpenAPI document is
+# printed by importing the application, not by serving it: `import app.main` needs no database and
+# no secret, so this runs on a laptop with nothing up. Prettier runs last because the generated
+# file lives under src/ and `make lint` checks it like any other source.
+types:  ## Genera los tipos de la API del frontend desde el OpenAPI del backend (TS-03)
+	cd $(BACKEND) && uv run python -c \
+		'import json; from app.main import app; print(json.dumps(app.openapi()))' \
+		| (cd ../$(FRONTEND) && npx openapi-typescript --output src/api/schema.d.ts)
+	cd $(FRONTEND) && npx prettier --write src/api/schema.d.ts
 
 # --- Verification (the same commands CONVENTIONS.md states) -------------------------------------
 

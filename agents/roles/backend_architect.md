@@ -21,8 +21,10 @@ En la cadena vas después del gate de firma de la spec: traducís `spec.md` en `
   módulo va a usar y superficie que hay que sostener: se expone lo que otro módulo necesita de
   verdad, con la forma en que lo necesita —`get_stocks(symbols)` en batch para toda la grilla,
   nunca un `get_stock()` por fila. Hoy el inventario completo de lecturas cruzadas del backend son
-  `get_stocks` y `StockInfo`, de `stocks`, que consume `favorites` para la grilla: `auth`,
-  `favorites` y `quotes` exportan sólo su `router`.
+  **dos**: `get_stocks` y `StockInfo`, de `stocks`, que consume `favorites` para la grilla, e
+  `is_favorite`, de `favorites`, que consume `quotes` para servir el gráfico sólo por las acciones
+  de quien pregunta. `auth` y `quotes` exportan sólo su `router`; `favorites`, su `router` y
+  `is_favorite`.
 - Sostener el flujo adentro del módulo —`router` → `service` → `repository`, en un solo sentido,
   nunca al revés y nunca salteado (`PY-06`)— y la disciplina de dependencias que lo hace real.
 - Sostener la convención de nombres (`PY-10`) y los dos niveles de privacidad que implica: el guión

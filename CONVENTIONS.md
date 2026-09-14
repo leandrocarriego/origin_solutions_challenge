@@ -127,8 +127,15 @@ El `__init__.py` de un módulo tiene **sólo** tres cosas: docstring, imports y 
 
 `get_current_user` es primitiva de seguridad que consumen los routers de todos los módulos, así que vive en `app/security.py` junto con Argon2 y JWT (`GEN-03`).
 
-La lectura cruzada real del proyecto es la grilla de *Mis Acciones*: `user_stocks` vive en `favorites/` y necesita símbolo, nombre y moneda, que viven en `stocks/`.
-Se resuelve con `get_stocks(symbols: list[str]) -> list[StockInfo]`, que `stocks` declara en su `__all__`, **en batch**: una sola consulta para toda la grilla. Nunca N+1, nunca importando el repository ajeno. Ese es el inventario **completo** de lecturas cruzadas del backend.
+Las lecturas cruzadas reales del proyecto son **dos**.
+
+La grilla de *Mis Acciones*: `user_stocks` vive en `favorites/` y necesita símbolo, nombre y moneda, que viven en `stocks/`.
+Se resuelve con `get_stocks(symbols: list[str]) -> list[StockInfo]`, que `stocks` declara en su `__all__`, **en batch**: una sola consulta para toda la grilla. Nunca N+1, nunca importando el repository ajeno.
+
+Y el gráfico del Detalle: `quotes/` sirve la serie sólo por las acciones que el usuario tiene en su lista, y quién es dueño de una favorita lo sabe `favorites/`.
+Se resuelve con `is_favorite(session, user_id: int, symbol: str) -> bool`, que `favorites` declara en su `__all__`: un booleano, una consulta, un símbolo por request.
+
+Ese es el inventario **completo** de lecturas cruzadas del backend.
 
 Y hay una puerta trasera que el chequeo de imports **no puede ver**: un `relationship()` de SQLAlchemy que cruce módulos.
 `favorite.stock.name` no genera ningún import y sin embargo acopla `favorites` al modelo de `stocks`.
@@ -192,7 +199,7 @@ cd backend && uv run pytest tests/architecture/
 ```
 Ver también `SEC-02` (la API key) y `ERR-05` (modos de fallo), que son sus manifestaciones en código.
 
-### `GEN-07` - Minor: Idioma, el código va en inglés, la documentación en español.
+### `GEN-07` - Blocker: Idioma, el código va en inglés, la documentación en español.
 
 Nombres, comentarios, docstrings y mensajes de commit en inglés.
 
@@ -210,7 +217,9 @@ Las descripciones de `make help`, los `name:` de los hooks de pre-commit y los n
 
 Es el Artículo VIII aplicado igual que siempre: un idioma para cada audiencia.
 
-Lo verifica un script, y lo corren el pre-commit y el CI. Busca marcadores inequívocos del castellano —se dejan afuera `no`, `es`, `son`, `si`, `la`, `un`, `sin`, `solo` y `version`, que se escriben igual en inglés— y sólo mira **líneas de comentario**: la salida en español (`make help`, los `name:` de los hooks, los pasos de CI, los `echo`) no se toca.
+Lo verifica un script, y lo corren el pre-commit —con `always_run: true`, así que no lo saltea ningún filtro de archivos— y el CI, que lo corre fuera del `SKIP`. Un comentario en castellano deja el changeset sin poder commitearse, y por eso es Blocker: no llega al review como opinión, igual que `PY-07` y `TS-04`.
+
+Busca marcadores inequívocos del castellano —se dejan afuera `no`, `es`, `son`, `si`, `la`, `un`, `sin`, `solo` y `version`, que se escriben igual en inglés— y sólo mira **líneas de comentario**: la salida en español (`make help`, los `name:` de los hooks, los pasos de CI, los `echo`) no se toca.
 
 ```
 python3 scripts/check_comment_language.py
@@ -794,7 +803,7 @@ Si una convención está marcada Blocker y no aparece en esta tabla, la tabla es
 | 11 | Cliente HTTP importado fuera de `app/providers/`, o el nombre del proveedor fuera de su archivo | `GEN-08` |
 | 12 | Query de datos de usuario que no filtra por el `sub` del token | `GEN-09` |
 | 13 | `print` en lugar de logging estructurado | `ERR-03` |
-| 14 | Formato o lint rotos : rompen el pre-commit | `PY-07`, `TS-04` |
+| 14 | Formato, lint o comentarios en castellano: rompen el pre-commit | `PY-07`, `TS-04`, `GEN-07` |
 | 15 | Secretos commiteados | `SEC-01` |
 | 16 | Password guardada en texto plano, o hasheada con `md5`/`sha*` en vez de Argon2id | `SEC-06` |
 | 17 | Endpoint nuevo cuyo `plan.md` no recorrió la OWASP API Top 10 | `SEC-07` |

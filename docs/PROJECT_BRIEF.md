@@ -36,15 +36,15 @@ La columna **Test** se completa a medida que se implementa (`AGENTS.md` → Defi
 
 | ID | Requisito | Test |
 |---|---|---|
-| REQ-01 | Página de login con campos Usuario y Clave, y botón Ingresar | |
-| REQ-02 | Credenciales inválidas muestran el mensaje literal `usuario o clave invalida` | |
-| REQ-03 | Login exitoso redirige a la página "Mis Acciones" | |
+| REQ-01 | Página de login con campos Usuario y Clave, y botón Ingresar | `frontend/tests/Login.test.tsx` · `frontend/tests/copy.test.ts` |
+| REQ-02 | Credenciales inválidas muestran el mensaje literal `usuario o clave invalida` | `frontend/tests/copy.test.ts` · `backend/tests/integration/test_login.py` |
+| REQ-03 | Login exitoso redirige a la página "Mis Acciones" | `frontend/tests/Login.test.tsx` · `frontend/tests/session.test.tsx` · `backend/tests/integration/test_login.py` |
 
 ### Mis Acciones
 
 | ID | Requisito | Test |
 |---|---|---|
-| REQ-04 | La cabecera muestra el nombre del usuario logueado (`Usuario: Juan`) | |
+| REQ-04 | La cabecera muestra el nombre del usuario logueado (`Usuario: Juan`) | `frontend/tests/Header.test.tsx` · `frontend/tests/copy.test.ts` |
 | REQ-05 | Un autocomplete sugiere acciones que coinciden con el texto buscado | |
 | REQ-06 | "Agregar Símbolo" añade la acción seleccionada a las favoritas del usuario | |
 | REQ-07 | La grilla se refresca luego de agregar | |
@@ -68,14 +68,14 @@ La columna **Test** se completa a medida que se implementa (`AGENTS.md` → Defi
 
 | ID | Requisito | Test |
 |---|---|---|
-| REQ-18 | Base de datos relacional con todos los objetos necesarios | |
-| REQ-19 | Seed con datos mínimos para poder probar la aplicación | |
+| REQ-18 | Base de datos relacional con todos los objetos necesarios | `backend/tests/architecture/test_data_model.py` |
+| REQ-19 | Seed con datos mínimos para poder probar la aplicación | `backend/tests/integration/test_seed.py` |
 | REQ-20 | Repositorio público con control de versiones | |
 | REQ-21 | Backup de la base de datos incluido en el repo | |
 | REQ-22 | `README.md` con los pasos para levantar la aplicación | |
 | REQ-23 | Arquitectura de dos proyectos: Frontend y Backend | |
 | REQ-24 | API en Python + FastAPI | |
-| REQ-25 | Frontend en React ≥ 18 | |
+| REQ-25 | Frontend en React ≥ 18 | `frontend/tests/HealthPage.test.tsx` |
 
 ## 2. Requisitos no funcionales
 
@@ -85,7 +85,7 @@ Cada uno tiene su artículo en la constitución y su convención verificable.
 
 | ID | Requisito | Autoridad | Verificación |
 |---|---|---|---|
-| NFR-01 | Passwords almacenadas con Argon2, nunca en texto plano | `SEC-06` | |
+| NFR-01 | Passwords almacenadas con Argon2, nunca en texto plano | `SEC-06` | `backend/tests/integration/test_password_hashing.py` |
 | NFR-02 | La API key de TwelveData no es alcanzable desde el navegador | Art. I · `SEC-02` | |
 | NFR-03 | Un usuario no puede leer ni borrar las favoritas de otro | Art. III · `GEN-09` | |
 | NFR-04 | Cuota agotada, símbolo sin datos y mercado cerrado tienen manejo explícito | `ERR-05` | |
@@ -145,6 +145,11 @@ con el intervalo elegido.
 El enunciado dice "los datos de la acción"; el wireframe muestra `TSLA - Tesla Inc - USD`.
 *Resolución:* gana el wireframe — símbolo, nombre y moneda, que son además los tres campos que
 REQ-08 obliga a persistir.
+
+`A1`…`A7` son las ambigüedades **del enunciado**: las que valen para todo el proyecto. Las que cada
+feature resolvió con `/clarify` viven en la sección *Lo que se aparta de los wireframes* de su
+`spec.md` —`001-authentication`, `002-favorite-stocks` y `003-quote-chart`—, cada una con su
+alternativa descartada, y sus textos en `docs/design/COPY.md`.
 
 ---
 

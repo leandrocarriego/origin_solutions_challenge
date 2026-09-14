@@ -12,11 +12,15 @@ import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response, status
+import structlog
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.db import database_is_up
+from app.errors import AuthenticationError, RateLimitedError
+from app.modules.auth import router as auth_router
 from app.modules.stocks import keep_the_catalogue_fresh
 from app.observability import (
     RequestContextMiddleware,
@@ -39,7 +43,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     The catalogue refresher is the only one: ADR-002 decided the catalogue keeps itself current
     instead of waiting for somebody to remember, and this is where "keeps itself" is wired.
+
+    The warning about the signing secret is here and not in `app/security.py` for the reason that
+    file explains: the secret is validated at use and not at import, so a deployment that forgot
+    the variable starts fine, answers health in green, and only breaks at the first login. This
+    is the one moment where saying so costs nothing.
     """
+    if not settings.jwt_secret:
+        structlog.get_logger().warning("jwt_secret_missing")
+
     refresher = asyncio.create_task(keep_the_catalogue_fresh())
 
     yield
@@ -61,6 +73,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(auth_router)
+
+
+# One handler per domain error and not a generic {type: status} table. The table scales on its
+# own and hides the translation behind a lookup; with two entries, explicit wins (GEN-10).
+
+
+@app.exception_handler(AuthenticationError)
+async def credential_refused(request: Request, exc: AuthenticationError) -> JSONResponse:
+    """Turn the service's refusal into the only 401 the API answers a bad credential with.
+
+    The body is in English and nobody shows it: the screen decides what the user reads, because
+    UI-02 wants that literal to live in `frontend/src` (Article VIII). What matters here is that
+    it is identical for an unknown user and for a wrong password (RF-06).
+    """
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "invalid credentials"},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+@app.exception_handler(RateLimitedError)
+async def too_many_attempts(request: Request, exc: RateLimitedError) -> JSONResponse:
+    """Answer 429 and say how long to wait, which is what makes this a wait and not a wall."""
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": "too many attempts"},
+        headers={"Retry-After": str(exc.retry_after_seconds)},
+    )
 
 
 class HealthStatus(BaseModel):

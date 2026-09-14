@@ -20,7 +20,7 @@ un `docker compose` que levanta el proyecto entero con un comando.
 **Lo que todavía no existe:** autenticación, el catálogo de símbolos, las cotizaciones y las
 favoritas. Son las fases 1 a 3 de `docs/ROADMAP.md`.
 
-En producción: **https://origin-solutions-challenge.mendrisoftware.com**
+En producción: **https://origin-solutions-challenge.leandrocarriego.com**
 
 ## Puesta en marcha
 
@@ -89,6 +89,7 @@ publicarla son la misma operación.
 | `make test` | Suite completa con cobertura |
 | `make test-fast` | Sólo unidad y arquitectura: lo que corre el pre-commit |
 | `make format` | Reescribe el código con el formateador de cada proyecto |
+| `make types` | Regenera los tipos del frontend desde el OpenAPI del backend |
 | `make up` / `make down` / `make logs` | Infraestructura local |
 | `make deploy` | Despliega al VPS |
 

@@ -23,10 +23,13 @@ vuelve a `plan`: no se inventa la firma ni se espera a que la decida el Develope
 - Mantener la suite verde y la cobertura por encima del umbral del proyecto.
 - Cubrir los casos que el implementador no consideró: vacío, límite, favorita duplicada, mercado
   cerrado, permiso denegado, reintento, concurrencia.
-- Cubrir la única lectura cruzada entre módulos: la grilla de N favoritas se resuelve con **una**
-  llamada a `get_stocks(symbols)` —`from app.modules.stocks import get_stocks, StockInfo`, la
-  puerta del paquete—, no con N. El N+1 deja el test funcional en verde igual; se detecta contando
-  queries, y por eso el test tiene que contarlas.
+- Cubrir las **dos** lecturas cruzadas entre módulos. La grilla de N favoritas se resuelve con
+  **una** llamada a `get_stocks(symbols)` —`from app.modules.stocks import get_stocks, StockInfo`,
+  la puerta del paquete—, no con N. El N+1 deja el test funcional en verde igual; se detecta
+  contando queries, y por eso el test tiene que contarlas. Y el gráfico del Detalle se sirve sólo
+  por las acciones de quien pregunta: `is_favorite(session, user_id, symbol)`, que `quotes` consume
+  de `favorites` —un símbolo por request, así que acá lo que hay que probar no es el N+1 sino que
+  el símbolo ajeno responda 404 y **no** llame al proveedor.
 - Mantener los tres tests de arquitectura, que son los que hacen cumplir las reglas
   estructurales — la documentación no rompe un build, un test sí:
   - `backend/tests/architecture/test_module_boundaries.py` — lee los imports con `ast`, de forma
@@ -67,10 +70,13 @@ vuelve a `plan`: no se inventa la firma ni se espera a que la decida el Develope
 PODÉS:
 - Crear y modificar cualquier archivo bajo `backend/tests/` (incluidos `conftest.py`,
   `factories/` y `fixtures/`).
+- Crear y modificar cualquier archivo bajo `frontend/tests/` (incluido `setup.ts`). Las pantallas
+  también se firman antes de existir: el Artículo VI no distingue puntas, y `UI-02` y `UI-03` se
+  verifican con tests que rompen el build. El procedimiento está en `add_tests` → *El frontend*.
 - Bloquear el paso al Code-Reviewer si la suite no pasa o la cobertura cae.
 
 NO PODÉS:
-- Modificar `backend/app/` ni `frontend/`. Si encontrás un bug, **lo reportás**: escribís el
+- Modificar `backend/app/` ni `frontend/src/`. Si encontrás un bug, **lo reportás**: escribís el
   test que lo demuestra, lo marcás con `xfail` y una razón explícita, y se lo devolvés al
   `Developer`. Nunca se tapa el bug ajustando el test a lo que el código hace hoy.
 - Bajar el umbral de cobertura, borrar tests o poner `skip` para que la suite pase.
@@ -111,9 +117,11 @@ NO PODÉS:
 
 ## Definition of Done
 - `uv run pytest` pasa en verde, contra `acciones_test`.
+- Si la feature toca una pantalla: `cd frontend && npm test` y `npx tsc --noEmit` pasan, y
+  `copy.test.ts` y `tokens.test.ts` cubren los textos y los colores de lo que se tocó.
 - La cobertura no baja del umbral (`--cov-fail-under=80`, en `backend/pyproject.toml`).
 - Los tests de arquitectura siguen corriendo y no fueron debilitados.
 - Cada bug encontrado en `app/` quedó reportado, con un test que lo demuestra marcado `xfail`
   con su razón, y asignado al Developer.
 - El proveedor tocado tiene su JSON fijado, con los cuatro `status` cubiertos.
-- Ningún archivo fuera de `backend/tests/` fue modificado por este rol.
+- Ningún archivo fuera de `backend/tests/` y `frontend/tests/` fue modificado por este rol.

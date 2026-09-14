@@ -44,6 +44,14 @@ services:
       # Empty is allowed while phase 0 only serves health. The quotes module reads it and
       # will fail loudly the moment it needs the provider, which is the right place to notice.
       TWELVEDATA_API_KEY: ${TWELVEDATA_API_KEY:-}
+      # The one that cannot be forgotten here, and the reason it carries ":?" and not just the
+      # bare name: the secret is validated at use and not at import, so a deploy without it
+      # starts, answers health in green, and breaks at the first login -- the worst of the three
+      # environments to find that out in. A bare ${JWT_SECRET} does NOT prevent that: compose
+      # prints a warning and substitutes an empty string, which is precisely the deploy this
+      # comment exists to stop. ":?" is what refuses to start, and it is the same form
+      # POSTGRES_PASSWORD and GRAFANA_ADMIN_PASSWORD already use above.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env, at least 32 chars}
       # The real provider here, which is what makes the catalogue refresh of ADR-002 real: two
       # requests a day out of 800. With an empty key it fails loudly and the freshness gauge
       # stops advancing, which is visible on the dashboard.
@@ -128,7 +136,7 @@ services:
           memory: 256M
 
   # Grafana IS reachable from the internet, at https://<domain>/grafana, behind its own login.
-  # It is served under a path rather than a subdomain because mendrisoftware.com has no wildcard
+  # It is served under a path rather than a subdomain because leandrocarriego.com has no wildcard
   # DNS: a `grafana.` host would need a Cloudflare record this deploy cannot create.
   #
   # Version: the current stable one. A public Grafana several releases behind is a published
