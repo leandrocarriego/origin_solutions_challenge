@@ -1,7 +1,5 @@
 """Composition root: mounts each module's router, CORS and error translation."""
 
-import asyncio
-import contextlib
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -18,6 +16,7 @@ from app.modules.stocks import router as stocks_router
 from app.observability import RequestContextMiddleware, configure_logging, configure_sentry
 from app.observability import router as metrics_router
 from app.settings import get_settings
+from app.tasks import running
 
 settings = get_settings()
 
@@ -30,8 +29,11 @@ configure_sentry()
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Start what has to outlive a request, and stop it when the process goes away.
 
-    The catalogue refresher is the only one: ADR-002 decided the catalogue keeps itself current
-    instead of waiting for somebody to remember, and this is where "keeps itself" is wired.
+    The catalogue refresher is the only one today: ADR-002 decided the catalogue keeps itself
+    current instead of waiting for somebody to remember, and this is where "keeps itself" is
+    wired. A second one is one more argument to `running`, which owns the starting and the
+    stopping -- and it is named here, because naming it anywhere else would put a module inside
+    the kernel (`GEN-03`).
 
     The return type is `AsyncGenerator` and not `AsyncIterator`: this function yields, so it is a
     generator, and annotating `@asynccontextmanager` with the iterator is deprecated.
@@ -42,13 +44,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     here was the compensation for a check that happened at the first login; the check now happens
     before the application object exists.
     """
-    refresher = asyncio.create_task(keep_the_catalogue_fresh())
-
-    yield
-
-    refresher.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await refresher
+    async with running(keep_the_catalogue_fresh):
+        yield
 
 
 app = FastAPI(title="ORIGIN Acciones", version=settings.version, lifespan=lifespan)

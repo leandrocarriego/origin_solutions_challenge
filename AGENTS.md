@@ -89,7 +89,7 @@ comando, en `CONVENTIONS.md` (`GEN-02`, `GEN-03`, `GEN-05`, `GEN-08`, `PY-06`, `
 ### Dónde va el código
 
 - el cliente de TwelveData y su protocolo → `app/providers/` (infraestructura: lo consumen `quotes` para las series y `stocks` para la ingesta del catálogo)
-- transversal sin dominio (engine y sesión, `DomainError`, el límite de intentos, Argon2, JWT, `get_current_user`) → `app/` (`db.py` · `errors.py` · `ratelimit.py` · `security.py`)
+- transversal sin dominio (engine y sesión, `DomainError`, el límite de intentos, Argon2, JWT, `get_current_user`, las tareas de fondo) → `app/` (`db.py` · `errors.py` · `ratelimit.py` · `security.py` · `tasks.py`)
 - composición HTTP (el `lifespan`, los middlewares y el montaje de cada router) → `app/main.py`.
   Es el **único** archivo por debajo de los módulos que puede importar un módulo (`GEN-03`), y por
   eso el `lifespan` y los `include_router` no pueden vivir en otro lado.

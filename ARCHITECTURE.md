@@ -58,6 +58,8 @@ backend/app/
 ├── db.py                 engine async, Base declarativa, get_session · SessionDep
 ├── errors.py             DomainError, la base que error_handlers.py traduce
 ├── ratelimit.py          SlidingWindowLimiter — cuenta intentos y no sabe de qué
+├── tasks.py              running(): arranca y frena lo que vive más que un request,
+│                         sin saber qué es (main.py le pasa las tareas)
 ├── security.py           Argon2 · JWT · get_current_user · CurrentUser
 ├── observability/        ADR-009 — el paquete exporta lo mismo que exportaba el archivo
 │   ├── metrics.py        los contadores del Artículo II y el endpoint que Prometheus scrapea
