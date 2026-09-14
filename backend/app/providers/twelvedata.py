@@ -42,8 +42,13 @@ _ERRORS = {
     429: ProviderQuotaExceeded,
 }
 
-# The provider's format for an instant, in the exchange's timezone.
+# The provider's format for an instant, which is also the format the window travels in.
 _DATETIME_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
+_WINDOW_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# The provider's ceiling for one series, and the number the range caps of the plan were chosen
+# to fit: seven days at `1min` are about 2.730 candles.
+_MAX_OUTPUT_SIZE = 5000
 
 
 class TwelveDataProvider(MarketDataProvider):
@@ -76,8 +81,15 @@ class TwelveDataProvider(MarketDataProvider):
             {
                 "symbol": symbol,
                 "interval": interval,
-                "start_date": start.strftime("%Y-%m-%d %H:%M:%S"),
-                "end_date": end.strftime("%Y-%m-%d %H:%M:%S"),
+                "start_date": start.astimezone(UTC).strftime(_WINDOW_FORMAT),
+                "end_date": end.astimezone(UTC).strftime(_WINDOW_FORMAT),
+                # Both knobs are the same bug seen from two sides, and neither one fails loudly.
+                # Without the timezone the provider answers in the exchange's hours while the
+                # window we sent is read as exchange hours too, so the series lands four or five
+                # hours from where it was asked for and every point still sits on the axis.
+                # Without `outputsize` the default is 30 candles, and a `1min` session has 390.
+                "timezone": "UTC",
+                "outputsize": str(_MAX_OUTPUT_SIZE),
             },
         )
         rows = payload.get("values")
@@ -174,8 +186,9 @@ class TwelveDataProvider(MarketDataProvider):
     def _to_instant(value: str) -> datetime:
         """Parse the provider's timestamp and stamp it UTC.
 
-        The provider sends it naive, in the exchange's timezone. A naive datetime in a cache
-        keyed by instant is a duplicate waiting to happen, so it never leaves this method naive.
+        The provider sends it naive, and the series is asked for with `timezone=UTC` precisely so
+        that stamping UTC here is true rather than convenient. A naive datetime in a cache keyed
+        by instant is a duplicate waiting to happen, so it never leaves this method naive.
         """
         for shape in _DATETIME_FORMATS:
             try:

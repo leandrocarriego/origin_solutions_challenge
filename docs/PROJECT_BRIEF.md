@@ -57,12 +57,12 @@ La columna **Test** se completa a medida que se implementa (`AGENTS.md` → Defi
 
 | ID | Requisito | Test |
 |---|---|---|
-| REQ-12 | La cabecera muestra los datos de la acción (`TSLA - Tesla Inc - USD`) | |
-| REQ-13 | Modo **Tiempo Real**: grafica la cotización con la fecha del día | |
-| REQ-14 | En Tiempo Real el gráfico se auto-actualiza según el intervalo elegido, sin recargar la página | |
-| REQ-15 | Modo **Histórico**: grafica entre fecha/hora desde y fecha/hora hasta | |
-| REQ-16 | Selector de **Intervalo** con valores `1min`, `5min`, `15min` | |
-| REQ-17 | El gráfico usa Highcharts (o similar), eje X = intervalo, eje Y = cotización | |
+| REQ-12 | La cabecera muestra los datos de la acción (`TSLA - Tesla Inc - USD`) | `frontend/tests/ActionDetail.test.tsx` · `frontend/tests/Header.test.tsx` · `frontend/tests/copy.test.ts` |
+| REQ-13 | Modo **Tiempo Real**: grafica la cotización con la fecha del día | `backend/tests/integration/test_quotes.py` · `backend/tests/unit/test_quotes_service.py` · `frontend/tests/ActionDetail.test.tsx` |
+| REQ-14 | En Tiempo Real el gráfico se auto-actualiza según el intervalo elegido, sin recargar la página | `frontend/tests/quoteRefresh.test.tsx` · `frontend/tests/quoteRefreshFailure.test.tsx` |
+| REQ-15 | Modo **Histórico**: grafica entre fecha/hora desde y fecha/hora hasta | `backend/tests/integration/test_quotes_range.py` · `frontend/tests/quoteHistoric.test.tsx` |
+| REQ-16 | Selector de **Intervalo** con valores `1min`, `5min`, `15min` | `frontend/tests/ActionDetail.test.tsx` · `frontend/tests/copy.test.ts` |
+| REQ-17 | El gráfico usa Highcharts (o similar), eje X = intervalo, eje Y = cotización | `frontend/tests/ActionDetail.test.tsx` · `frontend/tests/market.test.ts` · `frontend/tests/copy.test.ts` |
 
 ### Entregables
 
@@ -86,10 +86,10 @@ Cada uno tiene su artículo en la constitución y su convención verificable.
 | ID | Requisito | Autoridad | Verificación |
 |---|---|---|---|
 | NFR-01 | Passwords almacenadas con Argon2, nunca en texto plano | `SEC-06` | `backend/tests/integration/test_password_hashing.py` |
-| NFR-02 | La API key de TwelveData no es alcanzable desde el navegador | Art. I · `SEC-02` | |
+| NFR-02 | La API key de TwelveData no es alcanzable desde el navegador | Art. I · `SEC-02` | `backend/tests/architecture/test_provider_boundary.py` · `backend/tests/unit/test_secret_scrubbing.py` · `backend/tests/integration/test_quotes.py` |
 | NFR-03 | Un usuario no puede leer ni borrar las favoritas de otro | Art. III · `GEN-09` | `backend/tests/integration/test_user_isolation.py` |
-| NFR-04 | Cuota agotada, símbolo sin datos y mercado cerrado tienen manejo explícito | `ERR-05` | |
-| NFR-05 | El consumo de la API externa no crece con la cantidad de clientes conectados | Art. II · `ADR-003` | |
+| NFR-04 | Cuota agotada, símbolo sin datos y mercado cerrado tienen manejo explícito | `ERR-05` | `backend/tests/unit/test_quotes_status.py` · `backend/tests/integration/test_quotes_status.py` · `frontend/tests/quoteNotice.test.tsx` |
+| NFR-05 | El consumo de la API externa no crece con la cantidad de clientes conectados | Art. II · `ADR-003` | `backend/tests/unit/test_quotes_service.py` · `backend/tests/integration/test_quotes.py` |
 | NFR-06 | Capas separadas y verificadas por test; la suite corre sin red | Art. IV · `PY-06`, `TEST-03` | |
 | NFR-07 | El proveedor de datos es reemplazable sin tocar services ni routers | Art. IV · `GEN-08` | |
 

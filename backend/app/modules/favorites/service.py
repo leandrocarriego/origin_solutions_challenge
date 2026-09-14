@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import UnknownSymbolError
-from app.modules.favorites.repository import add, remove, symbols_of
+from app.modules.favorites.repository import add, follows, remove, symbols_of
 from app.modules.stocks import get_stocks
 
 
@@ -110,3 +110,18 @@ async def remove_favorite(session: AsyncSession, user_id: int, symbol: str) -> N
     in `stocks` to be suggested again (RF-27).
     """
     await remove(session, user_id, symbol.strip().upper())
+
+
+async def is_favorite(session: AsyncSession, user_id: int, symbol: str) -> bool:
+    """Whether that symbol is on that user's list (RF-35).
+
+    The one thing this module answers to another one, and it answers a boolean: who follows what
+    is `favorites`' to know, and a chart is served only for the acciones of whoever is asking.
+    Letting `quotes` read `user_stocks` itself would be the boundary Article IV refuses, with the
+    filter by user -- which is the whole of Article III here -- written in a module that does not
+    own the table.
+
+    The same normalisation as the add and the remove, and for the same reason: one rule in one
+    place, so a symbol that could be added cannot fail to be recognised later.
+    """
+    return await follows(session, user_id, symbol.strip().upper())

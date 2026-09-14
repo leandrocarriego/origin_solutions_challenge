@@ -233,3 +233,72 @@ class TestTheKeyNeverLeaves:
             await provider.list_stocks("NASDAQ")
 
         assert API_KEY not in str(raised.value)
+
+
+class TestTheSeriesAndItsTimezone:
+    """The most expensive bug of `003-quote-chart`, and the most silent one (RF-15, RF-36).
+
+    The provider sends its timestamps in the exchange's timezone unless it is asked otherwise,
+    and this client used to stamp UTC on them. Nothing fails when that happens: the whole chart
+    simply sits four or five hours away from where it belongs, depending on the time of year,
+    and every point still lands neatly on an axis.
+
+    The fix is to ask for the series in UTC, which also settles the other half: the window we
+    send is then read in the same timezone we are answered in. And `outputsize` explicitly at
+    the top of the plan, because the default is 30 candles and a `1min` session has 390 -- a
+    chart cropped to 8% of itself, with no error anywhere.
+    """
+
+    async def test_it_asks_for_the_series_in_utc(self) -> None:
+        """Asserted on the value and not on the name of the parameter.
+
+        `plan.md` fixes the behaviour -- the series is requested in UTC -- and not the spelling
+        the provider gives that knob. What must be true is that the request says UTC somewhere;
+        which key carries it is the client's business.
+        """
+        client, seen = recording(fixture("time_series_tsla_1min"))
+        provider = build_upstream_provider(API_KEY, client=client)
+
+        await provider.get_time_series("TSLA", "1min", *WINDOW)
+
+        assert "UTC" in set(seen[0].url.params.values())
+
+    async def test_it_asks_for_the_whole_session_and_not_the_first_thirty_candles(self) -> None:
+        """5.000 is the cap of the plan, and the caps of MAX_RANGE_DAYS were chosen to fit it."""
+        client, seen = recording(fixture("time_series_tsla_1min"))
+        provider = build_upstream_provider(API_KEY, client=client)
+
+        await provider.get_time_series("TSLA", "1min", *WINDOW)
+
+        assert seen[0].url.params["outputsize"] == "5000"
+
+    async def test_the_window_it_sends_is_written_in_the_timezone_it_is_answered_in(self) -> None:
+        """The service hands over an aware window in UTC, and that is what has to travel.
+
+        A `start_date` read by the provider in exchange time while the answer comes back in UTC
+        is the same corruption seen from the other end: the window asked for and the window
+        received would be different windows.
+        """
+        client, seen = recording(fixture("time_series_tsla_1min"))
+        provider = build_upstream_provider(API_KEY, client=client)
+
+        await provider.get_time_series("TSLA", "1min", *WINDOW)
+
+        assert seen[0].url.params["start_date"] == "2026-09-11 00:00:00"
+        assert seen[0].url.params["end_date"] == "2026-09-12 00:00:00"
+
+    async def test_the_first_and_the_last_candle_are_the_instants_they_claim(self) -> None:
+        """The exact instant, not that there are candles: that is what a shift of hours hides.
+
+        The fixed session runs from 15:55 to 15:59 in New York on 2026-09-11, which is 19:55 to
+        19:59 UTC. A client that parses the provider's string and stamps UTC on it answers 15:55
+        and 15:59 -- four hours early, with a chart that looks perfectly fine.
+        """
+        provider = build_upstream_provider(
+            API_KEY, client=answering(fixture("time_series_tsla_1min"))
+        )
+
+        series = await provider.get_time_series("TSLA", "1min", *WINDOW)
+
+        assert series[0].ts == datetime(2026, 9, 11, 19, 55, tzinfo=UTC)
+        assert series[-1].ts == datetime(2026, 9, 11, 19, 59, tzinfo=UTC)

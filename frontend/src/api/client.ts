@@ -45,14 +45,28 @@ export function setAuthTokenProvider(provider: TokenProvider | null): void {
   tokenProvider = provider;
 }
 
-/** An answer from our API that is not a success, carrying the status so the caller can read it. */
+/**
+ * An answer from our API that is not a success, carrying the status so the caller can read it.
+ *
+ * It also carries the `detail` the answer came with, when it came with one. That is not decoration
+ * for a log: a 422 of the chart says *which* rule the range broke and with what numbers
+ * (`{"code": "range_too_long", "interval": "1min", "max_days": 7}`), and the screen turns that into
+ * the sentence a person reads (RF-41, RF-45). Without it the caller would have to read the body a
+ * second time, from a response that has already been consumed.
+ *
+ * It is `unknown` because it is whatever the API sent: whoever reads it has to narrow it, which is
+ * where the shape of a particular endpoint belongs.
+ */
 export class ApiError extends Error {
   readonly status: number;
 
-  constructor(status: number) {
+  readonly detail: unknown;
+
+  constructor(status: number, detail: unknown = undefined) {
     super(`the API answered ${status}`);
     this.name = 'ApiError';
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -133,7 +147,10 @@ export async function send<T>(path: string, options: RequestOptions = {}): Promi
   if (!response.ok) {
     if (response.status === 401 && announcesLostSession) onUnauthorized?.();
 
-    throw new ApiError(response.status);
+    // A refusal does not have to carry a body, and one that carries something that is not JSON is
+    // still a refusal: the status is what every caller reads, and the detail is a bonus for the
+    // ones that need it.
+    throw new ApiError(response.status, await detailOf(response));
   }
 
   // A 204 carries no body at all, and `response.json()` on one throws -- in the happy path of
@@ -142,6 +159,15 @@ export async function send<T>(path: string, options: RequestOptions = {}): Promi
   if (response.status === 204) return { status: response.status, data: undefined as T };
 
   return { status: response.status, data: (await response.json()) as T };
+}
+
+/** What a refusal carried in its `detail`, or nothing when it carried nothing readable. */
+async function detailOf(response: Response): Promise<unknown> {
+  try {
+    return ((await response.json()) as { detail?: unknown }).detail;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Call one of our endpoints and read its JSON, or throw an `ApiError` with what it answered. */

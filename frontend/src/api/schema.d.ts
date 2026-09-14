@@ -96,6 +96,33 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/favorites/{symbol}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Remove a stock from the favourites of whoever is asking
+     * @description Answer 204, and answer it whether or not the favourite was there (RF-24).
+     *
+     *     The symbol travels in the path and **that is not an identity**: it is the object. What scopes
+     *     it to the list of whoever is asking is the `WHERE user_id = <the token's>` of the repository,
+     *     which is also why RF-28 holds without a single extra check (Article III).
+     *
+     *     Validated with the same pattern as the add, because it is the same value seen twice: what
+     *     cannot be a segment of a path was never a symbol.
+     */
+    delete: operations['remove_from_favorites_api_favorites__symbol__delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/stocks': {
     parameters: {
       query?: never;
@@ -119,6 +146,38 @@ export interface paths {
      *     left open is the ingestion's work handed out for free.
      */
     get: operations['search_the_catalogue_api_stocks_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/quotes/{symbol}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The series a chart of that stock is drawn from
+     * @description Answer the series of that symbol, and the state it is served in (RF-13, RF-16).
+     *
+     *     One route for the two modes of the screen, because they are not two questions: without
+     *     `from` and `to` it is today's session in market hours, and with them it is the window the
+     *     person asked for. Which hours those are is decided in the service -- this layer carries the
+     *     two instants exactly as they were written, naive, and puts no timezone on them.
+     *
+     *     The symbol travels in the path and **that is not an identity**: it is the object. Who is
+     *     asking comes from the token and from nowhere else (Article III), and a symbol that is not on
+     *     that person's list is a 404 that never reaches the provider (RF-35).
+     *
+     *     The provider arrives by dependency rather than being built here: it is what lets the suite
+     *     exercise this endpoint with no network and no API key (TEST-03).
+     */
+    get: operations['read_quotes_api_quotes__symbol__get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -259,6 +318,52 @@ export interface components {
       expires_in: number;
       /** Full Name */
       full_name: string;
+    };
+    /**
+     * QuoteInterval
+     * @description The three intervals REQ-16 offers the user, and the only ones the table accepts.
+     * @enum {string}
+     */
+    QuoteInterval: '1min' | '5min' | '15min';
+    /**
+     * QuotePointOut
+     * @description One point of the chart: the instant, and the close of that candle.
+     *
+     *     The price crosses the wire as a string, which is what Pydantic does with a `Decimal` and is
+     *     kept on purpose: it travels with the decimals the provider sent and becomes a `number` once,
+     *     at the edge of the chart, which is the one place a number is needed at all.
+     */
+    QuotePointOut: {
+      /**
+       * Ts
+       * Format: date-time
+       */
+      ts: string;
+      /** Price */
+      price: string;
+    };
+    /**
+     * QuoteSeriesResponse
+     * @description The series and what has to be said about it (ERR-05).
+     *
+     *     The four states answer 200, every one of them: a spent quota is not a failure of the caller,
+     *     and a closed market is the normal state of two days out of seven. And no field names the
+     *     provider, neither in the happy path nor in the three notices (RF-26, Article I).
+     */
+    QuoteSeriesResponse: {
+      /** Symbol */
+      symbol: string;
+      /** Interval */
+      interval: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'ok' | 'stale' | 'market_closed' | 'no_data';
+      /** Session Date */
+      session_date: string | null;
+      /** Points */
+      points: components['schemas']['QuotePointOut'][];
     };
     /**
      * StockSuggestion
@@ -413,6 +518,35 @@ export interface operations {
       };
     };
   };
+  remove_from_favorites_api_favorites__symbol__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        symbol: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   search_the_catalogue_api_stocks_get: {
     parameters: {
       query: {
@@ -431,6 +565,41 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['StockSuggestion'][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  read_quotes_api_quotes__symbol__get: {
+    parameters: {
+      query: {
+        interval: components['schemas']['QuoteInterval'];
+        from?: string | null;
+        to?: string | null;
+      };
+      header?: never;
+      path: {
+        symbol: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['QuoteSeriesResponse'];
         };
       };
       /** @description Validation Error */

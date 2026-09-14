@@ -19,9 +19,16 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.db import database_is_up
-from app.errors import AuthenticationError, RateLimitedError, UnknownSymbolError
+from app.errors import (
+    AuthenticationError,
+    QuoteRangeInvalid,
+    QuoteRangeTooLong,
+    RateLimitedError,
+    UnknownSymbolError,
+)
 from app.modules.auth import router as auth_router
 from app.modules.favorites import router as favorites_router
+from app.modules.quotes import router as quotes_router
 from app.modules.stocks import keep_the_catalogue_fresh
 from app.modules.stocks import router as stocks_router
 from app.observability import (
@@ -80,10 +87,12 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(favorites_router)
 app.include_router(stocks_router)
+app.include_router(quotes_router)
 
 
 # One handler per domain error and not a generic {type: status} table. The table scales on its
-# own and hides the translation behind a lookup; with two entries, explicit wins (GEN-10).
+# own and hides the translation behind a lookup; with a handful of entries, explicit wins
+# (GEN-10).
 
 
 @app.exception_handler(AuthenticationError)
@@ -123,6 +132,41 @@ async def symbol_not_on_offer(request: Request, exc: UnknownSymbolError) -> JSON
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"detail": "unknown symbol"},
+    )
+
+
+@app.exception_handler(QuoteRangeInvalid)
+async def range_is_not_a_window(request: Request, exc: QuoteRangeInvalid) -> JSONResponse:
+    """Answer 422 with the code the screen turns into a literal of `COPY.md` (RF-41).
+
+    The body carries a code and no text: what the person reads is the screen's decision, and the
+    literal lives in `frontend/src` (UI-02, Article VIII).
+    """
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": {"code": "range_invalid"}},
+    )
+
+
+@app.exception_handler(QuoteRangeTooLong)
+async def range_is_longer_than_the_interval_serves(
+    request: Request, exc: QuoteRangeTooLong
+) -> JSONResponse:
+    """Answer 422 with the interval and its cap, which the text names (RF-45).
+
+    The two numbers travel because the sentence the person reads names both, and they come from
+    here because this is where they are decided: a browser with its own copy of the caps would
+    be the same rule written twice.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={
+            "detail": {
+                "code": "range_too_long",
+                "interval": exc.interval,
+                "max_days": exc.max_days,
+            }
+        },
     )
 
 

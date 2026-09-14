@@ -11,9 +11,10 @@ import, because a dynamic import of arbitrary input is arbitrary code execution.
 
 import re
 from importlib import import_module
-from typing import Any, Protocol, cast
+from typing import Annotated, Any, Protocol, cast
 
 import httpx
+from fastapi import Depends
 
 from app.providers.base import MarketDataProvider
 from app.settings import get_settings
@@ -54,8 +55,24 @@ def _module(name: str) -> _ProviderModule:
     return cast(_ProviderModule, found)
 
 
-def get_market_data_provider(name: str | None = None) -> MarketDataProvider:
-    """Build the configured provider, or the one named."""
+def _not_from_the_request() -> None:
+    """Nothing, and that is the point: which provider is built is not a client's decision.
+
+    This is what routes depend on, and a dependency whose parameters are plain values would have
+    FastAPI read them off the query string. `?name=fake` would then let whoever asks choose to be
+    served invented prices -- and, worse, have them written into the cache as if they were real.
+    """
+    return None
+
+
+def get_market_data_provider(
+    name: Annotated[str | None, Depends(_not_from_the_request)] = None,
+) -> MarketDataProvider:
+    """Build the configured provider, or the one named.
+
+    The name is an argument for the wiring and for the tests that exercise it, and never a
+    request parameter: see `_not_from_the_request`.
+    """
     settings = get_settings()
     chosen = name or settings.market_data_provider
 

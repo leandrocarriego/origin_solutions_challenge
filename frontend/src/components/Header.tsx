@@ -18,18 +18,48 @@
  *
  * The title is a prop because the Detail screen's header is the same bar with `{símbolo} - {nombre}
  * - {moneda}` on the left (wireframe 03).
+ *
+ * The Detail adds two things this bar did not have, and they come in as **optional** props so that
+ * `Mis Acciones` keeps calling it exactly as it did: the way back to the list, to the left of the
+ * title (RF-34), and the note about which clock the hours are told in, under it (RF-37).
+ *
+ * Where each one falls is this component's decision and not the screen's: the screen says *what*
+ * goes in each place, the bar says where the places are. `back` is one object and not two props
+ * because a destination with no text -- or the other way round -- is not a state that exists:
+ * either there is a way back or there is not. It is drawn with the `Link` of `react-router` and
+ * not an `<a href>`, so it does not reload the whole application on the way.
  */
 
 import type { JSX } from 'react';
+import { Link } from 'react-router';
 
 import { useSession } from '../auth/session';
 
-export function Header({ title }: { title: string }): JSX.Element {
+export function Header({
+  title,
+  back,
+  note,
+}: {
+  title: string;
+  back?: { to: string; label: string };
+  note?: string;
+}): JSX.Element {
   const { user, logOut } = useSession();
 
   return (
     <header className="flex items-baseline justify-between gap-4 border-b border-border py-3">
-      <h1 className="m-0 text-base font-normal">{title}</h1>
+      <div className="flex items-baseline gap-4">
+        {back && (
+          <Link to={back.to} className="text-link underline">
+            {back.label}
+          </Link>
+        )}
+
+        <div>
+          <h1 className="m-0 text-base font-normal">{title}</h1>
+          {note && <p className="m-0 text-text-muted">{note}</p>}
+        </div>
+      </div>
 
       {user && (
         <div className="flex items-baseline gap-4">

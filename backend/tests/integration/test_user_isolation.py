@@ -13,8 +13,9 @@ exotic attack: it is a query that filters by nothing because the filter was assu
 somewhere else.
 
 The file grows with the feature: the read is here from H1, the write of H2 and the delete of H3
-add their own classes. Every endpoint that touches data of a user gets a row here, or it is an
-IDOR that passes the pre-commit.
+add their own classes, and `003` adds the chart -- the first endpoint that serves data of a user
+through an object of somebody else's choosing (`RF-35`). Every endpoint that touches data of a
+user gets a row here, or it is an IDOR that passes the pre-commit.
 """
 
 from collections.abc import AsyncIterator, Iterator
@@ -29,6 +30,12 @@ from app.db import get_session
 from app.main import app
 from app.modules.auth.models import User
 from app.modules.favorites.models import UserStock
+from app.providers import (
+    MarketDataProvider,
+    QuotePoint,
+    StockRecord,
+    get_market_data_provider,
+)
 from app.security import create_access_token
 from app.settings import get_settings
 from tests.factories.user_factory import UserFactory
@@ -38,6 +45,26 @@ _FAVORITES = "/api/favorites"
 _SECRET = "a-signing-secret-of-at-least-32-chars"
 
 _ADDED_AT = datetime(2026, 9, 13, 11, 0, tzinfo=UTC)
+
+
+class _CallCounter(MarketDataProvider):
+    """A provider that answers nothing and remembers every time it was asked."""
+
+    def __init__(self) -> None:
+        """Start with no calls recorded: what is under test is that there are none."""
+        self.calls: list[tuple[str, str]] = []
+
+    async def list_stocks(self, exchange: str) -> list[StockRecord]:
+        """Not what the chart asks for."""
+        return []
+
+    async def get_time_series(
+        self, symbol: str, interval: str, start: datetime, end: datetime
+    ) -> list[QuotePoint]:
+        """Record the call, then answer with nothing: reaching here is already the failure."""
+        self.calls.append((symbol, interval))
+
+        return []
 
 
 @pytest.fixture(autouse=True)
@@ -235,3 +262,55 @@ class TestRemovingFromTheGrid:
         assert response.status_code == 204
         assert await _favourites_of(session, juan.id) == {"AAPL"}
         assert await _favourites_of(session, ana.id) == {"NFLX", "MSFT"}
+
+
+class TestReadingTheChart:
+    """RF-35 and Article III: the chart is served only for the favourites of who is asking.
+
+    404 and not 403: a 403 confirms that the symbol exists and belongs to another user, and here
+    there is nothing to confirm. It is also the answer `002` gives for a symbol that cannot be
+    added, so the frontend has one case to handle and not two.
+
+    The pair of tests is the whole statement: the 404 is the part a reviewer looks for, and the
+    call counter is the part that matters for Article II -- an implementation that authorizes
+    *after* fetching answers the same 404 and has already spent a credit on somebody else's
+    symbol.
+    """
+
+    @pytest.fixture
+    def provider(self) -> Iterator[_CallCounter]:
+        """The market data provider the request would be served with, counting its calls."""
+        counter = _CallCounter()
+        app.dependency_overrides[get_market_data_provider] = lambda: counter
+
+        yield counter
+
+        app.dependency_overrides.pop(get_market_data_provider, None)
+
+    async def test_a_symbol_of_the_other_user_is_not_found(
+        self, client: AsyncClient, juan: User, ana: User, provider: _CallCounter
+    ) -> None:
+        """TSLA is juan's. For ana's token it does not exist."""
+        response = await client.get(
+            "/api/quotes/TSLA", params={"interval": "1min"}, headers=_bearer(ana)
+        )
+
+        assert response.status_code == 404
+
+    async def test_a_symbol_of_the_other_user_costs_no_quota(
+        self, client: AsyncClient, juan: User, ana: User, provider: _CallCounter
+    ) -> None:
+        """Authorizing first is what makes the refusal free (Article II)."""
+        await client.get("/api/quotes/TSLA", params={"interval": "1min"}, headers=_bearer(ana))
+
+        assert provider.calls == []
+
+    async def test_the_owner_of_the_symbol_is_served(
+        self, client: AsyncClient, juan: User, provider: _CallCounter
+    ) -> None:
+        """The same request, with the token of whoever has TSLA in their list."""
+        response = await client.get(
+            "/api/quotes/TSLA", params={"interval": "1min"}, headers=_bearer(juan)
+        )
+
+        assert response.status_code == 200

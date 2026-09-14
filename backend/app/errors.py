@@ -50,3 +50,32 @@ class UnknownSymbolError(DomainError):
     def __init__(self) -> None:
         """Carry the one message the 404 handler answers with."""
         super().__init__("unknown symbol")
+
+
+class QuoteRangeInvalid(DomainError):
+    """The window asked for is not a window: `desde` is not before `hasta` (RF-41).
+
+    Equal and inverted are the same refusal, and half a range -- one of the two written and the
+    other missing -- is the same one again: read as `Tiempo Real` it would quietly chart today
+    instead of what was asked for, which looks like a bug in the chart and is a bug in the
+    contract.
+    """
+
+    def __init__(self) -> None:
+        """Carry the one message the 422 handler answers with."""
+        super().__init__("range invalid")
+
+
+class QuoteRangeTooLong(DomainError):
+    """The window is longer than that interval can serve (RF-42 to RF-44).
+
+    It carries the interval and its cap because the text the person reads names both (RF-45),
+    and the caps live in the service and nowhere else: a browser with its own copy would be one
+    business rule written twice, and one of the two would go stale without anybody noticing.
+    """
+
+    def __init__(self, interval: str, max_days: int) -> None:
+        """Carry what the 422 has to say: which interval, and how many days it allows."""
+        super().__init__("range too long")
+        self.interval = interval
+        self.max_days = max_days
