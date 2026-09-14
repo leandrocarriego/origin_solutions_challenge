@@ -57,6 +57,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(title="ORIGIN Acciones", version=settings.version, lifespan=lifespan)
 
+# Middlewares
+
 # Outermost, so the request id covers CORS and every error the layers below turn into a response.
 app.add_middleware(RequestContextMiddleware)
 
@@ -68,13 +70,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Routers
+
+app.include_router(health_router)
 
 app.include_router(auth_router)
 app.include_router(favorites_router)
 app.include_router(stocks_router)
 app.include_router(quotes_router)
-
-app.include_router(health_router)
 
 # When a service communicates a failure by raising, this is where the raise turns into a status.
 register_error_handlers(app)

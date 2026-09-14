@@ -59,7 +59,11 @@ backend/app/
 ├── errors.py             DomainError, la base que error_handlers.py traduce
 ├── ratelimit.py          SlidingWindowLimiter — cuenta intentos y no sabe de qué
 ├── security.py           Argon2 · JWT · get_current_user · CurrentUser
-├── observability.py      logging estructurado, Sentry, métricas y el request id (ADR-009)
+├── observability/        ADR-009 — el paquete exporta lo mismo que exportaba el archivo
+│   ├── metrics.py        los contadores del Artículo II y el endpoint que Prometheus scrapea
+│   ├── logs.py           logging estructurado: una línea JSON por evento
+│   ├── middleware.py     el request id, atado mientras dura el request
+│   └── sentry.py         qué se reporta y qué se tacha antes de salir
 ├── providers/            infraestructura de servicios externos
 │   ├── base.py           MarketDataProvider (ABC) · StockRecord · QuotePoint · ProviderError
 │   ├── twelvedata.py     ← el único archivo del repo que nombra TwelveData
