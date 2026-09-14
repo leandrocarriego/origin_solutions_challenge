@@ -15,6 +15,7 @@ import pytest
 from app.providers import (
     FakeProvider,
     MarketDataProvider,
+    ProviderError,
     UnknownProvider,
     get_market_data_provider,
 )
@@ -47,3 +48,22 @@ class TestTheProviderIsChosenByConfiguration:
         """It comes from configuration, so it is input: importing `os.system` is not an option."""
         with pytest.raises(UnknownProvider):
             get_market_data_provider("..settings")
+
+
+class TestAMisconfigurationIsNotAProviderFailure:
+    """`UnknownProvider` stays outside the `ProviderError` family, and that is load-bearing.
+
+    Both services answer from the cache when the provider fails, so under that root a deploy
+    that named a provider which does not exist would serve stale quotes with a notice on top
+    instead of refusing to work. Tidying the package into one exception hierarchy is the kind of
+    change that looks like housekeeping and is not.
+    """
+
+    def test_it_is_not_caught_by_a_service_handling_provider_failures(self) -> None:
+        """`except ProviderError` must not swallow a name nobody configured."""
+        assert not issubclass(UnknownProvider, ProviderError)
+
+    def test_the_failures_that_are_the_providers_stay_inside_the_family(self) -> None:
+        """The rule is about misconfiguration, not about narrowing what a service catches."""
+        with pytest.raises(UnknownProvider):
+            get_market_data_provider("does-not-exist")

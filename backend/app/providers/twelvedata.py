@@ -1,16 +1,4 @@
-"""The TwelveData client: the one file in the application that knows the provider exists.
-
-GEN-08 keeps the name, the URL and the credential here. Everything else in the codebase talks to
-`MarketDataProvider`, and the wiring resolves this module by a name that lives in the settings --
-so "changing provider is a new class and a line of wiring" is an environment variable and not a
-figure of speech.
-
-Every response shape this parses was captured from the live API on 2026-09-13 and is fixed in
-`tests/fixtures/twelvedata/`. Two things that only measuring reveals, and both are here:
-
-  - errors come back with a real HTTP status (429, 401, 404), not as a 200 with an error body;
-  - a series arrives newest first, and a chart drawn in that order runs backwards.
-"""
+"""The TwelveData client: the one file in the application that knows the provider exists."""
 
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -18,19 +6,18 @@ from typing import Any
 
 import httpx
 
-from app.providers.base import (
-    MarketDataProvider,
+from app.providers.base import MarketDataProvider
+from app.providers.errors import (
     ProviderQuotaExceeded,
     ProviderRejectedCredentials,
     ProviderUnavailable,
-    QuotePoint,
-    StockRecord,
     SymbolNotFound,
 )
+from app.providers.schemas import QuotePoint, StockRecord
 
 BASE_URL = "https://api.twelvedata.com"
 
-# Generous enough for the 843 KB catalogue, short enough that a hung upstream does not hold a
+# Generous enough for the catalogue, short enough that a hung upstream does not hold a
 # request open until someone notices.
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
@@ -55,11 +42,7 @@ class TwelveDataProvider(MarketDataProvider):
     """Reads TwelveData and answers in the types of the contract."""
 
     def __init__(self, api_key: str, client: httpx.AsyncClient | None = None) -> None:
-        """Take the credential and, optionally, the client to use.
-
-        The client is injectable so the suite can run the real parsing against fixed JSON with
-        no socket anywhere (TEST-03).
-        """
+        """Take the credential and, optionally, the client to use."""
         self._api_key = api_key
         self._client = client or httpx.AsyncClient(timeout=TIMEOUT)
 
@@ -67,6 +50,7 @@ class TwelveDataProvider(MarketDataProvider):
         """Every symbol the provider lists for a market, unfiltered."""
         payload = await self._get("/stocks", {"exchange": exchange})
         rows = payload.get("data")
+
         if not isinstance(rows, list):
             raise ProviderUnavailable("the catalogue response carried no data")
 
@@ -93,32 +77,29 @@ class TwelveDataProvider(MarketDataProvider):
             },
         )
         rows = payload.get("values")
+
         if not isinstance(rows, list):
             raise ProviderUnavailable("the series response carried no values")
 
         points = [self._to_point(row) for row in rows]
 
-        # The provider answers newest first. Everything downstream -- the gap detection, the
-        # chart -- reads a series forwards, so it is reversed once, here.
+        # The provider answers newest first.
         return sorted(points, key=lambda point: point.ts)
 
     async def _get(self, path: str, params: dict[str, str]) -> dict[str, Any]:
-        """Make one request and turn every way it can fail into an exception of ours.
-
-        No exception raised here carries the URL or the parameters, because the API key is a
-        parameter and an exception text ends up in a log, in Sentry, and sometimes on a screen
-        (Article I).
-        """
+        """Make one request and turn every way it can fail into an exception of ours."""
         try:
             response = await self._client.get(
                 f"{BASE_URL}{path}", params={**params, "apikey": self._api_key}
             )
+
         except httpx.HTTPError as error:
             raise ProviderUnavailable(
                 f"the provider did not answer: {type(error).__name__}"
             ) from None
 
         failure = _ERRORS.get(response.status_code)
+
         if failure is not None:
             raise failure(f"the provider refused the request with {response.status_code}")
 
@@ -127,6 +108,7 @@ class TwelveDataProvider(MarketDataProvider):
 
         try:
             payload = response.json()
+
         except ValueError:
             raise ProviderUnavailable("the provider answered something that is not JSON") from None
 
@@ -135,6 +117,7 @@ class TwelveDataProvider(MarketDataProvider):
 
         # A 200 can still carry an error envelope, so the code inside the body is checked too.
         code = payload.get("code")
+
         if isinstance(code, int) and code in _ERRORS:
             raise _ERRORS[code](f"the provider refused the request with {code}")
 
@@ -156,6 +139,7 @@ class TwelveDataProvider(MarketDataProvider):
                 country=str(row["country"]),
                 instrument_type=str(row["type"]),
             )
+
         except KeyError as error:
             raise ProviderUnavailable(f"a catalogue entry had no {error.args[0]}") from None
 
@@ -175,8 +159,10 @@ class TwelveDataProvider(MarketDataProvider):
                 close=Decimal(str(row["close"])),
                 volume=int(volume) if volume not in (None, "") else None,
             )
+
         except KeyError as error:
             raise ProviderUnavailable(f"a series entry had no {error.args[0]}") from None
+
         except (InvalidOperation, ValueError):
             raise ProviderUnavailable(
                 "a series entry carried a price that is not a number"
@@ -184,18 +170,15 @@ class TwelveDataProvider(MarketDataProvider):
 
     @staticmethod
     def _to_instant(value: str) -> datetime:
-        """Parse the provider's timestamp and stamp it UTC.
-
-        The provider sends it naive, and the series is asked for with `timezone=UTC` precisely so
-        that stamping UTC here is true rather than convenient. A naive datetime in a cache keyed
-        by instant is a duplicate waiting to happen, so it never leaves this method naive.
-        """
+        """Parse the provider's timestamp and stamp it UTC."""
         for shape in _DATETIME_FORMATS:
             try:
                 # Naive on purpose: the timezone is stamped two lines down.
                 parsed = datetime.strptime(value, shape)
+
             except ValueError:
                 continue
+
             return parsed.replace(tzinfo=UTC)
 
         raise ProviderUnavailable("a series entry carried a timestamp in an unknown format")
