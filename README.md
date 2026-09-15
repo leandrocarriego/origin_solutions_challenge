@@ -345,7 +345,7 @@ make test        # suite completa con cobertura
 make check       # lint + tipos + tests, en el orden en que conviene fallar
 ```
 
-**587 tests en el backend** (94% de cobertura) y **283 en el frontend**. La suite completa corre
+**596 tests en el backend** (94% de cobertura) y **283 en el frontend**. La suite completa corre
 **sin red y sin API key**: el proveedor se testea contra JSON fijado, nunca contra la API en vivo.
 Una suite que sale a la red consume la cuota del Artículo II — y además no es una suite, es un
 monitoreo.
