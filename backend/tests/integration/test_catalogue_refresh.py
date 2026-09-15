@@ -27,6 +27,7 @@ from app.modules.stocks.service import (
     reconcile_catalogue,
     refresh_catalogue_if_stale,
 )
+from app.observability import CATALOGUE_LAST_SUCCESS
 from tests.integration.test_catalogue_ingestion import StubProvider, listed
 
 A_DAY = timedelta(hours=24)
@@ -175,6 +176,28 @@ class TestTheFreshnessIsPublished:
 
         await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
 
+        published = REGISTRY.get_sample_value("catalogue_last_success_timestamp_seconds")
+        assert published is not None
+        assert abs(published - datetime.now(UTC).timestamp()) < 60
+
+    async def test_a_skip_restores_the_gauge_a_restart_wiped(self, session: AsyncSession) -> None:
+        """The process forgets on every deploy; the database does not.
+
+        Without this, a restart leaves the panel reading "sin refrescar" until the next
+        reconciliation -- and the next one is a day away precisely because the catalogue is
+        fresh. The dashboard would be reporting the age of the process, not of the catalogue.
+        """
+        provider = StubProvider(
+            {"NASDAQ": [listed("TSLA")], "NYSE": [listed("A", exchange="NYSE")]}
+        )
+        await refresh_catalogue_if_stale(StockRepository(session), provider, older_than=A_DAY)
+
+        CATALOGUE_LAST_SUCCESS.set(0)  # what a fresh process starts with
+        outcome = await refresh_catalogue_if_stale(
+            StockRepository(session), provider, older_than=A_DAY
+        )
+
+        assert outcome.skipped
         published = REGISTRY.get_sample_value("catalogue_last_success_timestamp_seconds")
         assert published is not None
         assert abs(published - datetime.now(UTC).timestamp()) < 60

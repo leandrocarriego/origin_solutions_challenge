@@ -53,6 +53,11 @@ DEMO_CATALOGUE = (
 )
 
 
+# Older than any staleness window, so the first ingestion reconciles NASDAQ instead of taking
+# these three placeholder rows for a market it already refreshed.
+_NEVER_RECONCILED = datetime(1970, 1, 1, tzinfo=UTC)
+
+
 def refuses_to_run() -> str | None:
     """The reason the seed must not run here, or None when it may."""
     if get_settings().environment == "production":
@@ -89,7 +94,12 @@ async def _seed_catalogue(session: AsyncSession) -> None:
             "mic_code": mic,
             "country": "United States",
             "type": "Common Stock",
-            "last_seen_at": datetime.now(UTC),
+            # Deliberately old. `last_seen_at` is what tells the ingestion whether a market is
+            # stale, and these three rows are the only NASDAQ ones there are: stamping them with
+            # now makes NASDAQ look freshly reconciled, the ingestion skips it, and the catalogue
+            # ends up with NYSE alone -- which is the exact reading of the brief that A4 discards,
+            # and it leaves the symbols of the brief's own grid out of the autocomplete.
+            "last_seen_at": _NEVER_RECONCILED,
         }
         for symbol, name, mic in DEMO_CATALOGUE
     ]
