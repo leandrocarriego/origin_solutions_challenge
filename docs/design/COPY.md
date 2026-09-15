@@ -186,7 +186,7 @@ descartó (`docs/specs/001-authentication/spec.md` → *Lo que se aparta de los 
 | No se pudo conectar | `No pudimos conectarnos con el servidor. Intentá de nuevo en unos minutos.` | Login, cuando no se logró comunicar para validar las credenciales (`RF-27`) |
 
 `{nombre completo}` es el nombre de la persona, no el usuario con el que ingresa: `Usuario: Juan
-Perez`, nunca `Usuario: juan`. Los datos de prueba guardan los dos por separado y son distintos,
+Perez`, nunca `Usuario: juan@demo.com`. Los datos de prueba guardan los dos por separado y son distintos,
 así que la diferencia se ve en la primera pantalla.
 
 **El aviso de campo vacío no reemplaza al de credenciales.** Un campo en blanco es un olvido y se

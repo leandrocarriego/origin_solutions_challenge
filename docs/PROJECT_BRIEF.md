@@ -70,12 +70,12 @@ La columna **Test** se completa a medida que se implementa (`AGENTS.md` → Defi
 |---|---|---|
 | REQ-18 | Base de datos relacional con todos los objetos necesarios | `backend/tests/architecture/test_data_model.py` |
 | REQ-19 | Seed con datos mínimos para poder probar la aplicación | `backend/tests/integration/test_seed.py` |
-| REQ-20 | Repositorio público con control de versiones | |
-| REQ-21 | Backup de la base de datos incluido en el repo | |
-| REQ-22 | `README.md` con los pasos para levantar la aplicación | |
-| REQ-23 | Arquitectura de dos proyectos: Frontend y Backend | |
-| REQ-24 | API en Python + FastAPI | |
-| REQ-25 | Frontend en React ≥ 18 | `frontend/tests/HealthPage.test.tsx` |
+| REQ-20 | Repositorio público con control de versiones | — *(propiedad del hosting, no del árbol)* |
+| REQ-21 | Backup de la base de datos incluido en el repo | `backend/tests/architecture/test_deliverables.py` |
+| REQ-22 | `README.md` con los pasos para levantar la aplicación | `backend/tests/architecture/test_deliverables.py` |
+| REQ-23 | Arquitectura de dos proyectos: Frontend y Backend | `backend/tests/architecture/test_deliverables.py` |
+| REQ-24 | API en Python + FastAPI | `backend/tests/architecture/test_deliverables.py` |
+| REQ-25 | Frontend en React ≥ 18 | `frontend/tests/HealthPage.test.tsx` · `backend/tests/architecture/test_deliverables.py` |
 
 ## 2. Requisitos no funcionales
 
@@ -90,8 +90,8 @@ Cada uno tiene su artículo en la constitución y su convención verificable.
 | NFR-03 | Un usuario no puede leer ni borrar las favoritas de otro | Art. III · `GEN-09` | `backend/tests/integration/test_user_isolation.py` |
 | NFR-04 | Cuota agotada, símbolo sin datos y mercado cerrado tienen manejo explícito | `ERR-05` | `backend/tests/unit/test_quotes_status.py` · `backend/tests/integration/test_quotes_status.py` · `frontend/tests/quoteNotice.test.tsx` |
 | NFR-05 | El consumo de la API externa no crece con la cantidad de clientes conectados | Art. II · `ADR-003` | `backend/tests/unit/test_quotes_service.py` · `backend/tests/integration/test_quotes.py` |
-| NFR-06 | Capas separadas y verificadas por test; la suite corre sin red | Art. IV · `PY-06`, `TEST-03` | |
-| NFR-07 | El proveedor de datos es reemplazable sin tocar services ni routers | Art. IV · `GEN-08` | |
+| NFR-06 | Capas separadas y verificadas por test; la suite corre sin red | Art. IV · `PY-06`, `TEST-03` | `backend/tests/architecture/test_module_boundaries.py` |
+| NFR-07 | El proveedor de datos es reemplazable sin tocar services ni routers | Art. IV · `GEN-08` | `backend/tests/architecture/test_provider_boundary.py` · `backend/tests/unit/test_provider_wiring.py` |
 
 ---
 

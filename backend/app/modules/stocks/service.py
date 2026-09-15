@@ -128,6 +128,19 @@ async def is_catalogue_stale(
     return False
 
 
+async def _publish_catalogue_age(store: CatalogueStore) -> None:
+    """Set the gauge from the database, which outlives the process that fills it.
+
+    The oldest market wins: the panel reads the age of the catalogue, and a catalogue is as old
+    as the market that was reconciled longest ago.
+    """
+    seen = [await store.last_seen(market) for market in CATALOGUE_EXCHANGES]
+    known = [moment for moment in seen if moment is not None]
+
+    if known:
+        CATALOGUE_LAST_SUCCESS.set(min(known).timestamp())
+
+
 async def refresh_catalogue_if_stale(
     store: CatalogueStore,
     provider: MarketDataProvider,
@@ -141,6 +154,12 @@ async def refresh_catalogue_if_stale(
     ]
 
     if not stale:
+        # A gauge lives in the process, and the process restarts. After a deploy this one reads
+        # zero -- which the dashboard shows as "sin refrescar" -- until the next reconciliation,
+        # and the next one may be a day away precisely because the catalogue is fresh. The
+        # database remembers what the process forgot, so a skip is the moment to restore it.
+        await _publish_catalogue_age(store)
+
         await log.adebug("catalogue_refresh_skipped", reason="every market is fresh")
 
         return CatalogueRefresh(reconciled=(), failed=(), skipped=True)

@@ -98,13 +98,24 @@ def captured_logs(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
 
 @pytest.fixture
 def sentry_configured(monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
-    """Initialise Sentry against a fake DSN and hand back the resulting client."""
+    """Initialise Sentry against a DSN that goes nowhere, and hand back the client.
+
+    The host is the discard port on loopback, not `o0.ingest.sentry.io`: the real hostname made
+    the suite resolve it and try to POST whatever had been queued, which is a suite reaching for
+    the network to run -- the thing TEST-03 exists to forbid -- and two seconds of waiting on
+    every run to find out it could not.
+
+    And the teardown closes with no grace period, so a queued event is dropped rather than
+    flushed. Nothing here asserts on what was sent; these tests read the options that decide
+    what Sentry is allowed to carry.
+    """
     get_settings.cache_clear()
-    monkeypatch.setenv("SENTRY_DSN", "https://public@o0.ingest.sentry.io/0")
+    monkeypatch.setenv("SENTRY_DSN", "http://public@127.0.0.1:9/0")
 
     observability.configure_sentry()
     yield sentry_sdk.get_client()
 
+    sentry_sdk.get_client().close(timeout=0.0)
     sentry_sdk.init(dsn=None)
     get_settings.cache_clear()
 

@@ -13,8 +13,8 @@
  * invitation to press something that does nothing.
  *
  * `{nombre completo}` is the name of the person and not the user they typed to get in: `Usuario:
- * Juan Perez`, never `Usuario: juan` (`COPY.md`). The two are different values in the demo data on
- * purpose, so the difference shows on the first screen.
+ * Juan Perez`, never `Usuario: juan@demo.com` (`COPY.md`). The two are different values in the
+ * demo data on purpose, so the difference shows on the first screen.
  *
  * The title is a prop because the Detail screen's header is the same bar with `{símbolo} - {nombre}
  * - {moneda}` on the left (wireframe 03).

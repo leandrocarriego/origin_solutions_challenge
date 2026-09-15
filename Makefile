@@ -8,9 +8,10 @@ SHELL := /bin/bash
 BACKEND  := backend
 FRONTEND := frontend
 COMPOSE  := docker compose
+COMPOSE_NETWORK := origin-acciones_default
 
-.PHONY: help install hooks types lint format typecheck test test-fast check build \
-        up down logs ps dev-backend dev-frontend deploy clean
+.PHONY: help setup install hooks types lint format typecheck test test-fast check build \
+        up down logs ps load backup restore dev-backend dev-frontend deploy clean
 
 # --- Help -------------------------------------------------------------------------------------
 
@@ -23,6 +24,9 @@ help:  ## Lista los comandos disponibles
 	@echo
 
 # --- Setup --------------------------------------------------------------------------------------
+
+setup:  ## Deja la aplicación andando desde cero: credenciales, contenedores, migraciones y datos
+	@bash scripts/setup.sh
 
 install:  ## Instala las dependencias de ambos proyectos desde sus lockfiles
 	cd $(BACKEND) && uv sync --frozen
@@ -93,6 +97,35 @@ logs:  ## Sigue los logs de todos los servicios
 
 ps:  ## Estado de los servicios locales
 	$(COMPOSE) ps
+
+# --- Load --------------------------------------------------------------------------------------
+
+# k6 runs from its own image, attached to the compose network, so nothing has to be installed and
+# the target is the backend container rather than a published port. The stack has to be up.
+
+load:  ## Prueba de carga: 50 usuarios sobre el mismo símbolo (Art. II)
+	docker run --rm -i \
+		--network $(COMPOSE_NETWORK) \
+		-v "$(PWD)/load:/load:ro" \
+		-e K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write \
+		-e 'K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),avg,max' \
+		grafana/k6:latest run -o experimental-prometheus-rw /load/quotes.js
+
+# --- Database -------------------------------------------------------------------------------------
+
+# The deliverable the brief asks for (REQ-21), generated from the seeded database and never
+# written by hand: seed.py is the source of the demo dataset, and this is a photograph of what it
+# produced. Restoring it is how you check the photograph is not blurred.
+# --no-owner and --no-privileges so the dump restores into a database whose role is not `origin`.
+
+backup:  ## Genera db/backup.sql desde la base local ya sembrada (REQ-21)
+	@mkdir -p db
+	$(COMPOSE) exec -T db pg_dump -U origin -d origin \
+		--clean --if-exists --no-owner --no-privileges > db/backup.sql
+	@echo "db/backup.sql — $$(du -h db/backup.sql | cut -f1)"
+
+restore:  ## Restaura db/backup.sql sobre la base local
+	$(COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U origin -d origin < db/backup.sql
 
 # --- Production ---------------------------------------------------------------------------------
 

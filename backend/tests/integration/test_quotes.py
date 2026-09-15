@@ -27,6 +27,7 @@ from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from prometheus_client import REGISTRY
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -216,6 +217,30 @@ class TestAskingForTodaysSession:
         await client.get(_QUOTES, params={"interval": "1min"}, headers=_bearer(juan))
 
         assert provider.calls == []
+
+    async def test_a_request_that_spends_nothing_is_counted_as_served_from_the_base(
+        self, client: AsyncClient, juan: User, provider: _CountingProvider, session: AsyncSession
+    ) -> None:
+        """The counter answers what the panel asks: did this request cost a credit.
+
+        It used to answer a different question -- whether the rows on hand already covered the
+        window -- and the two come apart exactly when it matters. With the market closed the
+        newest candle is hours old, so every request looked stale to the reader and none of them
+        reached the provider, because the gate had asked seconds ago. The share served without
+        spending read zero while the quota barely moved, which is the flagship number of
+        Article II saying the opposite of the truth.
+        """
+        await QuoteFactory.create_series(
+            session, first_ts=datetime.now(tz=UTC) - timedelta(hours=5), count=3
+        )
+        served_for_free = REGISTRY.get_sample_value("quote_cache_hits_total") or 0.0
+
+        await client.get(_QUOTES, params={"interval": "1min"}, headers=_bearer(juan))
+        await client.get(_QUOTES, params={"interval": "1min"}, headers=_bearer(juan))
+
+        assert len(provider.calls) == 1
+        after = REGISTRY.get_sample_value("quote_cache_hits_total") or 0.0
+        assert after == served_for_free + 1
 
     async def test_an_anonymous_call_is_refused(
         self, client: AsyncClient, provider: _CountingProvider

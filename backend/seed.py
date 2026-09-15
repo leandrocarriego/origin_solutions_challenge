@@ -36,8 +36,8 @@ class DemoUser:
 # them to whoever evaluates the project, and the seed refuses to run in production precisely
 # because of them. That is what `noqa: S106` is saying, and it is the only place it is said.
 DEMO_USERS = (
-    DemoUser(username="juan", full_name="Juan Perez", password="Demo1234*"),  # noqa: S106
-    DemoUser(username="ana", full_name="Ana Gomez", password="Demo1234*"),  # noqa: S106
+    DemoUser(username="juan@demo.com", full_name="Juan Perez", password="Demo1234*"),  # noqa: S106
+    DemoUser(username="ana@demo.com", full_name="Ana Gomez", password="Demo1234*"),  # noqa: S106
 )
 
 # The three of the brief's own grid, so its screen is reproducible on the first run.
@@ -51,6 +51,11 @@ DEMO_CATALOGUE = (
     ("AAPL", "Apple Inc.", "XNGS"),
     ("NFLX", "Netflix Inc.", "XNGS"),
 )
+
+
+# Older than any staleness window, so the first ingestion reconciles NASDAQ instead of taking
+# these three placeholder rows for a market it already refreshed.
+_NEVER_RECONCILED = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 def refuses_to_run() -> str | None:
@@ -89,7 +94,12 @@ async def _seed_catalogue(session: AsyncSession) -> None:
             "mic_code": mic,
             "country": "United States",
             "type": "Common Stock",
-            "last_seen_at": datetime.now(UTC),
+            # Deliberately old. `last_seen_at` is what tells the ingestion whether a market is
+            # stale, and these three rows are the only NASDAQ ones there are: stamping them with
+            # now makes NASDAQ look freshly reconciled, the ingestion skips it, and the catalogue
+            # ends up with NYSE alone -- which is the exact reading of the brief that A4 discards,
+            # and it leaves the symbols of the brief's own grid out of the autocomplete.
+            "last_seen_at": _NEVER_RECONCILED,
         }
         for symbol, name, mic in DEMO_CATALOGUE
     ]
