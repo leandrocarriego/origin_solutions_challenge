@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Protocol
+from typing import NamedTuple, Protocol
 from zoneinfo import ZoneInfo
 
 import structlog
@@ -175,17 +175,25 @@ async def get_series(
 
         return served
 
-    QUOTE_CACHE_MISSES.inc()
+    filled = await _fill(store, provider, wanted, interval, window, now, historic=asked is not None)
 
-    failed = await _fill(store, provider, wanted, interval, window, now, historic=asked is not None)
+    # What the counters answer is "did this request cost a credit", and that is decided inside
+    # the gate, not here: a window that looks stale to the reader above is served for free when
+    # the gate asked recently, which on a closed market is nearly every request. Counting it as
+    # a miss put the flagship panel of Article II -- the share served without spending -- at
+    # zero while the quota barely moved.
+    if filled.spent:
+        QUOTE_CACHE_MISSES.inc()
+    else:
+        QUOTE_CACHE_HITS.inc()
 
     stored = await store.candles_in(wanted, interval, *window)
 
     served = await _answer(
-        store, wanted, interval, stored, failed=failed, historic=asked is not None
+        store, wanted, interval, stored, failed=filled.failed, historic=asked is not None
     )
 
-    _audit(wanted, interval, window, served, cache_hit=False)
+    _audit(wanted, interval, window, served, cache_hit=not filled.spent)
 
     return served
 
@@ -246,6 +254,13 @@ def _answers_already(
     return historic or now - stored[-1].ts < _TTL[interval]
 
 
+class _Filled(NamedTuple):
+    """What a fill did: whether the provider refused, and whether it was asked at all."""
+
+    failed: bool
+    spent: bool
+
+
 async def _fill(
     store: QuoteStore,
     provider: MarketDataProvider,
@@ -254,20 +269,20 @@ async def _fill(
     window: tuple[datetime, datetime],
     now: datetime,
     historic: bool,
-) -> bool:
-    """Bring the window up to date through the gate, and say whether the provider refused."""
+) -> _Filled:
+    """Bring the window up to date through the gate, and say what it cost."""
     gate = _GATEKEEPER.gate_for(symbol, interval)
 
     async with gate:
         fresh = await store.candles_in(symbol, interval, *window)
 
         if _answers_already(fresh, interval, now, historic=historic):
-            return False
+            return _Filled(failed=False, spent=False)
 
         if gate.asked_within(_TTL[interval], now):
             # Nothing came back the last time either, and the TTL has not passed: asking again
             # would spend a credit to be told the same thing.
-            return False
+            return _Filled(failed=False, spent=False)
 
         if historic:
             asked = window
@@ -279,7 +294,9 @@ async def _fill(
             # the last session there was, which is what the screen needs on a Sunday.
             asked = (now - REALTIME_LOOKBACK, window[1])
 
-        return not await _fetch(store, provider, gate, symbol, interval, asked)
+        answered = await _fetch(store, provider, gate, symbol, interval, asked)
+
+        return _Filled(failed=not answered, spent=True)
 
 
 async def _fetch(
