@@ -8,9 +8,10 @@ SHELL := /bin/bash
 BACKEND  := backend
 FRONTEND := frontend
 COMPOSE  := docker compose
+COMPOSE_NETWORK := origin-acciones_default
 
 .PHONY: help setup install hooks types lint format typecheck test test-fast check build \
-        up down logs ps backup restore dev-backend dev-frontend deploy clean
+        up down logs ps load backup restore dev-backend dev-frontend deploy clean
 
 # --- Help -------------------------------------------------------------------------------------
 
@@ -96,6 +97,19 @@ logs:  ## Sigue los logs de todos los servicios
 
 ps:  ## Estado de los servicios locales
 	$(COMPOSE) ps
+
+# --- Load --------------------------------------------------------------------------------------
+
+# k6 runs from its own image, attached to the compose network, so nothing has to be installed and
+# the target is the backend container rather than a published port. The stack has to be up.
+
+load:  ## Prueba de carga: 50 usuarios sobre el mismo símbolo (Art. II)
+	docker run --rm -i \
+		--network $(COMPOSE_NETWORK) \
+		-v "$(PWD)/load:/load:ro" \
+		-e K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write \
+		-e 'K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),avg,max' \
+		grafana/k6:latest run -o experimental-prometheus-rw /load/quotes.js
 
 # --- Database -------------------------------------------------------------------------------------
 

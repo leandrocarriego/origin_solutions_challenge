@@ -69,6 +69,11 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=3d
       - --storage.tsdb.retention.size=256MB
+      # So `make load` can write its results here and they land next to the application's own
+      # metrics: the run and what the run cost, on the same time axis and in the same tool.
+      # Local only -- production scrapes, it does not receive, and an open write endpoint there
+      # would be somewhere to inject metrics from.
+      - --web.enable-remote-write-receiver
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
