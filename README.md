@@ -12,6 +12,22 @@ detrás de un `docker compose` que levanta el proyecto entero con un comando.
 **En producción: https://origin-solutions-challenge.leandrocarriego.com** — con el proveedor real,
 sin instalar nada.
 
+## Índice
+
+1. [Las tres pantallas](#las-tres-pantallas) — qué es, de un vistazo
+2. [Puesta en marcha](#puesta-en-marcha) — un comando, y [cómo probarlo en cinco minutos](#para-ver-que-funciona-en-cinco-minutos)
+3. [Despliegue](#despliegue) — o no instalar nada y entrar al link
+4. [Modelo de datos](#modelo-de-datos) — las cuatro tablas y por qué cada clave
+5. [Seguridad](#seguridad) — la credencial, la sesión y los datos de cada usuario
+6. [Estructura del código](#estructura-del-código) — el monolito modular y sus tres fronteras
+7. [Frente a los NFR](#frente-a-los-nfr) — [mantenibilidad](#mantenibilidad), [extensibilidad](#extensibilidad) y [escalabilidad](#escalabilidad), cada una con lo que la verifica
+8. [Cómo se desarrolló esto](#cómo-se-desarrolló-esto) — SDD con TDD y DDD, y las tres puertas donde firma un humano
+9. [Tests](#tests) — unitarios, integración, arquitectura, frontend y carga
+10. [Atención a los requerimientos](#atención-a-los-requerimientos) — los 25 requisitos y las ambigüedades declaradas
+11. [Observabilidad](#observabilidad) — logs, métricas, dashboard, errores y [los SLOs](#los-slos)
+12. [Comandos](#comandos) — y [cómo desarrollar sin Docker](#para-desarrollar-sin-docker)
+13. [Variables de entorno](#variables-de-entorno)
+
 ## Las tres pantallas
 
 | Login | Credenciales inválidas |
