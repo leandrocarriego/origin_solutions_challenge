@@ -9,8 +9,8 @@ BACKEND  := backend
 FRONTEND := frontend
 COMPOSE  := docker compose
 
-.PHONY: help install hooks types lint format typecheck test test-fast check build \
-        up down logs ps dev-backend dev-frontend deploy clean
+.PHONY: help setup install hooks types lint format typecheck test test-fast check build \
+        up down logs ps backup restore dev-backend dev-frontend deploy clean
 
 # --- Help -------------------------------------------------------------------------------------
 
@@ -23,6 +23,9 @@ help:  ## Lista los comandos disponibles
 	@echo
 
 # --- Setup --------------------------------------------------------------------------------------
+
+setup:  ## Deja la aplicación andando desde cero: credenciales, contenedores, migraciones y datos
+	@bash scripts/setup.sh
 
 install:  ## Instala las dependencias de ambos proyectos desde sus lockfiles
 	cd $(BACKEND) && uv sync --frozen
@@ -93,6 +96,22 @@ logs:  ## Sigue los logs de todos los servicios
 
 ps:  ## Estado de los servicios locales
 	$(COMPOSE) ps
+
+# --- Database -------------------------------------------------------------------------------------
+
+# The deliverable the brief asks for (REQ-21), generated from the seeded database and never
+# written by hand: seed.py is the source of the demo dataset, and this is a photograph of what it
+# produced. Restoring it is how you check the photograph is not blurred.
+# --no-owner and --no-privileges so the dump restores into a database whose role is not `origin`.
+
+backup:  ## Genera db/backup.sql desde la base local ya sembrada (REQ-21)
+	@mkdir -p db
+	$(COMPOSE) exec -T db pg_dump -U origin -d origin \
+		--clean --if-exists --no-owner --no-privileges > db/backup.sql
+	@echo "db/backup.sql — $$(du -h db/backup.sql | cut -f1)"
+
+restore:  ## Restaura db/backup.sql sobre la base local
+	$(COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U origin -d origin < db/backup.sql
 
 # --- Production ---------------------------------------------------------------------------------
 

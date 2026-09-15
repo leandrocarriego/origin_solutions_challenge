@@ -25,8 +25,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://origin:origin@db:5432/origin
       CORS_ORIGINS: '["http://localhost:5173"]'
       VERSION: dev
-      # Empty on purpose: no events and no network while developing.
-      SENTRY_DSN: ""
+      # Empty unless `make setup` was given a DSN: with none, no events and no network.
+      SENTRY_DSN: ${SENTRY_DSN:-}
       MARKET_DATA_API_KEY: ${TWELVEDATA_API_KEY:-}
       # A known development value, so a fresh clone can `make up` and log in. It is in the
       # repository on purpose and it is the same bargain the demo passwords of seed.py already
@@ -36,8 +36,10 @@ services:
       # Override it here too by putting JWT_SECRET in .env; the command is in .env.example.
       JWT_SECRET: ${JWT_SECRET:-local-development-signing-key-not-a-secret}
       # The fake provider locally, so `make up` reaches no network and spends none of the 800
-      # daily requests. Set it to "twelvedata" with a key to exercise the real one.
-      MARKET_DATA_PROVIDER: fake
+      # daily requests. `make setup` writes "twelvedata" here when it is handed a key, which is
+      # the only thing that separates simulated series from real ones: same application, same
+      # code path, a different implementation behind the same interface (ADR-006).
+      MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-fake}
       # The entrypoint runs `alembic upgrade head` in every environment. Here it also loads the
       # demo dataset, because without data there is nothing to develop against. The
       # seed is idempotent: it runs on every `make up`.
@@ -78,8 +80,11 @@ services:
   grafana:
     image: grafana/grafana:13.2.1
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      # The same credentials as the demo user of the application, so the README hands out one
+      # pair and not two. Grafana only reads these when it creates its database: renaming the
+      # admin of an existing volume is not something an environment variable can do.
+      GF_SECURITY_ADMIN_USER: juan@demo.com
+      GF_SECURITY_ADMIN_PASSWORD: Demo1234*
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_ANALYTICS_REPORTING_ENABLED: "false"

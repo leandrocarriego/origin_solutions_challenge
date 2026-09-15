@@ -36,8 +36,8 @@ class DemoUser:
 # them to whoever evaluates the project, and the seed refuses to run in production precisely
 # because of them. That is what `noqa: S106` is saying, and it is the only place it is said.
 DEMO_USERS = (
-    DemoUser(username="juan", full_name="Juan Perez", password="Demo1234*"),  # noqa: S106
-    DemoUser(username="ana", full_name="Ana Gomez", password="Demo1234*"),  # noqa: S106
+    DemoUser(username="juan@demo.com", full_name="Juan Perez", password="Demo1234*"),  # noqa: S106
+    DemoUser(username="ana@demo.com", full_name="Ana Gomez", password="Demo1234*"),  # noqa: S106
 )
 
 # The three of the brief's own grid, so its screen is reproducible on the first run.

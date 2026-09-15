@@ -3,9 +3,9 @@
  *
  * One row of `COPY.md` and one trap. The text is `Usuario: {nombre completo}`, and
  * `{nombre completo}` is *the name of the person*, not the name they typed to get in: `Usuario:
- * Juan Perez`, never `Usuario: juan`. The demo data keeps the two apart on purpose -- `juan` /
- * `Juan Perez` and `ana` / `Ana Gomez` -- so a screen that paints the username looks right until
- * somebody reads it, and these tests fail on it.
+ * Juan Perez`, never `Usuario: juan@demo.com`. The demo data keeps the two apart on purpose --
+ * `juan@demo.com` / `Juan Perez` and `ana@demo.com` / `Ana Gomez` -- so a screen that paints the
+ * username looks right until somebody reads it, and these tests fail on it.
  *
  * Both users are exercised, and that is the second half of the same trap: with only one of them,
  * a header with `Usuario: Juan Perez` written into it would pass.
