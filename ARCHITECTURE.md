@@ -20,7 +20,8 @@ origin_solutions_challenge/
 ├── agents/               roles y skills del proceso SDD
 ├── infra/                configuración de la observabilidad, local y desplegada (ADR-009)
 │   ├── prometheus/       qué se scrapea
-│   └── grafana/          datasource, provisioning y los dashboards como código
+│   └── grafana/          datasource, provisioning, los dashboards y los SLOs como código
+├── load/                 la prueba de carga (k6), que corre contra el sistema ya levantado
 ├── docker-compose.yml
 └── Makefile
 ```
